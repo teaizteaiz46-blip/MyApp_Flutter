@@ -120,8 +120,8 @@ class _AuthScreenState extends State<AuthScreen>
         password: _passwordLoginController.text.trim(),
       );
 
-      if (mounted) await _mergeCarts();
-      if (mounted) Navigator.of(context).pop();
+      //if (mounted) await _mergeCarts();
+      //if (mounted) Navigator.of(context).pop();
 
     } on AuthException catch (error) {
       // ... (كود معالجة الأخطاء يبقى كما هو) ...

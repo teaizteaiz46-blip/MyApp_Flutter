@@ -55,6 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
+    _controller.pause(); // <-- أضف هذا السطر لإيقاف الفيديو
     // 3. تأكد من التخلص من المتحكم لتجنب تسريب الذاكرة
     _controller.dispose();
     super.dispose();

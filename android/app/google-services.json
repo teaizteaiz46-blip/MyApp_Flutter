@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "700829886116",
+    "project_id": "velin-app-notifications",
+    "storage_bucket": "velin-app-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700829886116:android:caa479ce6c62dd92602831",
+        "android_client_info": {
+          "package_name": "iq.ameerazax.velin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBycpS7GELTEQRBqofx-lHTTKxKeeWl3qM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
