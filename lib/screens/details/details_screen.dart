@@ -8,70 +8,58 @@ class DetailsScreen extends StatelessWidget {
 
   const DetailsScreen({super.key, required this.productId});
 
-  // --- تمت ترقية دالة "إضافة للسلة" بالكامل ---
+  // --- دوال إضافة السلة (_addToCart, _addLocalCart, _addDbCart) تبقى كما هي ---
   Future<void> _addToCart(BuildContext context) async {
     final currentUser = supabase.auth.currentUser;
-
     if (currentUser == null) {
       await _addLocalCart(context);
     } else {
       await _addDbCart(context, currentUser.id);
     }
   }
-
-  // دالة الإضافة للذاكرة المحلية (للزوار)
   Future<void> _addLocalCart(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     final String? cartString = prefs.getString('cartMap');
     final Map<String, dynamic> cartMap = cartString != null
         ? json.decode(cartString) as Map<String, dynamic>
         : {};
-
     final String productIdStr = productId.toString();
-
     if (cartMap.containsKey(productIdStr)) {
       cartMap[productIdStr] = (cartMap[productIdStr] as int) + 1;
     } else {
       cartMap[productIdStr] = 1;
     }
-
     await prefs.setString('cartMap', json.encode(cartMap));
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('تمت الإضافة للسلة! لديك ${cartMap[productIdStr]} من هذا المنتج.'),
         backgroundColor: Colors.green,
+        duration: const Duration(seconds: 1), // جعل الرسالة أقصر
       ),
     );
   }
-
-  // --- دالة "إضافة لقاعدة البيانات" محدثة (أصبحت أذكى) ---
   Future<void> _addDbCart(BuildContext context, String userId) async {
     try {
-      // 1. التحقق من الكمية الحالية
       final existingItem = await supabase
           .from('cart')
           .select('quantity')
           .eq('user_id', userId)
           .eq('product_id', productId)
           .maybeSingle();
-
       int newQuantity = 1;
       if (existingItem != null) {
         newQuantity = (existingItem['quantity'] as int) + 1;
       }
-
-      // 2. تحديث (أو إضافة) المنتج بالكمية الجديدة
       await supabase.from('cart').upsert({
         'user_id': userId,
         'product_id': productId,
         'quantity': newQuantity,
-      }, onConflict: 'user_id, product_id'); // هذا يمنع التكرار
-
+      }, onConflict: 'user_id, product_id');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('تم تحديث الكمية في سلة حسابك!'),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
         ),
       );
     } catch (error) {
@@ -84,91 +72,154 @@ class DetailsScreen extends StatelessWidget {
       );
     }
   }
-  // --- نهاية التعديلات ---
+  // --- نهاية دوال إضافة السلة ---
+
 
   @override
   Widget build(BuildContext context) {
-    // ... (باقي الكود يبقى كما هو) ...
     return FutureBuilder<Map<String, dynamic>>(
       future: supabase
           .from('products')
-          .select()
+          .select() // تأكد من جلب كل الأعمدة اللازمة
           .eq('id', productId)
           .single(),
       builder: (context, snapshot) {
-        // ... (كود التحميل والخطأ) ...
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(appBar: AppBar(), body: const Center(child: CircularProgressIndicator()));
+          return Scaffold(
+            appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0), // AppBar شفاف مؤقت
+            body: const Center(child: CircularProgressIndicator()),
+          );
         }
-        if (snapshot.hasError) {
-          return Scaffold(appBar: AppBar(), body: const Center(child: Text('Error loading product details.')));
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          print('--- DETAILS FETCH ERROR: ${snapshot.error} ---');
+          return Scaffold(
+            appBar: AppBar(title: const Text('خطأ')),
+            body: const Center(child: Text('خطأ في تحميل تفاصيل المنتج.')),
+          );
         }
 
         final product = snapshot.data!;
-        // ... (كود استخراج البيانات) ...
-        final List<dynamic> imageList = product['image_url'] ?? [];
-        final String imageUrl =
-        imageList.isNotEmpty ? imageList.first as String : '';
-        final String name = product['name'] ?? 'No Name';
-        final double price = (product['price'] ?? 0.0).toDouble();
-        final String description =
-            product['description'] ?? 'No description available.';
 
+        // استخراج البيانات
+        final List<dynamic> imageList = product['image_url'] ?? [];
+        final String imageUrl = imageList.isNotEmpty ? imageList.first as String : '';
+        final String name = product['name'] ?? 'اسم المنتج غير متوفر';
+        final double price = (product['price'] ?? 0.0).toDouble();
+        final String description = product['description'] ?? 'لا يتوفر وصف لهذا المنتج.';
+
+        // --- بناء الواجهة الجديدة ---
         return Scaffold(
-          appBar: AppBar(title: Text(name)),
-          // ... (كود bottomNavigationBar) ...
+          // --- AppBar الجديد ---
+          appBar: AppBar(
+            backgroundColor: Colors.white, // أو شفاف حسب رغبتك
+            elevation: 0, // إزالة الظل
+            leading: IconButton( // زر الرجوع
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            actions: [ // الأيقونات على اليمين
+              IconButton(
+                icon: const Icon(Icons.favorite_border, color: Colors.black), // أيقونة القلب
+                onPressed: () {
+                  // TODO: إضافة منطق إضافة/إزالة من المفضلة
+                },
+              ),
+            ],
+          ),
+          // --- زر الإضافة للسلة السفلي ---
           bottomNavigationBar: Container(
-            padding: const EdgeInsets.all(20),
-            child: ElevatedButton(
-              onPressed: () => _addToCart(context), // <--- استدعاء الدالة المحدثة
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.95), // لون أبيض شبه شفاف
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                ),
+              ],
+              // جعل الحواف العلوية دائرية (اختياري)
+              // borderRadius: const BorderRadius.only(
+              //   topLeft: Radius.circular(20),
+              //   topRight: Radius.circular(20),
+              // ),
+            ),
+            child: ElevatedButton.icon( // استخدام ElevatedButton.icon لإضافة الأيقونة
+              onPressed: () => _addToCart(context),
+              icon: const Icon(Icons.add_shopping_cart_outlined, color: Colors.white),
+              label: const Text(
+                'أضف إلى السلة',
+                style: TextStyle(fontSize: 20, color: Colors.white),
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: Colors.orange, // تغيير اللون إلى بنفسجي
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
-              ),
-              child: const Text(
-                'Add to Cart',
-                style: TextStyle(fontSize: 18, color: Colors.white),
+                minimumSize: const Size(double.infinity, 50), // جعل الزر بعرض الشاشة
               ),
             ),
           ),
-          // ... (كود body) ...
-          body: SingleChildScrollView(
+          // --- محتوى الشاشة (الصورة والتفاصيل) ---
+          body: SingleChildScrollView( // جعل المحتوى قابلاً للتمرير
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start, // محاذاة النصوص لليمين (للعربية)
               children: [
-                // ... (واجهة عرض المنتج) ...
-                Container(
-                  height: 300,
-                  width: double.infinity,
-                  color: Colors.grey[200],
-                  child: imageUrl.isEmpty
-                      ? const Icon(Icons.shopping_cart, color: Colors.grey, size: 100)
-                      : Image.network(imageUrl, fit: BoxFit.cover),
+                // --- صورة المنتج (بحجم أكبر) ---
+                AspectRatio(
+                  aspectRatio: 1.1, // تعديل النسبة لتناسب التصميم (اجعلها أعلى قليلاً)
+                  child: Container(
+                    color: Colors.grey[200], // لون للخلفية أثناء التحميل
+                    child: imageUrl.isEmpty
+                        ? const Icon(Icons.hide_image_outlined, color: Colors.grey, size: 100)
+                        : Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.broken_image, color: Colors.grey, size: 100);
+                      },
+                    ),
+                  ),
                 ),
+                // --- التفاصيل (اسم، سعر، وصف) ---
                 Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20.0), // إضافة حشوة حول التفاصيل
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
+                      // الاسم
                       Text(
-                        '${price.toStringAsFixed(0)} د.ع', // <-- التغيير هنا
+                        name,
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 24, // خط أكبر
                           fontWeight: FontWeight.bold,
-                          color: Colors.orange,
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      const Divider(height: 1),
-                      const SizedBox(height: 20),
-                      const Text('Description', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
-                      Text(description, style: const TextStyle(fontSize: 16, height: 1.5)),
+                      // السعر
+                      Text(
+                        '${price.toStringAsFixed(0)} د.ع',
+                        style: TextStyle(
+                          fontSize: 20, // خط متوسط
+                          fontWeight: FontWeight.w600, // وزن أثقل قليلاً
+                          color: Colors.orange, // تغيير اللون
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      // الوصف
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 15, // خط أصغر قليلاً
+                          color: Colors.grey[700], // لون أغمق قليلاً للوصف
+                          height: 1.5, // تباعد الأسطر
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -180,5 +231,3 @@ class DetailsScreen extends StatelessWidget {
     );
   }
 }
-
-

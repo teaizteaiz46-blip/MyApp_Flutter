@@ -13,17 +13,19 @@ class ProfileScreen extends StatelessWidget {
     return StreamBuilder<AuthState>(
       stream: supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
-
+        print('--- ProfileScreen Builder ---'); // <-- أضف هذا
         // التحقق من وجود جلسة (session) مستخدم حالية
         final session = supabase.auth.currentSession;
-
+        print('Current session: $session'); // <-- أضف هذا
         if (session == null) {
+          print('Showing AuthScreen (User is null)'); // <-- أضف هذا
           // --- 1. إذا كان المستخدم "زائرًا" ---
           // اعرض له شاشة تسجيل الدخول وإنشاء الحساب
           return const AuthScreen();
         } else {
           // --- 2. إذا كان المستخدم "مسجلًا" ---
           // اعرض له شاشة حسابه وزر تسجيل الخروج
+          print('Showing AccountView (User found)'); // <-- أضف هذا
           return AccountView(user: session.user);
         }
       },

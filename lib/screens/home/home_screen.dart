@@ -5,7 +5,10 @@ import 'components/home_product_grid.dart';
 // استيراد الشاشات لنظام التنقل السفلي
 import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
+import '../categories/all_categories_screen.dart'; // <-- أضف هذا
+import '../offers/offers_screen.dart';
 
+// <-- أضف هذا`1`
 // =================================================================
 // ===== 1. الشاشة الرئيسية (Home Screen) - تحمل الـ STATE =============
 // =================================================================
@@ -28,8 +31,9 @@ class _HomeScreenState extends State<HomeScreen> {
   static final List<Widget> _screens = <Widget>[
     const ProfileScreen(),      // 0: الحساب
     const CartScreen(),         // 1: العربة
-    const Text('شاشة العروض'),   // 2: العروض (مؤقت)
-    const Text('شاشة الفئات'),   // 3: الفئات (مؤقت)
+    const OffersScreen(),  // 2: العروض (مؤقت)
+    //const Text('شاشة الفئات'),   // 3: الفئات (مؤقت)
+    const AllCategoriesScreen(),
     // هنا نستخدم HomeScreenContent الذي سيحمل المفتاح
     const Text('الرئيسية'), // وضع Text مؤقت لأن المحتوى سيعرض عبر الـ Builder
   ];
@@ -122,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final currentSelectedId = _selectedCategoryId;
 
     final List<Map<String, dynamic>> tabsData = [
-      {'id': 0, 'name': 'الكل', 'image_url': null},
+      {'id': 0, 'name': 'الكل', 'image_url':'assets/images/all_category.png'},
       ...categories
     ];
 
@@ -148,18 +152,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: isSelected ? Colors.orange.shade200 : Colors.grey[200],
-                    backgroundImage: category['image_url'] != null
-                        ? NetworkImage(category['image_url']!)
-                        : null,
-                    child: category['image_url'] == null
-                        ? Icon(Icons.category, color: isSelected ? Colors.orange : Colors.grey)
-                        : null,
+
+                    // --- هذا هو الكود الصحيح للتعامل مع الصور ---
+                    backgroundImage: (category['image_url'] != null && category['image_url'].isNotEmpty)
+                        ? (category['image_url'].startsWith('http')
+                        ? NetworkImage(category['image_url']!) // للروابط الخارجية
+                        : AssetImage(category['image_url']!) // للملفات المحلية
+                    )
+                        : null, // لا توجد صورة
+                    child: (category['image_url'] == null || category['image_url'].isEmpty)
+                        ? Icon(Icons.category, color: isSelected ? Colors.orange : Colors.grey) // أيقونة افتراضية
+                        : null, // لا تظهر الأيقونة إذا كانت هناك صورة
+                    // --- نهاية الكود الصحيح ---
+
                   ),
                   const SizedBox(height: 5),
                   Text(
                     category['name'],
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: isSelected ? Colors.orange : Colors.black,
                     ),
@@ -234,6 +245,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ElevatedButton(
               onPressed: () {
                 // هنا كود الانتقال لصفحة العرض الخاص
+                // --- بداية الكود الجديد ---
+                // الانتقال إلى شاشة العروض
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const OffersScreen()),
+                );
+                // --- نهاية الكود الجديد ---
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black, // لون الزر أسود

@@ -7,10 +7,17 @@ import '../../details/details_screen.dart';
 class HomeProductGrid extends StatelessWidget {
   // 1. تغيير اسم المتغير إلى categoryId واستقبال رقم
   final int categoryId;
-  const HomeProductGrid({super.key, required this.categoryId});
+  final Future<List<Map<String, dynamic>>>? productsFuture;
+  const HomeProductGrid({super.key, required this.categoryId, this.productsFuture,});
 
   // 2. تعديل دالة جلب المنتجات لتستخدم الفلتر
   Future<List<Map<String, dynamic>>> _fetchProducts() {
+    //////////////
+    if (productsFuture != null) {
+      return productsFuture!;
+    }
+
+    //////////////
     // إنشاء الاستعلام الأساسي
     var query = supabase.from('products').select();
 

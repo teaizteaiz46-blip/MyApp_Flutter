@@ -1,7 +1,10 @@
-import 'dart:convert'; // لاستخدام json
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // لجلب السلة
-import '../../main.dart'; // لاستخدام supabase
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // <-- استيراد إضافي
+import '../../main.dart';
+import '../../screens/home/home_screen.dart';
+
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -16,7 +19,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // متغير لتتبع حالة التحميل
   bool _isLoading = false;
 
   @override
@@ -27,23 +29,53 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  // --- تعديل دالة "إرسال الطلب" بالكامل ---
+  // --- دالة "إرسال الطلب" محدثة بالكامل ---
   Future<void> _submitOrder() async {
-    // 1. التحقق من أن الحقول مملوءة
     if (!_formKey.currentState!.validate()) {
-      return; // إذا كانت الحقول فارغة، لا تكمل
+      return;
     }
 
-    // إظهار علامة التحميل
     setState(() => _isLoading = true);
 
     try {
-      // 2. جلب السلة من الذاكرة
-      final prefs = await SharedPreferences.getInstance();
-      final String? cartString = prefs.getString('cartMap');
+      // متغير لتخزين خريطة السلة
+      Map<String, dynamic>? cartMap;
 
-      if (cartString == null || cartString.isEmpty) {
-        // لا يوجد شيء في السلة
+      // 1. التحقق من حالة المستخدم وجلب السلة الصحيحة
+      final currentUser = supabase.auth.currentUser;
+      final prefs = await SharedPreferences.getInstance();
+
+      if (currentUser != null) {
+        // --- المستخدم مسجل: جلب السلة من Supabase ---
+        final userId = currentUser.id;
+        final cartData = await supabase
+            .from('cart')
+            .select('product_id, quantity')
+            .eq('user_id', userId);
+
+        if (cartData.isEmpty) {
+          // لا يوجد شيء في سلة قاعدة البيانات
+          cartMap = null;
+        } else {
+          // تحويل بيانات قاعدة البيانات إلى شكل الخريطة المطلوب
+          cartMap = {
+            for (var item in cartData)
+              item['product_id'].toString(): item['quantity']
+          };
+        }
+      } else {
+        // --- المستخدم زائر: جلب السلة من الذاكرة المحلية ---
+        final String? cartString = prefs.getString('cartMap');
+        if (cartString != null && cartString.isNotEmpty) {
+          cartMap = json.decode(cartString);
+        } else {
+          // لا يوجد شيء في السلة المحلية
+          cartMap = null;
+        }
+      }
+
+      // 2. التحقق مما إذا كانت السلة فارغة بالفعل
+      if (cartMap == null || cartMap.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('سلة المشتريات فارغة!'), backgroundColor: Colors.red),
         );
@@ -51,20 +83,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      final Map<String, dynamic> cartMap = json.decode(cartString);
-
-      // 3. جلب بيانات العميل من الحقول
+      // 3. جلب بيانات العميل (تبقى كما هي)
       final String name = _nameController.text;
       final String phone = _phoneController.text;
       final String address = _addressController.text;
 
-      // 4. إرسال الطلب إلى Supabase
-      // 4. إرسال الطلب إلى Supabase
-
-// جلب المستخدم الحالي
-      final currentUser = supabase.auth.currentUser;
-
-// إنشاء خريطة البيانات
+      // 4. إرسال الطلب إلى Supabase (تبقى كما هي مع إضافة user_id)
       final Map<String, dynamic> orderData = {
         'customer_name': name,
         'customer_phone': phone,
@@ -72,29 +96,44 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'cart_items': cartMap,
         'status': 'قيد المراجعة'
       };
-
-// إذا كان المستخدم مسجلاً، أضف الـ ID الخاص به
       if (currentUser != null) {
         orderData['user_id'] = currentUser.id;
       }
-
-// إرسال البيانات
       await supabase.from('orders').insert(orderData);
 
-      // 5. مسح السلة المحلية بعد نجاح الطلب
-      await prefs.remove('cartMap');
+      // 5. مسح السلة الصحيحة بعد نجاح الطلب
+      if (currentUser != null) {
+        // مسح سلة قاعدة البيانات للمستخدم المسجل
+        await supabase.from('cart').delete().eq('user_id', currentUser.id);
+      } else {
+        // مسح السلة المحلية للزائر
+        await prefs.remove('cartMap');
+      }
+////////////////////////////////////////
+      // 6. إظهار رسالة نجاح والانتقال (تبقى كما هي)
+      if (mounted) {
+        // --- بداية التعديل ---
+        // الانتقال إلى الشاشة الرئيسية وإزالة كل ما قبلها
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (Route<dynamic> route) => false, // false يزيل كل المسارات السابقة
+        );
+        // --- نهاية التعديل ---
 
-      // 6. إظهار رسالة نجاح
-      Navigator.of(context).popUntil((route) => route.isFirst); // العودة للشاشة الرئيسية
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تم إرسال طلبك بنجاح!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
+        // إظهار الرسالة (يفضل إظهارها بعد الانتقال بقليل أو في HomeScreen)
+        // لإظهارها فورًا، يمكن تأخيرها قليلاً
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم إرسال طلبك بنجاح!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        });
+      }
+////////////////////////////////////////////////////
     } catch (error) {
-      // 7. التعامل مع أي خطأ قد يحدث
+      // 7. التعامل مع الأخطاء (يبقى كما هو)
       setState(() => _isLoading = false);
       print('--- SUBMIT ORDER ERROR: $error ---');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -104,10 +143,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       );
     }
+    // تأكد من إيقاف التحميل حتى لو لم يكن mounted (نادر الحدوث هنا)
+    finally {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      } else if (!mounted && _isLoading) {
+        _isLoading = false; // Just update the variable if not mounted
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    //
+    // ... واجهة المستخدم (Scaffold, Form, TextFields, Button) تبقى كما هي تمامًا ...
+    //
     return Scaffold(
       appBar: AppBar(
         title: const Text('إتمام الطلب'),
@@ -117,8 +167,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
         child: ElevatedButton(
-          // التحقق من حالة التحميل
-          onPressed: _isLoading ? null : _submitOrder, // تعطيل الزر أثناء التحميل
+          onPressed: _isLoading ? null : _submitOrder,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
             padding: const EdgeInsets.symmetric(vertical: 15),
@@ -126,7 +175,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               borderRadius: BorderRadius.circular(15),
             ),
           ),
-          // إظهار علامة تحميل أو النص
           child: _isLoading
               ? const CircularProgressIndicator(color: Colors.white)
               : const Text(
@@ -142,61 +190,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ... (باقي كود الحقول يبقى كما هو) ...
               const Text(
                 'معلومات التوصيل',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'الاسم الكامل',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الرجاء إدخال الاسم';
-                  }
-                  return null;
-                },
+                decoration: const InputDecoration(labelText: 'الاسم الكامل', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
+                validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال الاسم' : null,
               ),
               const SizedBox(height: 20),
-
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'رقم الهاتف',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
-                ),
+                decoration: const InputDecoration(labelText: 'رقم الهاتف', border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone)),
                 keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الرجاء إدخال رقم الهاتف';
-                  }
-                  return null;
-                },
+                validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال رقم الهاتف' : null,
               ),
               const SizedBox(height: 20),
-
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'العنوان بالتفصيل',
-                  hintText: 'مثال: المدينة، الحي، الشارع، رقم المنزل',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on),
-                ),
+                decoration: const InputDecoration(labelText: 'العنوان بالتفصيل', hintText: 'مثال: المدينة، الحي، الشارع، رقم المنزل', border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on)),
                 maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الرجاء إدخال العنوان';
-                  }
-                  return null;
-                },
+                validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال العنوان' : null,
               ),
             ],
           ),
