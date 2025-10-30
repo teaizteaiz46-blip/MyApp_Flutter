@@ -33,11 +33,8 @@ Future<void> main() async { // ٢. تحويل الدالة إلى async
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    print('User granted permission');
   } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
-    print('User granted provisional permission');
   } else {
-    print('User declined or has not accepted permission');
   }
   // --- نهاية طلب الإذن ---
 /////////////////////////
@@ -48,10 +45,10 @@ Future<void> main() async { // ٢. تحويل الدالة إلى async
 
     String? fcmToken = await messaging.getToken();
     if (fcmToken != null) {
-      print("Firebase Messaging Token: $fcmToken");
+      //print("Firebase Messaging Token: $fcmToken");
       // TODO: حفظ هذا التوكن في Supabase لاحقًا
     } else {
-      print("Failed to get FCM token.");
+      //print("Failed to get FCM token.");
     }
 
   }
@@ -61,11 +58,11 @@ Future<void> main() async { // ٢. تحويل الدالة إلى async
 
   // 1. التعامل مع الإشعارات والتطبيق في المقدمة (Foreground)
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    print('Got a message whilst in the foreground!');
-    print('Message data: ${message.data}');
+    //print('Got a message whilst in the foreground!');
+    //print('Message data: ${message.data}');
 
     if (message.notification != null) {
-      print('Message also contained a notification: ${message.notification}');
+      //print('Message also contained a notification: ${message.notification}');
       // يمكنك هنا عرض تنبيه داخل التطبيق (in-app notification) باستخدام
       // حزمة مثل flutter_local_notifications إذا أردت،
       // لأن الإشعارات لا تظهر تلقائيًا في شريط الحالة عندما يكون التطبيق مفتوحًا.
@@ -74,8 +71,8 @@ Future<void> main() async { // ٢. تحويل الدالة إلى async
 
   // 2. التعامل مع فتح التطبيق من إشعار (عندما يكون التطبيق في الخلفية أو مغلقًا)
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    print('A new onMessageOpenedApp event was published!');
-    print('Message data: ${message.data}');
+    //print('A new onMessageOpenedApp event was published!');
+    //print('Message data: ${message.data}');
     // يمكنك هنا توجيه المستخدم إلى شاشة معينة بناءً على بيانات الإشعار
     // مثال: إذا كان الإشعار عن طلب جديد، افتح شاشة الطلبات
     // Navigator.pushNamed(context, '/orders'); // (تحتاج لإعداد Routes)
@@ -110,7 +107,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF5F5F5),
         fontFamily: 'Muli',
         appBarTheme: const AppBarTheme(
-          color: Colors.white,
+          //color: Colors.white,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.black),
           titleTextStyle: TextStyle(color: Colors.black, fontSize: 18),

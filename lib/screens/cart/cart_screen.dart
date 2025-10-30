@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart';
 import '../checkout/checkout_screen.dart'; // <-- أضف هذا
 
@@ -104,38 +103,57 @@ class _CartScreenState extends State<CartScreen> {
 
   // --- دالة حذف "ذكية" ---
   Future<void> _removeFromCart(int id, bool isLocal) async {
-    if (isLocal) {
-      // --- حذف من الذاكرة المحلية (زائر) ---
-      final prefs = await SharedPreferences.getInstance();
-      final String? cartString = prefs.getString('cartMap');
-      final Map<String, dynamic> cartMap = json.decode(cartString!);
+    try { // <-- إضافة try/catch احتياطًا
+      if (isLocal) {
+        // --- حذف من الذاكرة المحلية (زائر) ---
+        final prefs = await SharedPreferences.getInstance();
+        final String? cartString = prefs.getString('cartMap');
 
-      cartMap.remove(id.toString());
-      await prefs.setString('cartMap', json.encode(cartMap));
+        // إضافة تحقق أن cartString ليس null قبل استخدامه
+        if (cartString != null) {
+          final Map<String, dynamic> cartMap = json.decode(cartString);
+          cartMap.remove(id.toString());
+          await prefs.setString('cartMap', json.encode(cartMap));
+        }
 
-    } else {
-      // --- حذف من قاعدة البيانات (مسجل) ---
-      // هنا "id" هو معرف السلة (cart_id)
-      await supabase.from('cart').delete().eq('id', id);
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم حذف المنتج من السلة.'),
-        backgroundColor: Colors.red,
-      ),
-    );
-
-    // تحديث الواجهة لإعادة تحميل السلة المناسبة
-    setState(() {
-      if (_isLoggedIn) {
-        _cartProductsFuture = _loadDbCart();
       } else {
-        _cartProductsFuture = _loadLocalCart();
+        // --- حذف من قاعدة البيانات (مسجل) ---
+        // هنا "id" هو معرف السلة (cart_id)
+        await supabase.from('cart').delete().eq('id', id);
       }
-    });
-  }
 
+      // --- الحل: ---
+      // التحقق من "mounted" قبل استخدام context و setState
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم حذف المنتج من السلة.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        // تحديث الواجهة لإعادة تحميل السلة المناسبة
+        setState(() {
+          if (_isLoggedIn) {
+            _cartProductsFuture = _loadDbCart();
+          } else {
+            _cartProductsFuture = _loadLocalCart();
+          }
+        });
+      }
+    } catch (error) {
+      // التعامل مع أي خطأ قد يحدث أثناء الحذف
+      //print('--- REMOVE FROM CART ERROR: $error ---');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('خطأ أثناء حذف المنتج.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -182,7 +200,6 @@ class _CartScreenState extends State<CartScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            print('--- CART LOAD ERROR: ${snapshot.error} ---');
             return const Center(child: Text('خطأ في تحميل السلة.'));
           }
 

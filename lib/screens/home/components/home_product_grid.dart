@@ -42,7 +42,7 @@ class HomeProductGrid extends StatelessWidget {
           );
         }
         if (snapshot.hasError) {
-          print('--- PRODUCT GRID ERROR: ${snapshot.error} ---');
+          //print('--- PRODUCT GRID ERROR: ${snapshot.error} ---');
           return const SliverFillRemaining(
             child: Center(child: Text('خطأ في جلب المنتجات')),
           );

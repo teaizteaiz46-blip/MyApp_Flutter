@@ -43,9 +43,9 @@ class CategorySection extends StatelessWidget {
         // ٦. في حالة حدوث خطأ أثناء جلب البيانات
         if (snapshot.hasError) {
           // طباعة الخطأ في نافذة الـ Run
-          print('--- SUPABASE ERROR ---');
-          print(snapshot.error);
-          print('----------------------');
+          //print('--- SUPABASE ERROR ---');
+          //print(snapshot.error);
+          //print('----------------------');
           return const Center(child: Text('An error occurred!'));
         }
 /////////////////////////////////////////////////////////////////////

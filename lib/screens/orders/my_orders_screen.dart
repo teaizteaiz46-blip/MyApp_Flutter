@@ -27,7 +27,7 @@ class MyOrdersScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            print('--- MY ORDERS ERROR: ${snapshot.error} ---');
+            //print('--- MY ORDERS ERROR: ${snapshot.error} ---');
             return const Center(child: Text('خطأ في جلب الطلبات'));
           }
 

@@ -32,7 +32,7 @@ class OffersScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            print('--- OFFERS FETCH ERROR: ${snapshot.error} ---');
+           // print('--- OFFERS FETCH ERROR: ${snapshot.error} ---');
             return const Center(child: Text('خطأ في جلب العروض'));
           }
 
