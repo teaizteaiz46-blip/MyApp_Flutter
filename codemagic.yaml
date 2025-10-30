@@ -5,7 +5,7 @@ workflows:
     environment:
       # تحديد أحدث إصدار من Flutter لضمان التوافق مع Dart SDK ^3.9.2
       # ملاحظة: يمكنك تغيير 'latest' إلى رقم محدد مثل '3.35.7' إذا فشل 'latest'
-      flutter: latest 
+      flutter: 3.35.7
       
       groups:
         - supabase_keys # التأكد من تضمين مجموعة المفاتيح السرية
