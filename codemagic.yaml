@@ -3,7 +3,7 @@ workflows:
     name: iOS Build
 
     environment:
-      flutter: latest 
+      flutter: 3.35.7 
       groups:
         - supabase_keys
         
