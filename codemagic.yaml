@@ -1,6 +1,16 @@
 workflows:
-   ios-build:
-       name: iOS Build
-          environment:
-              groups:
-                  - supabase_keys
+  ios-build:
+    name: iOS Build
+    environment:
+      groups:
+        - supabase_keys
+        
+    # تحتاج لإضافة بقية خطوات البناء والتوقيع هنا
+    scripts:
+      - name: Install dependencies
+        script: flutter pub get
+        
+    # يجب عليك التأكد من وجود قسم التوقيع (Code Signing)
+    # وإلا سيفشل البناء لاحقاً.
+    # publishing: 
+    #   ios_code_signing: ...
