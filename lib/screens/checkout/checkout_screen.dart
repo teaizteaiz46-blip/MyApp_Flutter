@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // <-- استيراد إضافي
 import '../../main.dart';
 import '../../screens/home/home_screen.dart';
 
@@ -30,12 +29,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   // --- دالة "إرسال الطلب" محدثة بالكامل ---
+// --- دالة "إرسال الطلب" محدثة بالكامل ---
   Future<void> _submitOrder() async {
+    // 1. التحقق من أن الحقول مملوءة
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    setState(() => _isLoading = true);
+    // التحقق من "mounted" قبل استخدام setState
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       // متغير لتخزين خريطة السلة
@@ -43,21 +47,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       // 1. التحقق من حالة المستخدم وجلب السلة الصحيحة
       final currentUser = supabase.auth.currentUser;
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance(); // <-- فجوة 1
 
       if (currentUser != null) {
         // --- المستخدم مسجل: جلب السلة من Supabase ---
         final userId = currentUser.id;
-        final cartData = await supabase
+        final cartData = await supabase // <-- فجوة 2
             .from('cart')
             .select('product_id, quantity')
             .eq('user_id', userId);
 
         if (cartData.isEmpty) {
-          // لا يوجد شيء في سلة قاعدة البيانات
           cartMap = null;
         } else {
-          // تحويل بيانات قاعدة البيانات إلى شكل الخريطة المطلوب
           cartMap = {
             for (var item in cartData)
               item['product_id'].toString(): item['quantity']
@@ -69,17 +71,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (cartString != null && cartString.isNotEmpty) {
           cartMap = json.decode(cartString);
         } else {
-          // لا يوجد شيء في السلة المحلية
           cartMap = null;
         }
       }
 
       // 2. التحقق مما إذا كانت السلة فارغة بالفعل
       if (cartMap == null || cartMap.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('سلة المشتريات فارغة!'), backgroundColor: Colors.red),
-        );
-        setState(() => _isLoading = false);
+
+        // --- الحل 1: إضافة فحص "mounted" هنا ---
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('سلة المشتريات فارغة!'), backgroundColor: Colors.red),
+          );
+          setState(() => _isLoading = false);
+        }
         return;
       }
 
@@ -99,29 +104,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (currentUser != null) {
         orderData['user_id'] = currentUser.id;
       }
-      await supabase.from('orders').insert(orderData);
+      await supabase.from('orders').insert(orderData); // <-- فجوة 3
 
       // 5. مسح السلة الصحيحة بعد نجاح الطلب
       if (currentUser != null) {
-        // مسح سلة قاعدة البيانات للمستخدم المسجل
-        await supabase.from('cart').delete().eq('user_id', currentUser.id);
+        await supabase.from('cart').delete().eq('user_id', currentUser.id); // <-- فجوة 4
       } else {
-        // مسح السلة المحلية للزائر
-        await prefs.remove('cartMap');
+        await prefs.remove('cartMap'); // <-- فجوة 5
       }
-////////////////////////////////////////
-      // 6. إظهار رسالة نجاح والانتقال (تبقى كما هي)
+
+      // 6. إظهار رسالة نجاح والانتقال (الكود هنا صحيح لأنك أضفت "if (mounted)")
       if (mounted) {
-        // --- بداية التعديل ---
-        // الانتقال إلى الشاشة الرئيسية وإزالة كل ما قبلها
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (Route<dynamic> route) => false, // false يزيل كل المسارات السابقة
+              (Route<dynamic> route) => false,
         );
-        // --- نهاية التعديل ---
 
-        // إظهار الرسالة (يفضل إظهارها بعد الانتقال بقليل أو في HomeScreen)
-        // لإظهارها فورًا، يمكن تأخيرها قليلاً
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -131,28 +129,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           );
         });
       }
-////////////////////////////////////////////////////
     } catch (error) {
-      // 7. التعامل مع الأخطاء (يبقى كما هو)
-      setState(() => _isLoading = false);
-      print('--- SUBMIT ORDER ERROR: $error ---');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('حدث خطأ أثناء إرسال الطلب. الرجاء المحاولة مرة أخرى.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // 7. التعامل مع الأخطاء
+
+      // --- الحل 2: إضافة فحص "mounted" هنا ---
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('حدث خطأ أثناء إرسال الطلب. الرجاء المحاولة مرة أخرى.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
-    // تأكد من إيقاف التحميل حتى لو لم يكن mounted (نادر الحدوث هنا)
+    // تأكد من إيقاف التحميل حتى لو لم يكن mounted
     finally {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
       } else if (!mounted && _isLoading) {
-        _isLoading = false; // Just update the variable if not mounted
+        _isLoading = false;
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     //

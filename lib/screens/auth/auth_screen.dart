@@ -103,7 +103,7 @@ class _AuthScreenState extends State<AuthScreen>
       }
 
     } catch (error) {
-      print('--- CART MERGE ERROR: $error ---');
+      //print('--- CART MERGE ERROR: $error ---');
     }
   }
   // --- نهاية دالة الدمج ---

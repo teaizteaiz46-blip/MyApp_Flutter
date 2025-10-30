@@ -19,7 +19,7 @@ class PopularProducts extends StatelessWidget {
         }
         // حالة الخطأ
         if (snapshot.hasError) {
-          print('--- PRODUCT FETCH ERROR: ${snapshot.error} ---');
+          //print('--- PRODUCT FETCH ERROR: ${snapshot.error} ---');
           return const Center(child: Text('Error loading products'));
         }
         // حالة عدم وجود بيانات
