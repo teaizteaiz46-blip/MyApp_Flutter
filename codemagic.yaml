@@ -1,1 +1,5 @@
-
+workflows:
+   ios-build:
+      environment:
+          groups:
+             - supabase_keys
