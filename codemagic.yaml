@@ -3,29 +3,19 @@ workflows:
     name: iOS Build
 
     environment:
-      # تحديد أحدث إصدار من Flutter لضمان التوافق مع Dart SDK ^3.9.2
-      # ملاحظة: يمكنك تغيير 'latest' إلى رقم محدد مثل '3.35.7' إذا فشل 'latest'
-      flutter: 3.35.7
-      
+      flutter: latest 
       groups:
-        - supabase_keys # التأكد من تضمين مجموعة المفاتيح السرية
-
+        - supabase_keys
+        
     scripts:
-      # يتم تنفيذ هذا السكريبت لتثبيت حزم Flutter
       - name: Install dependencies
         script: flutter pub get
         
-      # يمكنك إضافة سكريبت البناء الفعلي هنا
       - name: Build iOS
         script: |
+          # تأكد أن هذا الأمر لا يزال موجوداً
           flutter build ios --release --no-codesign 
           
-    # يجب أن تتأكد من أن لديك إعدادات التوقيع البرمجي (Code Signing)
-    # وإلا سيفشل البروجكت في التجميع. هذا الجزء يعتمد على إعداداتك في Codemagic U
-      # هذا القسم مسؤول عن توزيع التطبيق وتوقيعه
-      # إذا كنت تستخدم التوقيع اليدوي، يجب أن تضاف هنا
-      # إذا كنت تستخدم التوقيع التلقائي من Codemagic، قد يكون هذا القسم فارغًا أو يحدد التوزيع فقط
-      
-      # مثال للتوزيع على Firebase App Distribution
-      # firebase_app_distribution:
-      #   ...
+    # القسم الجديد الذي يجب إضافته
+    artifacts:
+      - build/ios/iphoneos/Runner.ipa
