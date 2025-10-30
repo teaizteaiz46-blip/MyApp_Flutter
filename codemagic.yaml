@@ -1,0 +1,18 @@
+# ... (أقسام الإعدادات الأخرى، مثل environment و artifacts)
+
+workflows:
+  my-build-workflow:
+    # ... (إعدادات سابقة)
+    scripts:
+      - name: Set up code signing (Pre-build script)
+        # هذا هو السكربت الإجباري الذي يحل مشكلة التوقيع
+        script: |
+          xcode-project manage-signing --project "ios/Runner.xcodeproj" \
+          --target "Runner" \
+          --profile-type "ios-app-store" \
+          --manual-code-signing false
+
+      - name: Flutter build iOS
+        script: |
+          # هنا ستجد أمر البناء الفعلي
+          flutter build ipa --release [..بقية وسائط البناء الخاصة بك..]
