@@ -368,7 +368,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapprun;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ameeralali.myapprun;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -382,11 +382,12 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				"CODE_SIGN_STYLE" = Manual;
                 "DEVELOPMENT_TEAM" = BZXJC6LPB8;
+                "PROVISIONING_PROFILE" = "70a316a7-09d2-40a2-9f3b-65b162f442b9"; // UUID لملف التوفير App Store
                 "PROVISIONING_PROFILE_SPECIFIER" = "MyAppRunAppID_ios_app_store_1761796431";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapprun.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ameeralali.myapprun.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -401,11 +402,12 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				"CODE_SIGN_STYLE" = Manual;
                 "DEVELOPMENT_TEAM" = BZXJC6LPB8;
+                "PROVISIONING_PROFILE" = "70a316a7-09d2-40a2-9f3b-65b162f442b9"; // UUID لملف التوفير App Store
                 "PROVISIONING_PROFILE_SPECIFIER" = "MyAppRunAppID_ios_app_store_1761796431";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapprun.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ameeralali.myapprun.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
@@ -418,11 +420,12 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				"CODE_SIGN_STYLE" = Manual;
                 "DEVELOPMENT_TEAM" = BZXJC6LPB8;
+                "PROVISIONING_PROFILE" = "70a316a7-09d2-40a2-9f3b-65b162f442b9"; // UUID لملف التوفير App Store
                 "PROVISIONING_PROFILE_SPECIFIER" = "MyAppRunAppID_ios_app_store_1761796431";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapprun.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ameeralali.myapprun.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
@@ -553,7 +556,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapprun;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ameeralali.myapprun;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -575,7 +578,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapprun;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ameeralali.myapprun;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
