@@ -19,3 +19,4 @@ workflows:
     # القسم الجديد الذي يجب إضافته
     artifacts:
       - build/ios/iphoneos/Runner.ipa
+      - $CM_EXPORT_DIR/**/*.ipa
