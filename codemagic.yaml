@@ -7,7 +7,7 @@ workflows:
       groups:
         - supabase_keys
         
-    scripts:
+    
     scripts:
       # 1. السكريبت الحاسم لإنشاء ملف Firebase (Pre-build)
       - name: Create Firebase Config file
