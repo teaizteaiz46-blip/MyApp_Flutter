@@ -6,7 +6,7 @@ workflows:
       flutter: 3.35.7 
       groups:
         - supabase_keys
-        
+        - Firebase_keys
     
     scripts:
       # 1. السكريبت الحاسم لإنشاء ملف Firebase (Pre-build)
