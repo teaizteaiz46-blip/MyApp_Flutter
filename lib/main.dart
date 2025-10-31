@@ -3,7 +3,7 @@ import 'screens/home/home_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // ١. استيراد الحزمة
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // <-- أضف هذا
+//import 'package:firebase_messaging/firebase_messaging.dart'; // <-- أضف هذا
 // ٣. تعريف متغير عالمي للوصول السهل إلى Supabase
 final supabase = Supabase.instance.client;
 
