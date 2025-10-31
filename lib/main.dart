@@ -45,8 +45,8 @@ Future<void> main() async { // ٢. تحويل الدالة إلى async
 
     String? fcmToken = await messaging.getToken();
     if (fcmToken != null) {
-      //print("Firebase Messaging Token: $fcmToken");
-      // TODO: حفظ هذا التوكن في Supabase لاحقًا
+///      //print("Firebase Messaging Token: $fcmToken");
+ ///     // TODO: حفظ هذا التوكن في Supabase لاحقًا
     } else {
       //print("Failed to get FCM token.");
     }
@@ -80,13 +80,13 @@ Future<void> main() async { // ٢. تحويل الدالة إلى async
 
   // 3. (اختياري) للتعامل مع الإشعارات التي تفتح التطبيق من الحالة المغلقة تمامًا
   // هذا يحتاج لوضعه خارج دالة main أحيانًا أو استخدام تهيئة خاصة
-  // FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
-  //   if (message != null) {
+   FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
+     if (message != null) {
   //     print('App opened from terminated state by notification!');
   //     print('Message data: ${message.data}');
   //     // توجيه المستخدم...
-  //   }
-  // });
+     }
+   });
 
   // --- نهاية إعداد معالجة الإشعارات --
 
