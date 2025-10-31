@@ -8,6 +8,12 @@ workflows:
         - supabase_keys
         
     scripts:
+    scripts:
+      # 1. السكريبت الحاسم لإنشاء ملف Firebase (Pre-build)
+      - name: Create Firebase Config file
+        script: | 
+          echo $IOS_FIREBASE_PLIST | base64 --decode > $CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist
+    
       - name: Install dependencies
         script: flutter pub get
         
