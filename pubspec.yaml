@@ -1,7 +1,7 @@
 name: myapprun
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.0+12
+version: 1.0.0+13
 
 environment:
   sdk: ^3.9.2
@@ -55,7 +55,7 @@ flutter_native_splash:
   # لون الخلفية (استخدم نفس اللون البرتقالي لشعارك)
   color: "#ffffff"
   # صورة الشعار (استخدم نفس مسار أيقونة التطبيق)
-  image: assets/icons/VelinLogo.png
+  image: assets/icons/VelinSplash.png
   # إعدادات إضافية (اختياري)
   android: true
   ios: true
