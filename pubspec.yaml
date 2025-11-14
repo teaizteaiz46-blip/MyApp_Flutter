@@ -1,7 +1,7 @@
 name: myapprun
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.0+11
+version: 1.0.0+12
 
 environment:
   sdk: ^3.9.2
@@ -16,11 +16,9 @@ dependencies:
   flutter_staggered_grid_view: ^0.7.0
 
   # حزم الفيديو
-  video_player: ^2.9.1 # تم التحديث لإصدار مستقر أحدث
-
   # حزم Firebase (تم التحديث لإصدارات حديثة متوافقة مع Flutter 3.x)
-  firebase_core: ^2.25.3
-  firebase_messaging: ^14.7.19
+  #firebase_core: ^2.25.3
+  #firebase_messaging: ^14.7.19
 
   # حزمة التواريخ والتدويل
   intl: ^0.19.0

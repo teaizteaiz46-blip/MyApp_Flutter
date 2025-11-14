@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'screens/home/home_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // ١. استيراد الحزمة
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-//import 'package:firebase_messaging/firebase_messaging.dart'; // <-- أضف هذا
+
 // ٣. تعريف متغير عالمي للوصول السهل إلى Supabase
 final supabase = Supabase.instance.client;
 
 Future<void> main() async { // ٢. تحويل الدالة إلى async
   WidgetsFlutterBinding.ensureInitialized(); // ٤. التأكد من تهيئة Flutter
 // --- ٢. إضافة تهيئة Firebase هنا ---
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+ // await Firebase.initializeApp(
+ //   options: DefaultFirebaseOptions.currentPlatform,
+ // );
   // --- نهاية الإضافة ---
   // ٥. تهيئة Supabase
   await Supabase.initialize(
