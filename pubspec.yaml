@@ -42,6 +42,7 @@ dependencies:
     # --- أضف هاتين الحزمتين ---
   firebase_core: ^4.2.0  # استخدم آخر إصدار متوفر
   firebase_messaging: ^16.0.3 # استخدم آخر إصدار متوفر
+  intl: ^0.19.0 # <-- أضف هذه الحزمة (استخدم آخر إصدار متوفر)
     # --- نهاية الإضافة ---
 dev_dependencies:
   flutter_test:
@@ -106,16 +107,17 @@ flutter_launcher_icons:
 # ... (قسم flutter_launcher_icons)
 
 # أضف هذا القسم الجديد
-#flutter_native_splash:
+flutter_native_splash:
+       #image_path: "assets/icons/VelinLogo.png" # <-- تأكد من أن هذا المسار صحيح
   # لون الخلفية (استخدم نفس اللون البرتقالي لشعارك)
-  #color: "#FFA500"
+  color: "#ffffff"
 
   # صورة الشعار (استخدم نفس مسار أيقونة التطبيق)
-  #image: assets/icons/VelinLogo.png
+  image: assets/icons/VelinLogo.png
 
   # إعدادات إضافية (اختياري)
-  #android: true
-  #ios: true
+  android: true
+  ios: true
   # يمكنك إضافة image_dark لخلفية داكنة إذا أردت
   #color_dark: "#000000"
   #image_dark: assets/icons/icon_dark.png

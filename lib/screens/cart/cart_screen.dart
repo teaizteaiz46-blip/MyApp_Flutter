@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart';
 import '../checkout/checkout_screen.dart'; // <-- أضف هذا
-
+import 'package:intl/intl.dart'; // <-- أضف هذا
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -156,6 +156,9 @@ class _CartScreenState extends State<CartScreen> {
   }
   @override
   Widget build(BuildContext context) {
+    // --- أضف هذا السطر ---
+    final formatter = NumberFormat('#,###');
+    // --- نهاية الإضافة ---
     return Scaffold(
       appBar: AppBar(
         title: const Text('سلتي'),
@@ -167,7 +170,8 @@ class _CartScreenState extends State<CartScreen> {
           children: [
             Text(
               // 'Total: \$${_totalPrice.toStringAsFixed(2)}', // السطر القديم
-              'الإجمالي: ${_totalPrice.toStringAsFixed(0)} د.ع', // <-- التغيير هنا
+             // 'الإجمالي: ${_totalPrice.toStringAsFixed(0)} د.ع', // <-- التغيير هنا
+              'الإجمالي: ${formatter.format(_totalPrice)} د.ع', // <-- تم التعديل هنا
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             ElevatedButton(
@@ -235,7 +239,7 @@ class _CartScreenState extends State<CartScreen> {
                       : Image.network(imageUrl, width: 50, fit: BoxFit.cover),
                   title: Text(name),
                   subtitle: Text(
-                      '${price.toStringAsFixed(0)} د.ع x $quantity = ${(price * quantity).toStringAsFixed(0)} د.ع '
+                      '${formatter.format(price)} د.ع x $quantity = ${(price * quantity).toStringAsFixed(0)} د.ع '
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),

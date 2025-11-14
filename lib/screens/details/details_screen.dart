@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart'; // لاستخدام supabase
+import 'package:intl/intl.dart'; // <-- أضف هذا
 
 // 1. تحويله إلى StatefulWidget
 class DetailsScreen extends StatefulWidget {
@@ -131,6 +132,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final String name = product['name'] ?? 'اسم المنتج غير متوفر';
         final double price = (product['price'] ?? 0.0).toDouble();
         final String description = product['description'] ?? 'لا يتوفر وصف لهذا المنتج.';
+        final formatter = NumberFormat('#,###');
 
         return Scaffold(
           appBar: AppBar(
@@ -219,7 +221,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${price.toStringAsFixed(0)} د.ع',
+                        //'${price.toStringAsFixed(0)} د.ع',
+                        '${formatter.format(price)} د.ع', // <-- تم التعديل هنا
                         style: const TextStyle( // <-- تم تعديل اللون هنا
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
