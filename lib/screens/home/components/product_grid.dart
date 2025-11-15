@@ -132,7 +132,8 @@ class ProductCard extends StatelessWidget {
             padding:
             const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
             child: Text(
-              '\$${price.toStringAsFixed(2)}',
+             // '\$${price.toStringAsFixed(2)}',
+              '${price.toStringAsFixed(0)} د.ع',
               style: const TextStyle(
                   color: Colors.orange, fontWeight: FontWeight.bold),
             ),

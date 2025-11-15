@@ -99,6 +99,7 @@ class _SearchScreenState extends State<SearchScreen> {
             final String name = product['name'] ?? 'No Name';
             final double price = (product['price'] ?? 0.0).toDouble();
 
+
             return GestureDetector(
               onTap: () {
                 Navigator.push(

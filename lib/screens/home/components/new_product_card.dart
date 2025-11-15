@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../main.dart'; // لاستخدام supabase
+import 'package:intl/intl.dart';
+
 
 class NewProductCard extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -106,6 +108,8 @@ class _NewProductCardState extends State<NewProductCard> {
     final double oldPrice = (product['old_price'] ?? 0.0).toDouble();
     final double rating = (product['rating'] ?? 0.0).toDouble();
     final int salesCount = (product['sales_count'] ?? 0);
+    // 2. أضف الفورماتر
+    final formatter = NumberFormat('#,###');
 
     return GestureDetector(
       onTap: onTap,
@@ -197,7 +201,8 @@ class _NewProductCardState extends State<NewProductCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${price.toStringAsFixed(0)} د.ع',
+                            //'${price.toStringAsFixed(0)} د.ع',
+                            '${formatter.format(price)} د.ع',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -206,7 +211,8 @@ class _NewProductCardState extends State<NewProductCard> {
                           ),
                           if (oldPrice > 0)
                             Text(
-                              '${oldPrice.toStringAsFixed(0)} د.ع',
+                              //'${oldPrice.toStringAsFixed(0)} د.ع',
+                              '${formatter.format(oldPrice)} د.ع',
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.grey,

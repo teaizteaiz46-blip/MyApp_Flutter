@@ -15,8 +15,14 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
+  //final _addressController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
+  // --- أضف هذا ---
+  final _addressDetailsController = TextEditingController(); // حقل جديد للتفاصيل
+  String? _selectedGovernorate; // لتخزين المحافظة المختارة
+  final List<String> _governorates = ['كربلاء المقدسة']; // القائمة المنسدلة
+  // --- نهاية الإضافة ---
 
   bool _isLoading = false;
 
@@ -24,7 +30,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
+    //_addressController.dispose();
+    _addressDetailsController.dispose(); // <-- أضف هذا
     super.dispose();
   }
 
@@ -91,7 +98,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // 3. جلب بيانات العميل (تبقى كما هي)
       final String name = _nameController.text;
       final String phone = _phoneController.text;
-      final String address = _addressController.text;
+      // --- تعديل هذا السطر ---
+      final String address = "$_selectedGovernorate، ${_addressDetailsController.text}";
+      // --- نهاية التعديل ---
 
       // 4. إرسال الطلب إلى Supabase (تبقى كما هي مع إضافة user_id)
       final Map<String, dynamic> orderData = {
@@ -239,22 +248,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                TextFormField(
-                  controller: _addressController,
+                // --- استبدل حقل العنوان القديم بهذا ---
+
+                // --- 1. القائمة المنسدلة للمحافظة ---
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedGovernorate,                  hint: const Text('اختر المحافظة'),
                   decoration: const InputDecoration(
-                    labelText: 'العنوان بالتفصيل',
-                    hintText: 'مثال: المدينة، الحي، الشارع، رقم المنزل',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_on),
+                    prefixIcon: Icon(Icons.location_city),
                   ),
-                  maxLines: 3,
+                  items: _governorates.map((String governorate) {
+                    return DropdownMenuItem<String>(
+                      value: governorate,
+                      child: Text(governorate),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    setState(() {
+                      _selectedGovernorate = newValue;
+                    });
+                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال العنوان';
+                      return 'الرجاء اختيار المحافظة';
                     }
                     return null;
                   },
                 ),
+                const SizedBox(height: 20),
+
+                // --- 2. حقل تفاصيل العنوان ---
+                TextFormField(
+                  controller: _addressDetailsController,
+                  decoration: const InputDecoration(
+                    labelText: 'تفاصيل العنوان (الحي، الشارع، أقرب نقطة دالة)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on),
+                  ),
+                  maxLines: 2,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'الرجاء إدخال تفاصيل العنوان';
+                    }
+                    return null;
+                  },
+                ),
+                // --- نهاية الاستبدال ---
               ],
               // --- نهاية الكود المضاف ---
             ),

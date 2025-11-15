@@ -7,7 +7,7 @@ import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
 import '../categories/all_categories_screen.dart'; // <-- أضف هذا
 import '../offers/offers_screen.dart';
-
+import '../home/components/promo_carousel.dart'; // أو المسار الصحيح لملف PromoCarousel
 // <-- أضف هذا`1`
 // =================================================================
 // ===== 1. الشاشة الرئيسية (Home Screen) - تحمل الـ STATE =============
@@ -190,84 +190,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // في ملف home_screen.dart (داخل كلاس _HomeScreenState)
 
-  Widget _buildHeroBanner(BuildContext context) {
-    return Container(
-      color: const Color(0xFFFF773D), // اللون البرتقالي الخلفي
-      height: 250, // ارتفاع ثابت للافتة
-      width: double.infinity,
-      child: Stack(
-        children: [
-          // 1. الصورة في اليمين (المرأة المتسوقة) - بخلفية شفافة إن أمكن
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Image.asset(
-              'assets/images/shopping_girl.png', // تأكد من المسار
-              height: 250, // نفس ارتفاع الـ Container
-              width: 415,  // عرض تقريبي
-              fit: BoxFit.cover, // لتغطية المساحة دون تشويه
-            ),
-          ),
-
-          // 2. النص التسويقي (الوحيد)
-          Positioned(
-            top: 50, // أعلى قليلاً ليتجنب التداخل مع الصورة
-            right: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '',
-                  style: TextStyle(
-                    fontSize: 28, // حجم أكبر للنص الرئيسي
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.right,
-                ),
-                Text(
-                  '',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.right,
-                ),
-              ],
-            ),
-          ),
-
-          // 3. زر "ORDER NOW" (نسخة واحدة فقط)
-          Positioned(
-            top: 120, // ضبط الموضع ليتجنب التداخل
-            right: 260,
-            child: ElevatedButton(
-              onPressed: () {
-                // هنا كود الانتقال لصفحة العرض الخاص
-                // --- بداية الكود الجديد ---
-                // الانتقال إلى شاشة العروض
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OffersScreen()),
-                );
-                // --- نهاية الكود الجديد ---
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black, // لون الزر أسود
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(5),
-                ),
-              ),
-              child: const Text('أطلب الأن', style: TextStyle(fontSize: 14)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
 
 }
@@ -315,10 +237,12 @@ class HomeScreenContent extends StatelessWidget {
             SliverList(
               delegate: SliverChildListDelegate(
                 [
-                  homeScreenState._buildHeroBanner(context),
-                  const SizedBox(height: 15),
+                  //homeScreenState._buildHeroBanner(context),
+                  // هذا هو البانر الديناميكي الجديد من Supabase
+                  const PromoCarousel(),
+                  const SizedBox(height: 30),
                   homeScreenState._buildCircularCategories(context, categories),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 10),
                 ],
               ),
             ),
