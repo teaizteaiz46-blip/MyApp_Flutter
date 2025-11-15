@@ -1,12 +1,11 @@
-import 'dart:convert'; // لإضافة السلة المحلية
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // لإضافة السلة المحلية
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../main.dart'; // لاستخدام supabase
-import 'package:intl/intl.dart'; // <-- أضف هذا
 
 class NewProductCard extends StatefulWidget {
   final Map<String, dynamic> product;
-  final VoidCallback onTap; // هذا للانتقال للتفاصيل
+  final VoidCallback onTap;
 
   const NewProductCard({super.key, required this.product, required this.onTap});
 
@@ -15,13 +14,14 @@ class NewProductCard extends StatefulWidget {
 }
 
 class _NewProductCardState extends State<NewProductCard> {
+  // --- إضافة جديدة: متغير لتتبع الصفحة الحالية ---
+  int _currentPage = 0;
+  // --- نهاية الإضافة ---
 
+  // --- دوال إضافة السلة (تبقى كما هي) ---
   Future<void> _addToCart(BuildContext context) async {
-    // We pass the context here because _addLocalCart and _addDbCart
-    // are part of the State and 'mounted' is available.
     final currentUser = supabase.auth.currentUser;
     final int currentProductId = widget.product['id'] ?? 0;
-
     if (currentUser == null) {
       await _addLocalCart(currentProductId);
     } else {
@@ -30,7 +30,7 @@ class _NewProductCardState extends State<NewProductCard> {
   }
 
   Future<void> _addLocalCart(int productId) async {
-    final prefs = await SharedPreferences.getInstance(); // <-- Async Gap
+    final prefs = await SharedPreferences.getInstance(); // <-- فجوة زمنية
     final String? cartString = prefs.getString('cartMap');
     final Map<String, dynamic> cartMap = cartString != null
         ? json.decode(cartString) as Map<String, dynamic>
@@ -41,9 +41,8 @@ class _NewProductCardState extends State<NewProductCard> {
     } else {
       cartMap[productIdStr] = 1;
     }
-    await prefs.setString('cartMap', json.encode(cartMap)); // <-- Async Gap
+    await prefs.setString('cartMap', json.encode(cartMap)); // <-- فجوة زمنية
 
-    // --- FIX: Check if mounted ---
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -53,7 +52,6 @@ class _NewProductCardState extends State<NewProductCard> {
         ),
       );
     }
-    // --- End Fix ---
   }
 
   Future<void> _addDbCart(String userId, int productId) async {
@@ -63,18 +61,17 @@ class _NewProductCardState extends State<NewProductCard> {
           .select('quantity')
           .eq('user_id', userId)
           .eq('product_id', productId)
-          .maybeSingle(); // <-- Async Gap
+          .maybeSingle(); // <-- فجوة زمنية
       int newQuantity = 1;
       if (existingItem != null) {
         newQuantity = (existingItem['quantity'] as int) + 1;
       }
-      await supabase.from('cart').upsert({ // <-- Async Gap
+      await supabase.from('cart').upsert({ // <-- فجوة زمنية
         'user_id': userId,
         'product_id': productId,
         'quantity': newQuantity,
       }, onConflict: 'user_id, product_id');
 
-      // --- FIX: Check if mounted ---
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -84,10 +81,7 @@ class _NewProductCardState extends State<NewProductCard> {
           ),
         );
       }
-      // --- End Fix ---
-
     } catch (error) {
-      // --- FIX: Check if mounted ---
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -96,9 +90,9 @@ class _NewProductCardState extends State<NewProductCard> {
           ),
         );
       }
-      // --- End Fix ---
     }
   }
+  // --- نهاية دوال إضافة السلة ---
 
 
   @override
@@ -107,13 +101,11 @@ class _NewProductCardState extends State<NewProductCard> {
     final VoidCallback onTap = widget.onTap;
 
     final List<dynamic> imageList = product['image_url'] ?? [];
-    final String imageUrl = imageList.isNotEmpty ? imageList.first as String : '';
     final String name = product['name'] ?? 'اسم المنتج';
     final double price = (product['price'] ?? 0.0).toDouble();
     final double oldPrice = (product['old_price'] ?? 0.0).toDouble();
     final double rating = (product['rating'] ?? 0.0).toDouble();
     final int salesCount = (product['sales_count'] ?? 0);
-    final formatter = NumberFormat('#,###');
 
     return GestureDetector(
       onTap: onTap,
@@ -124,20 +116,67 @@ class _NewProductCardState extends State<NewProductCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
+            // --- 1. تعديل قسم الصورة بالكامل ---
             AspectRatio(
-              aspectRatio: 1,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(child: CircularProgressIndicator.adaptive());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
-                },
+              aspectRatio: 1, // الحفاظ على النسبة مربعة
+              child: Stack(
+                alignment: Alignment.bottomCenter, // لمحاذاة النقاط
+                children: [
+                  // --- A. PageView لعرض الصور ---
+                  PageView.builder(
+                    itemCount: imageList.isNotEmpty ? imageList.length : 1, // عرض صورة واحدة على الأقل
+                    onPageChanged: (value) {
+                      setState(() {
+                        _currentPage = value; // تحديث الصفحة الحالية عند التمرير
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      if (imageList.isEmpty) {
+                        // عرض أيقونة افتراضية إذا لم تكن هناك صور
+                        return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+                      }
+                      final String imageUrl = imageList[index] as String;
+                      return Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(child: CircularProgressIndicator.adaptive());
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+                        },
+                      );
+                    },
+                  ),
+
+                  // --- B. مؤشر النقاط (Page Indicator) ---
+                  if (imageList.length > 1) // لا تظهر النقاط إذا كانت هناك صورة واحدة
+                    Positioned(
+                      bottom: 8.0, // قليل من المسافة من الأسفل
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(imageList.length, (index) {
+                          return Container(
+                            width: 8.0,
+                            height: 8.0,
+                            margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              // استخدام اللون البرتقالي
+                              color: Colors.orange.withOpacity(_currentPage == index ? 0.9 : 0.4),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                ],
               ),
             ),
+            // --- نهاية تعديل قسم الصورة ---
+
+            // --- 2. التفاصيل (تبقى كما هي) ---
             Padding(
               padding: const EdgeInsets.all(6.0),
               child: Column(
@@ -158,8 +197,7 @@ class _NewProductCardState extends State<NewProductCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            //'${price.toStringAsFixed(0)} د.ع',
-                            '${formatter.format(price)} د.ع', // <-- تم التعديل هنا
+                            '${price.toStringAsFixed(0)} د.ع',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -168,8 +206,7 @@ class _NewProductCardState extends State<NewProductCard> {
                           ),
                           if (oldPrice > 0)
                             Text(
-                              //oldPrice.toStringAsFixed(0),
-                              '${formatter.format(oldPrice)} د.ع', // <-- تم التعديل هنا
+                              '${oldPrice.toStringAsFixed(0)} د.ع',
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.grey,
@@ -180,7 +217,6 @@ class _NewProductCardState extends State<NewProductCard> {
                       ),
                       GestureDetector(
                         onTap: () {
-                          // Pass the context from the build method
                           _addToCart(context);
                         },
                         child: Container(
