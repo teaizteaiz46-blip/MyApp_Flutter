@@ -164,8 +164,8 @@ class _NewProductCardState extends State<NewProductCard> {
                             margin: const EdgeInsets.symmetric(horizontal: 4.0),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              // استخدام اللون البرتقالي
-                              color: Colors.orange.withOpacity(_currentPage == index ? 0.9 : 0.4),
+                              // --- هذا هو السطر الذي تم تعديله ---
+                              color: Colors.orange.withAlpha(_currentPage == index ? 230 : 102),
                             ),
                           );
                         }),
