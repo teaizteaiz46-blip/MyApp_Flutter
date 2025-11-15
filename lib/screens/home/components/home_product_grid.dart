@@ -19,8 +19,8 @@ class HomeProductGrid extends StatelessWidget {
 
     //////////////
     // إنشاء الاستعلام الأساسي
-    var query = supabase.from('products').select();
-
+    //var query = supabase.from('products').select();
+    var query = supabase.from('products').select().gt('stock', 0); // <-- تم إضافة الفلتر هنا
     // إذا لم تكن الفئة هي "الكل" (id = 0)، أضف شرط الفلترة
     if (categoryId != 0) {
       // نفترض أن جدول products لديه عمود اسمه category_id

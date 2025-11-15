@@ -12,6 +12,7 @@ class OffersScreen extends StatelessWidget {
         .from('products')
         .select()
         .eq('is_offer', true) // <-- جلب المنتجات التي is_offer = true
+        .gt('stock', 0) // <-- تم إضافة الفلتر هنا
         .order('created_at', ascending: false); // ترتيب الأحدث أولاً
   }
   // --- نهاية الدالة ---

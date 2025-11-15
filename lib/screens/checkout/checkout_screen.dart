@@ -154,66 +154,110 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    //
-    // ... واجهة المستخدم (Scaffold, Form, TextFields, Button) تبقى كما هي تمامًا ...
-    //
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('إتمام الطلب'),
-        backgroundColor: Colors.white,
-        elevation: 1,
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _submitOrder,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
+    // --- بداية التعديل ---
+    // تغليف كل شيء بـ GestureDetector
+    return GestureDetector(
+      onTap: () {
+        // هذا السطر يخبر Flutter بإخفاء لوحة المفاتيح
+        FocusScope.of(context).unfocus();
+      },
+      // --- نهاية التعديل ---
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('إتمام الطلب'),
+          backgroundColor: Colors.white,
+          elevation: 1,
+        ),
+        ////////////////////////
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(20),
+          child: ElevatedButton(
+            // --- هذا هو السطر الذي يستدعي الدالة ---
+            onPressed: _isLoading ? null : _submitOrder,
+            // --- نهاية السطر ---
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+            child: _isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text(
+              'تأكيد وإرسال الطلب',
+              style: TextStyle(fontSize: 18, color: Colors.white),
             ),
           ),
-          child: _isLoading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : const Text(
-            'تأكيد وإرسال الطلب',
-            style: TextStyle(fontSize: 18, color: Colors.white),
-          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'معلومات التوصيل',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'الاسم الكامل', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
-                validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال الاسم' : null,
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _phoneController,
-                decoration: const InputDecoration(labelText: 'رقم الهاتف', border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone)),
-                keyboardType: TextInputType.phone,
-                validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال رقم الهاتف' : null,
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(labelText: 'العنوان بالتفصيل', hintText: 'مثال: المدينة، الحي، الشارع، رقم المنزل', border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on)),
-                maxLines: 3,
-                validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال العنوان' : null,
-              ),
-            ],
+        /////////////////////////////
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              // ... (بقية كود Form يبقى كما هو) ...
+              // --- هذا هو الكود الذي يجب إضافته ---
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'معلومات التوصيل',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'الاسم الكامل',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'الرجاء إدخال الاسم';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'رقم الهاتف',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'الرجاء إدخال رقم الهاتف';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                TextFormField(
+                  controller: _addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'العنوان بالتفصيل',
+                    hintText: 'مثال: المدينة، الحي، الشارع، رقم المنزل',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on),
+                  ),
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'الرجاء إدخال العنوان';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+              // --- نهاية الكود المضاف ---
+            ),
           ),
         ),
       ),

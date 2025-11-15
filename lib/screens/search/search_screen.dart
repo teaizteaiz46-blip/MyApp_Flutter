@@ -29,7 +29,8 @@ class _SearchScreenState extends State<SearchScreen> {
       _searchFuture = supabase
           .from('products')
           .select()
-          .ilike('name', '%$query%');
+          .ilike('name', '%$query%')
+          .gt('stock', 0); // <-- تم إضافة الفلتر هنا
     });
   }
 
