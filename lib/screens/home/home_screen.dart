@@ -7,7 +7,7 @@ import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
 import '../categories/all_categories_screen.dart'; // <-- أضف هذا
 import '../offers/offers_screen.dart';
-import '../reels/clips_screen.dart'; // <-- أضف هذا
+import '../clips/clips_screen.dart'; // <-- أضف هذا
 import '../home/components/promo_carousel.dart'; // أو المسار الصحيح لملف PromoCarousel
 // <-- أضف هذا`1`
 // =================================================================
