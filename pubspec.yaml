@@ -1,7 +1,7 @@
 name: myapprun
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.0+18
+version: 1.0.0+19
 
 environment:
   sdk: ^3.9.2
@@ -28,6 +28,7 @@ dependencies:
 
   # حزمة التواريخ والتدويل
   intl: ^0.19.0
+  uuid: ^4.5.2
 
 dev_dependencies:
   flutter_test:

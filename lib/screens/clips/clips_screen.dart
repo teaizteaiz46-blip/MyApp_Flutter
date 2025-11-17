@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart'; // <-- 1. استيراد الحزمة الجديدة
 import '../../main.dart'; // لاستخدام supabase
 import 'video_clip_player.dart'; // لاستخدام المشغل
 
@@ -10,58 +11,123 @@ class ClipsScreen extends StatefulWidget {
 }
 
 class _ClipsScreenState extends State<ClipsScreen> {
-  late Future<List<Map<String, dynamic>>> _clipsFuture;
+  final List<Map<String, dynamic>> _clips = [];
+  final PageController _pageController = PageController();
+
+  // <-- 2. إنشاء "بذرة" عشوائية فريدة لهذه الجلسة
+  final String _sessionSeed = Uuid().v4();
+
+  bool _isLoading = false;
+  bool _hasMore = true;
+  int _currentPage = 0;
+  final int _pageSize = 5; // عدد المقاطع في كل دفعة
 
   @override
   void initState() {
     super.initState();
-    _clipsFuture = _fetchClips();
-  }
+    _fetchMoreClips();
 
-  // دالة جلب الرييلز من Supabase
-  Future<List<Map<String, dynamic>>> _fetchClips() {
-    return supabase
-        .from('clips')
-        .select('video_url, product_id') // جلب البيانات المطلوبة فقط
-        .order('created_at', ascending: false); // عرض الأحدث أولاً
+    _pageController.addListener(() {
+      if (_pageController.page != null &&
+          _pageController.page! >= (_clips.length - 3) &&
+          !_isLoading &&
+          _hasMore) {
+        //print(
+        //    "Reached clip ${_pageController.page!.round() + 1}, fetching more...");
+        _fetchMoreClips();
+      }
+    });
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // 3. دالة جلب البيانات (المعدلة لاستخدام الـ RPC)
+  Future<void> _fetchMoreClips() async {
+    if (_isLoading || !_hasMore) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // حساب الـ offset
+      final int offset = _currentPage * _pageSize;
+
+      // <-- 4. استدعاء الدالة الجديدة (RPC) بدلاً من .select()
+      final response = await supabase.rpc(
+        'get_shuffled_clips', // <-- !! اسم الدالة الجديدة
+        params: {
+          'seed_text': _sessionSeed,   // <-- تمرير البذرة العشوائية
+          'limit_count': _pageSize,
+          'offset_count': offset,
+        },
+      );
+
+      // الكود الباقي لتحويل البيانات وتحديث الحالة يبقى كما هو
+      final List<Map<String, dynamic>> newClips = (response as List<dynamic>)
+          .map((item) => item as Map<String, dynamic>)
+          .toList();
+
+      setState(() {
+        _isLoading = false;
+        _clips.addAll(newClips);
+        _currentPage++;
+
+        if (newClips.length < _pageSize) {
+          _hasMore = false;
+        }
+      });
+    } catch (error) {
+      //print('SUPABASE ERROR: $error');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 5. بناء الواجهة (يبقى كما هو، بدون FutureBuilder)
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // إخفاء شريط العنوان
       appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.black),
-      backgroundColor: Colors.black, // خلفية سوداء
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _clipsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(child: Text('خطأ في جلب الفيديوهات', style: TextStyle(color: Colors.white)));
-          }
+      backgroundColor: Colors.black,
+      body: _buildBody(),
+    );
+  }
 
-          final clips = snapshot.data;
-          if (clips == null || clips.isEmpty) {
-            return const Center(child: Text('لا توجد فيديوهات حاليًا.', style: TextStyle(color: Colors.white)));
-          }
+  Widget _buildBody() {
+    if (_clips.isEmpty && _isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          // --- بناء الواجهة القابلة للتمرير ---
-          return PageView.builder(
-            scrollDirection: Axis.vertical, // التمرير عمودي
-            itemCount: clips.length,
-            itemBuilder: (context, index) {
-              final clip = clips[index];
-              // استخدام الويدجت الذي أنشأناه لكل فيديو
-              return VideoClipPlayer(
-                videoUrl: clip['video_url'],
-                productId: clip['product_id'],
-              );
-            },
-          );
-        },
-      ),
+    if (_clips.isEmpty && !_hasMore) {
+      return const Center(
+          child:
+          Text('لا توجد مقاطع لعرضها', style: TextStyle(color: Colors.white)));
+    }
+
+    return PageView.builder(
+      controller: _pageController,
+      scrollDirection: Axis.vertical,
+      itemCount: _clips.length,
+      itemBuilder: (context, index) {
+        final clip = _clips[index];
+
+        final videoUrl = clip['video_url'];
+        final productId = clip['product_id'];
+
+        return VideoClipPlayer(
+          // استخدام videoUrl كمفتاح يضمن إعادة بناء الودجت
+          // عند التمرير السريع (أكثر استقراراً)
+          key: ValueKey(videoUrl),
+          videoUrl: videoUrl,
+          productId: productId,
+        );
+      },
     );
   }
 }
