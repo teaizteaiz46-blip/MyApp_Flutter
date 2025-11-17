@@ -7,6 +7,7 @@ import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
 import '../categories/all_categories_screen.dart'; // <-- أضف هذا
 import '../offers/offers_screen.dart';
+import '../reels/clips_screen.dart'; // <-- أضف هذا
 import '../home/components/promo_carousel.dart'; // أو المسار الصحيح لملف PromoCarousel
 // <-- أضف هذا`1`
 // =================================================================
@@ -25,13 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // المتغيرات المطلوبة:
   late Future<List<Map<String, dynamic>>> _categoriesFuture;
   int _selectedCategoryId = 0; // لتتبع الفئة المختارة للفلترة
-  int _selectedIndex = 4; // نبدأ بـ 4 لأن "الرئيسية" هي الصفحة النشطة
+  int _selectedIndex = 5; // نبدأ بـ 4 لأن "الرئيسية" هي الصفحة النشطة
 
   // قائمة الشاشات (STATIC)
   static final List<Widget> _screens = <Widget>[
     const ProfileScreen(),      // 0: الحساب
     const CartScreen(),         // 1: العربة
     const OffersScreen(),  // 2: العروض (مؤقت)
+    const ClipsScreen(),        // 2: رييلز (جديد)
     //const Text('شاشة الفئات'),   // 3: الفئات (مؤقت)
     const AllCategoriesScreen(),
     // هنا نستخدم HomeScreenContent الذي سيحمل المفتاح
@@ -81,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Builder(
           builder: (BuildContext context) {
             // إذا كانت الشاشة الحالية هي الرئيسية (4)، نعرض المحتوى
-            if (_selectedIndex == 4) {
+            if (_selectedIndex == 5) {
               // الحل: إعادة إنشاء HomeScreenContent مع تمرير المفتاح
               return HomeScreenContent(
                 selectedCategoryId: _selectedCategoryId, // <--- هذا هو المفتاح لإجبار التحديث
@@ -100,6 +102,9 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'الحساب'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'العربة'),
           BottomNavigationBarItem(icon: Icon(Icons.local_offer_outlined), label: 'عروض'),
+          // --- إضافة الأيقونة الجديدة ---
+          BottomNavigationBarItem(icon: Icon(Icons.video_collection_outlined), label: 'مقاطع'),
+          // --- نهاية الإضافة ---
           BottomNavigationBarItem(icon: Icon(Icons.category_outlined), label: 'الفئات'),
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'الرئيسية'),
         ],
@@ -184,11 +189,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // الدالة المساعدة لبناء اللافتة البرتقالية
+// الدالة المساعدة لبناء اللافتة البرتقالية
 
-  // في ملف home_screen.dart (داخل كلاس _HomeScreenState)
+// في ملف home_screen.dart (داخل كلاس _HomeScreenState)
 
-  // في ملف home_screen.dart (داخل كلاس _HomeScreenState)
+// في ملف home_screen.dart (داخل كلاس _HomeScreenState)
 
 
 

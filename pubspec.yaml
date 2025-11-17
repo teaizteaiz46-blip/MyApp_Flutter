@@ -1,7 +1,7 @@
 name: myapprun
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.0+17
+version: 1.0.0+18
 
 environment:
   sdk: ^3.9.2
@@ -14,6 +14,12 @@ dependencies:
   shared_preferences: ^2.2.3
   flutter_launcher_icons: ^0.14.4
   flutter_staggered_grid_view: ^0.7.0
+    # ... (بقية حزمك) ...
+  video_player: ^2.8.6
+
+    # --- أضف هذا السطر ---
+  url_launcher: ^6.3.1
+    # --- نهاية الإضافة ---
 
   # حزم الفيديو
   # حزم Firebase (تم التحديث لإصدارات حديثة متوافقة مع Flutter 3.x)
