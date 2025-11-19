@@ -38,13 +38,6 @@ class HomeHeader extends StatelessWidget {
         ),
 
         // --- أيقونة الكاميرا (تمت إعادتها حسب الكود الذي أرسلته) ---
-        IconButton(
-          onPressed: () {
-            // TODO: برمجة البحث بالكاميرا
-          },
-          icon: const Icon(Icons.camera_alt_outlined, color: Colors.black),
-        ),
-
         // تم إزالة:
         // IconButton(onPressed: () {...}, icon: Icon(Icons.shopping_cart_outlined)),
         // IconButton(onPressed: () {...}, icon: Icon(Icons.person_outline)),

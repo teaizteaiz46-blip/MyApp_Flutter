@@ -16,12 +16,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   //final _addressController = TextEditingController();
+  // --- أضف هذه المتغيرات الجديدة ---
+  double _productsTotal = 0.0; // مجموع أسعار المنتجات
+  double _deliveryCost = 0.0;  // سعر التوصيل
+  // ----------------------------
   final _formKey = GlobalKey<FormState>();
 
   // --- أضف هذا ---
   final _addressDetailsController = TextEditingController(); // حقل جديد للتفاصيل
   String? _selectedGovernorate; // لتخزين المحافظة المختارة
-  final List<String> _governorates = ['كربلاء المقدسة']; // القائمة المنسدلة
+  final List<String> _governorates = ['بغداد','كربلاء','الأنبار','الحلة - بابل','البصرة','دهوك','ديالى','أربيل','كركوك','العمارة - ميسان','السماوة - المثنى','النجف','نينوى','ديوانية - القادسية','صلاح الدين','السليمانية','الناصرية - ذي قار','الكوت - واسط']; // القائمة المنسدلة
   // --- نهاية الإضافة ---
 
   bool _isLoading = false;
@@ -161,6 +165,61 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
   }
+
+  ///////////////////////
+  @override
+  void initState() {
+    super.initState();
+    _calculateTotal(); // <-- استدعاء الدالة عند بدء الشاشة
+  }
+
+  // --- دالة جديدة لحساب المجموع ---
+  Future<void> _calculateTotal() async {
+    double productsTotal = 0.0;
+    Map<String, dynamic> cartMap = {};
+
+    // 1. جلب محتويات السلة (نفس المنطق الذي تستخدمه في _submitOrder)
+    final currentUser = supabase.auth.currentUser;
+    if (currentUser != null) {
+      final cartData = await supabase.from('cart').select('product_id, quantity').eq('user_id', currentUser.id);
+      for (var item in cartData) {
+        cartMap[item['product_id'].toString()] = item['quantity'];
+      }
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      final String? cartString = prefs.getString('cartMap');
+      if (cartString != null) cartMap = json.decode(cartString);
+    }
+
+    // 2. حساب سعر المنتجات
+    if (cartMap.isNotEmpty) {
+      final List<int> productIds = cartMap.keys.map((e) => int.parse(e)).toList();
+      final String filter = productIds.map((id) => 'id.eq.$id').join(',');
+      final productsData = await supabase.from('products').select('id, price').or(filter);
+
+      for (var product in productsData) {
+        final int qty = cartMap[product['id'].toString()] ?? 0;
+        final double price = (product['price'] ?? 0).toDouble();
+        productsTotal += (price * qty);
+      }
+    }
+
+    // 3. جلب سعر التوصيل (مبدئياً 5000 أو من جدول delivery إذا أردت)
+    double deliveryCost = 3000; // قيمة افتراضية
+    // إذا أردت جلبها من قاعدة البيانات لاحقاً:
+    // final deliveryData = await supabase.from('delivery').select().eq('governorate', 'كربلاء المقدسة').maybeSingle();
+    // if (deliveryData != null) deliveryCost = (deliveryData['delivery_cost'] ?? 0).toDouble();
+
+    // 4. تحديث الواجهة
+    if (mounted) {
+      setState(() {
+        _productsTotal = productsTotal;
+        _deliveryCost = deliveryCost;
+      });
+    }
+  }
+
+  ///////////////
   @override
   Widget build(BuildContext context) {
     // --- بداية التعديل ---
@@ -180,23 +239,60 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ////////////////////////
         bottomNavigationBar: Container(
           padding: const EdgeInsets.all(20),
-          child: ElevatedButton(
-            // --- هذا هو السطر الذي يستدعي الدالة ---
-            onPressed: _isLoading ? null : _submitOrder,
-            // --- نهاية السطر ---
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
+          // أضفنا shadow وزخرفة بسيطة
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, -5))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // مهم جداً: يجعل العمود يأخذ أقل مساحة ممكنة
+            children: [
+              // --- تفاصيل الأسعار ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('مجموع المنتجات:', style: TextStyle(color: Colors.grey)),
+                  Text('${_productsTotal.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
               ),
-            ),
-            child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-              'تأكيد وإرسال الطلب',
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
+              const SizedBox(height: 5),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('كلفة التوصيل:', style: TextStyle(color: Colors.grey)),
+                  Text('${_deliveryCost.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('الإجمالي الكلي:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('${(_productsTotal + _deliveryCost).toStringAsFixed(0)} د.ع',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+                ],
+              ),
+              const SizedBox(height: 15),
+
+              // --- زر التأكيد (نفس الزر القديم) ---
+              ElevatedButton(
+                onPressed: _isLoading ? null : _submitOrder,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  minimumSize: const Size(double.infinity, 50), // عرض كامل
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                  'تأكيد وإرسال الطلب',
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
+            ],
           ),
         ),
         /////////////////////////////
@@ -251,12 +347,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 // --- استبدل حقل العنوان القديم بهذا ---
 
                 // --- 1. القائمة المنسدلة للمحافظة ---
-                DropdownButtonFormField<String>(
+                SizedBox(
+                  width: 200, // 👈 حدد العرض هنا
+                child: DropdownButtonFormField<String>(
                   initialValue: _selectedGovernorate,                  hint: const Text('اختر المحافظة'),
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.location_city),
                   ),
+                  // 👇👇 هذا السطر هو الحل 👇👇
+                  menuMaxHeight: 300,
+                  isDense: true,      // ضغط المساحات الفارغة
+                  itemHeight: 50,     // (اختياري) تحديد ارتفاع السطر الواحد بدقة
+                  // 👆👆 سيجعل القائمة بطول 300 بكسل فقط والباقي سكرول 👆👆
                   items: _governorates.map((String governorate) {
                     return DropdownMenuItem<String>(
                       value: governorate,
@@ -274,6 +377,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     }
                     return null;
                   },
+                ),
                 ),
                 const SizedBox(height: 20),
 

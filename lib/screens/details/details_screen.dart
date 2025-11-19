@@ -161,14 +161,16 @@ class _DetailsScreenState extends State<DetailsScreen> {
               icon: const Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.favorite_border, color: Colors.black),
-                onPressed: () {
+            ////////////////
+            //actions: [
+            //  IconButton(
+            //    icon: const Icon(Icons.favorite_border, color: Colors.black),
+            //    onPressed: () {
                   // TODO: إضافة منطق إضافة/إزالة من المفضلة
-                },
-              ),
-            ],
+            //    },
+           //   ),
+           // ],
+            ////////////////////////////
           ),
           bottomNavigationBar: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
