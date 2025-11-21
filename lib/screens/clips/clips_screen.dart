@@ -20,7 +20,7 @@ class _ClipsScreenState extends State<ClipsScreen> {
   bool _isLoading = false;
   bool _hasMore = true;
   int _currentPage = 0;
-  final int _pageSize = 5; // عدد المقاطع في كل دفعة
+  final int _pageSize = 2; // عدد المقاطع في كل دفعة
 
   @override
   void initState() {

@@ -226,23 +226,39 @@ class _DetailsScreenState extends State<DetailsScreen> {
                             );
                           }
                           final String imageUrl = imageList[index] as String;
-                          return Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return Container(
-                                  color: Colors.grey[200],
-                                  child: const Center(child: CircularProgressIndicator())
+                          // --- بداية التعديل الجديد ---
+                          // استخدام GestureDetector للنقر وفتح الشاشة الكاملة
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FullScreenImageViewer(
+                                    imageUrls: imageList,
+                                    initialIndex: index, // تمرير رقم الصورة الحالية
+                                  ),
+                                ),
                               );
                             },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.broken_image, color: Colors.grey, size: 100)
-                              );
-                            },
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover, // الصورة العادية تملأ الإطار
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                    color: Colors.grey[200],
+                                    child: const Center(child: CircularProgressIndicator())
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.broken_image, color: Colors.grey, size: 100)
+                                );
+                              },
+                            ),
                           );
+                          // --- نهاية التعديل الجديد ---
                         },
                       ),
 
@@ -309,6 +325,64 @@ class _DetailsScreenState extends State<DetailsScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+// --- أضف هذا الكلاس في نهاية الملف ---
+
+class FullScreenImageViewer extends StatelessWidget {
+  final List<dynamic> imageUrls; // القائمة قد تكون String أو JsonB
+  final int initialIndex;
+
+  const FullScreenImageViewer({
+    super.key,
+    required this.imageUrls,
+    required this.initialIndex,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // للبدء من الصورة التي تم النقر عليها
+    PageController pageController = PageController(initialPage: initialIndex);
+
+    return Scaffold(
+      backgroundColor: Colors.black, // خلفية سوداء للتركيز
+      // زر إغلاق في الأعلى
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      extendBodyBehindAppBar: true, // لجعل الصورة خلف زر الإغلاق
+      body: PageView.builder(
+        controller: pageController,
+        itemCount: imageUrls.length,
+        itemBuilder: (context, index) {
+          final String imageUrl = imageUrls[index] as String;
+          return InteractiveViewer(
+            panEnabled: true, // السماح بالتحريك
+            minScale: 0.5,    // أقل تصغير
+            maxScale: 4.0,    // أقصى تكبير
+            child: Center(
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain, // عرض الصورة كاملة بدون قص
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(child: CircularProgressIndicator(color: Colors.white));
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(Icons.broken_image, color: Colors.grey, size: 100);
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
