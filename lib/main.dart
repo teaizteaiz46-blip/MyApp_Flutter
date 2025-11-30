@@ -18,83 +18,62 @@ final supabase = Supabase.instance.client;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  // FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler); // ✅ يمكن تفعيلها عند الحاجة
-
-  // تهيئة Supabase
-  await Supabase.initialize(
-    url: 'https://pajxormplmloivyankji.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhanhvcm1wbG1sb2l2eWFua2ppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0ODQ3OTksImV4cCI6MjA3NjA2MDc5OX0.eEPB_Gt5HywU9oGNXLpSNc4IA7CTTL7CX-EMKDE3yec',
-  );
-
-  // تعريف كائن المراسلة (تم نقل التعريف هنا ليكون صالحًا لكامل الدالة)
-  FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-  // طلب إذن الإشعارات
-  NotificationSettings settings = await messaging.requestPermission(
-    alert: true,
-    announcement: false,
-    badge: true,
-    carPlay: false,
-    criticalAlert: false,
-    provisional: false,
-    sound: true,
-  );
-
-  // يمكنك استخدام المتغير settings الآن
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    //print('User granted permission');
-  } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
-    //print('User granted provisional permission');
-  } else {
-    //print('User declined or has not accepted permission');
+  // --- 1. محاولة تهيئة Firebase (مع حماية من الفشل) ---
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("✅ Firebase initialized successfully");
+  } catch (e) {
+    print("❌ Firebase initialization failed: $e");
+    // لا نوقف التطبيق، نكمل حتى لو فشل Firebase
   }
 
-  // ✅ 4. الحصول على التوكن
-  if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-      settings.authorizationStatus == AuthorizationStatus.provisional) {
-    String? fcmToken = await messaging.getToken();
-    if (fcmToken != null) {
-      //print("Firebase Messaging Token: $fcmToken"); // تم تفعيل الطباعة
-      // TODO: حفظ هذا التوكن في Supabase
-    } else {
-      //print("Failed to get FCM token."); // تم تفعيل الطباعة
-    }
+  // --- 2. محاولة تهيئة Supabase (مع حماية من الفشل) ---
+  try {
+    await Supabase.initialize(
+      url: 'https://pajxormplmloivyankji.supabase.co', // تأكد من الرابط
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhanhvcm1wbG1sb2l2eWFua2ppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0ODQ3OTksImV4cCI6MjA3NjA2MDc5OX0.eEPB_Gt5HywU9oGNXLpSNc4IA7CTTL7CX-EMKDE3yec',
+    );
+    print("✅ Supabase initialized successfully");
+  } catch (e) {
+    print("❌ Supabase initialization failed: $e");
   }
 
-  // ✅ إعداد معالجة الإشعارات الواردة
-  // 1. التعامل مع الإشعارات والتطبيق في المقدمة (Foreground)
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    //print('Got a message whilst in the foreground!');
-    //print('Message data: ${message.data}');
-    if (message.notification != null) {
-      //print('Message also contained a notification: ${message.notification}');
+  // --- 3. كود الإشعارات (أيضاً داخل try-catch) ---
+  try {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional) {
+      // محاولة جلب التوكن ولكن لا ننتظره ليعطل التطبيق
+      messaging.getToken().then((token) {
+        print("FCM Token: $token");
+      }).catchError((e) {
+        print("Error getting token: $e");
+      });
     }
-  });
 
-  // 2. التعامل مع فتح التطبيق من إشعار (عندما يكون التطبيق في الخلفية أو مغلقًا)
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    //print('A new onMessageOpenedApp event was published!');
-    //print('Message data: ${message.data}');
-    // لا يمكن استخدام Navigator.pushNamed(context, '/orders'); هنا
-    // لأن دالة main لا تملك context.
-    // يجب معالجة التوجيه (Navigation) داخل الـ State/Widget الخاص بك.
-  });
+    // المستمعون للإشعارات
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        // التعامل مع الإشعار
+      }
+    });
 
-  // 3. للتعامل مع الإشعارات التي تفتح التطبيق من الحالة المغلقة تمامًا
-  FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
-    if (message != null) {
-      //print('App opened from terminated state by notification!');
-      //print('Message data: ${message.data}');
-    }
-  });
+  } catch (e) {
+    print("❌ Notification setup failed: $e");
+  }
 
+  // --- 4. تشغيل التطبيق (يتم الوصول إليه دائماً الآن) ---
   runApp(const MyApp());
 }
-
+/////////////////////////////
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
