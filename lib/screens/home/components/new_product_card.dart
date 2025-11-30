@@ -206,7 +206,7 @@ class _NewProductCardState extends State<NewProductCard> {
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.orange,
+                              color: Colors.deepOrange,
                             ),
                           ),
                           if (oldPrice > 0)
@@ -228,12 +228,12 @@ class _NewProductCardState extends State<NewProductCard> {
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
+                            color: Colors.deepOrange.shade100,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
                             Icons.add_shopping_cart_outlined,
-                            color: Colors.orange,
+                            color: Colors.deepOrange,
                             size: 17,
                           ),
                         ),
@@ -243,7 +243,7 @@ class _NewProductCardState extends State<NewProductCard> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.star, color: Colors.orange[400], size: 14),
+                      Icon(Icons.star, color: Colors.deepOrange[400], size: 14),
                       Text(
                         ' $rating',
                         style: const TextStyle(fontSize: 11, color: Colors.grey),

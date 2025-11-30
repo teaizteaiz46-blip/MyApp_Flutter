@@ -5,11 +5,13 @@ import 'components/home_product_grid.dart';
 // استيراد الشاشات لنظام التنقل السفلي
 import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
-import '../categories/all_categories_screen.dart'; // <-- أضف هذا
+import '../categories/all_categories_screen.dart';
 import '../offers/offers_screen.dart';
-import '../clips/clips_screen.dart'; // <-- أضف هذا
-import '../home/components/promo_carousel.dart'; // أو المسار الصحيح لملف PromoCarousel
-// <-- أضف هذا`1`
+import '../clips/clips_screen.dart';
+import '../home/components/promo_carousel.dart';
+import 'package:intl/intl.dart';
+import '../details/details_screen.dart';
+
 // =================================================================
 // ===== 1. الشاشة الرئيسية (Home Screen) - تحمل الـ STATE =============
 // =================================================================
@@ -23,21 +25,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
 
-  // المتغيرات المطلوبة:
+  // --- 1. تعريف ScrollController ---
+  final ScrollController _scrollController = ScrollController();
+
   late Future<List<Map<String, dynamic>>> _categoriesFuture;
-  int _selectedCategoryId = 0; // لتتبع الفئة المختارة للفلترة
-  int _selectedIndex = 5; // نبدأ بـ 4 لأن "الرئيسية" هي الصفحة النشطة
+  int _selectedCategoryId = 0; // 0 تعني "الكل"
+  int _selectedIndex = 5; // نبدأ بـ 5 لأن "الرئيسية" هي الصفحة النشطة
 
   // قائمة الشاشات (STATIC)
   static final List<Widget> _screens = <Widget>[
     const ProfileScreen(),      // 0: الحساب
     const CartScreen(),         // 1: العربة
-    const OffersScreen(),  // 2: العروض (مؤقت)
-    const ClipsScreen(),        // 2: رييلز (جديد)
-    //const Text('شاشة الفئات'),   // 3: الفئات (مؤقت)
-    const AllCategoriesScreen(),
-    // هنا نستخدم HomeScreenContent الذي سيحمل المفتاح
-    const Text('الرئيسية'), // وضع Text مؤقت لأن المحتوى سيعرض عبر الـ Builder
+    const OffersScreen(),       // 2: العروض
+    const ClipsScreen(),        // 3: رييلز
+    const AllCategoriesScreen(),// 4: الفئات
+    const Text('الرئيسية'),     // 5: الرئيسية (placeholder)
   ];
 
   @override
@@ -46,141 +48,269 @@ class _HomeScreenState extends State<HomeScreen> {
     _categoriesFuture = _fetchCategories();
   }
 
+  // --- 2. التخلص من الكونترولر عند الخروج ---
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   // دالة جلب الفئات من Supabase
   Future<List<Map<String, dynamic>>> _fetchCategories() async {
     final data = await supabase.from('categories').select().order('id', ascending: true);
     return data;
   }
 
-  // دالة تحديث الحالة عند النقر على فئة دائرية (المفتاح لتفعيل التفاعل)
+  // دالة تحديث الحالة عند النقر على فئة
   void _selectCategory(int categoryId) {
     setState(() {
-      _selectedCategoryId = categoryId; // تحديث معرف الفئة
+      _selectedCategoryId = categoryId;
     });
   }
 
-  // دالة تحديث فهرس الشاشة عند النقر على BottomNavigationBar
+  // --- 3. دالة النقر المعدلة (المنطق الجديد) ---
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    // إذا ضغط المستخدم على زر "الرئيسية" (رقم 5) وهو أصلاً في الصفحة الرئيسية
+    if (index == 5 && _selectedIndex == 5) {
+      setState(() {
+        _selectedCategoryId = 0; // إعادة تعيين الفلتر إلى "الكل"
+      });
+
+      // الصعود إلى أعلى الصفحة بنعومة
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    } else {
+      // التنقل العادي بين الصفحات
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
   }
 
-
-  // دالة بناء الواجهة الرئيسية (Scaffold)
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
-        title: const HomeHeader(), // شريط البحث فقط
+        title: const HomeHeader(),
         backgroundColor: Colors.white,
         elevation: 1,
       ),
-
-      // الحل النهائي لـ "لا يحدث شيء عند الضغط"
       body: SafeArea(
         child: Builder(
           builder: (BuildContext context) {
-            // إذا كانت الشاشة الحالية هي الرئيسية (4)، نعرض المحتوى
+            // إذا كانت الشاشة الحالية هي الرئيسية (5)
             if (_selectedIndex == 5) {
-              // الحل: إعادة إنشاء HomeScreenContent مع تمرير المفتاح
               return HomeScreenContent(
-                selectedCategoryId: _selectedCategoryId, // <--- هذا هو المفتاح لإجبار التحديث
+                selectedCategoryId: _selectedCategoryId,
+                buildFlashDealsList: _buildFlashDealsList,
+                scrollController: _scrollController, // <-- تمرير الكونترولر هنا
               );
             } else {
-              // وإلا، نعرض الشاشة الأخرى من القائمة
               return _screens.elementAt(_selectedIndex);
             }
           },
         ),
       ),
-
-      // شريط التنقل السفلي
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'الحساب'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'العربة'),
           BottomNavigationBarItem(icon: Icon(Icons.local_offer_outlined), label: 'عروض'),
-          // --- إضافة الأيقونة الجديدة ---
           BottomNavigationBarItem(icon: Icon(Icons.video_collection_outlined), label: 'مقاطع'),
-          // --- نهاية الإضافة ---
           BottomNavigationBarItem(icon: Icon(Icons.category_outlined), label: 'الفئات'),
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'الرئيسية'),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFFFF773D), // اللون البرتقالي
+        selectedItemColor: const Color(0xFFFF773D),
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
-        onTap: _onItemTapped, // ربط النقر بدالة التحديث
+        onTap: _onItemTapped,
       ),
     );
   }
 
   // ----------------------------------------------------------------
   // --- الدوال المساعدة ---
-  // ----------------------------------------------------------------
 
-  // الدالة المساعدة لبناء شريط الفئات الدائري
+  Widget _buildFlashDealsList(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: supabase
+          .from('products')
+          .select()
+          .eq('is_offer', true)
+          .gt('stock', 0)
+          .limit(10),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final deals = snapshot.data!;
+        final formatter = NumberFormat('#,###');
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "صفقات فلاش ⚡",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                  ),
+                  GestureDetector(
+                    onTap: () => _onItemTapped(2), // الانتقال لتبويب العروض
+                    child: const Text("المزيد", style: TextStyle(color: Colors.grey)),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 200,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: deals.length,
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                itemBuilder: (context, index) {
+                  final deal = deals[index];
+                  final List<dynamic> imageList = deal['image_url'] ?? [];
+                  final String imageUrl = imageList.isNotEmpty ? imageList.first as String : '';
+                  final double price = (deal['price'] ?? 0).toDouble();
+                  final double oldPrice = (deal['old_price'] ?? 0).toDouble();
+                  int discountPercent = 0;
+                  if (oldPrice > 0) {
+                    discountPercent = ((oldPrice - price) / oldPrice * 100).round();
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DetailsScreen(productId: deal['id']),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 150,
+                      margin: const EdgeInsets.only(right: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            height: 150,
+                            width: 150,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(12),
+                              image: imageUrl.isNotEmpty
+                                  ? DecorationImage(
+                                image: NetworkImage(imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                                  : null,
+                            ),
+                            child: imageUrl.isEmpty
+                                ? const Icon(Icons.broken_image, color: Colors.grey)
+                                : null,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${formatter.format(price)} د.ع',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                          if (oldPrice > 0)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '%$discountPercent-',
+                                  style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  formatter.format(oldPrice),
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildCircularCategories(
       BuildContext context,
       List<Map<String, dynamic>> categories,
       ) {
-
-    // الوصول إلى قيمة ID الحالية من State الكلاس الأب
     final currentSelectedId = _selectedCategoryId;
-
     final List<Map<String, dynamic>> tabsData = [
-      {'id': 0, 'name': 'الكل', 'image_url':'assets/images/all_category.png'},
+      {'id': 0, 'name': 'الكل'},
       ...categories
     ];
 
     return SizedBox(
-      height: 120,
+      height: 40,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: tabsData.length,
+        padding: const EdgeInsets.symmetric(horizontal: 15),
         itemBuilder: (context, index) {
           final category = tabsData[index];
-
           final isSelected = category['id'] == currentSelectedId;
 
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
+            padding: const EdgeInsets.only(left: 10.0),
             child: GestureDetector(
               onTap: () {
-                // **ربط النقر بدالة التحديث مباشرة:**
                 _selectCategory(category['id']);
               },
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: isSelected ? Colors.orange.shade200 : Colors.grey[200],
-
-                    // --- هذا هو الكود الصحيح للتعامل مع الصور ---
-                    backgroundImage: (category['image_url'] != null && category['image_url'].isNotEmpty)
-                        ? (category['image_url'].startsWith('http')
-                        ? NetworkImage(category['image_url']!) // للروابط الخارجية
-                        : AssetImage(category['image_url']!) // للملفات المحلية
-                    )
-                        : null, // لا توجد صورة
-                    child: (category['image_url'] == null || category['image_url'].isEmpty)
-                        ? Icon(Icons.category, color: isSelected ? Colors.orange : Colors.grey) // أيقونة افتراضية
-                        : null, // لا تظهر الأيقونة إذا كانت هناك صورة
-                    // --- نهاية الكود الصحيح ---
-
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFF44336) : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(30),
+                  border: isSelected
+                      ? Border.all(color: const Color(0xFFF44336))
+                      : Border.all(color: Colors.grey[300]!),
+                ),
+                child: Center(
+                  child: Text(
                     category['name'],
                     style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.orange : Colors.black,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : Colors.black87,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -188,40 +318,28 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-// الدالة المساعدة لبناء اللافتة البرتقالية
-
-// في ملف home_screen.dart (داخل كلاس _HomeScreenState)
-
-// في ملف home_screen.dart (داخل كلاس _HomeScreenState)
-
-
-
 }
-
-// =================================================================
-// ===== 2. محتوى الشاشة الرئيسية (HomeScreenContent) - يتم تحديثه تلقائياً =
-// =================================================================
 
 // =================================================================
 // ===== 2. محتوى الشاشة الرئيسية (HomeScreenContent) =============
 // =================================================================
-// (هذا الكود يحل مشكلة الخطأ الأحمر في أسفل الشاشة)
 
 class HomeScreenContent extends StatelessWidget {
   final int selectedCategoryId;
+  final Function(BuildContext) buildFlashDealsList;
+  final ScrollController scrollController; // <-- 1. استقبال الكونترولر
 
   const HomeScreenContent({
     super.key,
+    required this.buildFlashDealsList,
     required this.selectedCategoryId,
+    required this.scrollController, // <-- 2. مطلوب في الكونستركتور
   });
 
   @override
   Widget build(BuildContext context) {
-    // 1. الوصول إلى الـ State الأب
     final homeScreenState = context.findAncestorStateOfType<_HomeScreenState>()!;
 
-    // 2. استخدام FutureBuilder لجلب الفئات
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: homeScreenState._categoriesFuture,
       builder: (context, snapshot) {
@@ -235,37 +353,34 @@ class HomeScreenContent extends StatelessWidget {
 
         final categories = snapshot.data ?? [];
 
-        // 3. الحل: استخدام CustomScrollView مع Slivers
         return CustomScrollView(
+          controller: scrollController, // <-- 3. ربط الكونترولر هنا لتفعيل الصعود
           slivers: [
-            // 4. اللافتة البرتقالية والفئات (SliverList)
             SliverList(
               delegate: SliverChildListDelegate(
                 [
-                  //homeScreenState._buildHeroBanner(context),
-                  // هذا هو البانر الديناميكي الجديد من Supabase
                   const PromoCarousel(),
                   const SizedBox(height: 30),
                   homeScreenState._buildCircularCategories(context, categories),
+                  const SizedBox(height: 20),
+                  buildFlashDealsList(context),
                   const SizedBox(height: 10),
                 ],
               ),
             ),
 
-            // 5. شبكة المنتجات (HomeProductGrid) كعنصر Sliver
-            // **هذا هو التصحيح:**
-            // نستخدم SliverPadding ليحيط بالـ SliverGrid
+            // شبكة المنتجات
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              // يتم استدعاء HomeProductGrid مباشرة كـ "sliver"
-              sliver: HomeProductGrid(categoryId: selectedCategoryId),
+              sliver: HomeProductGrid(
+                categoryId: selectedCategoryId,
+                // <-- 4. تفعيل الميكس إذا كانت الفئة "الكل" (0)
+                isMix: selectedCategoryId == 0,
+              ),
             ),
-
           ],
         );
       },
     );
   }
 }
-
-

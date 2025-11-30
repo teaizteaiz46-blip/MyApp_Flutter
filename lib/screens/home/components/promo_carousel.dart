@@ -76,7 +76,7 @@ class PromoCarousel extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 20),
             height: 200,
             decoration: BoxDecoration(
-              color: Colors.orange[400],
+              color: Colors.deepOrange[400],
               borderRadius: BorderRadius.circular(20),
 
               // 💡 --- الظل المضاف سابقاً --- 💡
