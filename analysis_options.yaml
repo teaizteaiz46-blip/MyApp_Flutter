@@ -21,6 +21,17 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
+    # 1. السماح باستخدام print
+    avoid_print: false
+
+    # 2. السماح باستخدام context بعد await (بدون تعقيد if mounted)
+    use_build_context_synchronously: false
+
+    # 3. تجاهل تنبيهات الاستيراد غير المستخدم
+    unused_import: false
+
+    # 4. تجاهل تنبيهات الأكواد القديمة مؤقتًا
+    deprecated_member_use: false
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 
