@@ -51,6 +51,13 @@ Future<void> main() async {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
+
+
+      // --- أضف هذا السطر ---
+      // الاشتراك في قناة "الكل" لاستقبال إشعارات من لوحة التحكم
+      await messaging.subscribeToTopic('all');
+      print("Subscribed to 'all' topic");
+      // --------------------
       // محاولة جلب التوكن ولكن لا ننتظره ليعطل التطبيق
       messaging.getToken().then((token) {
         print("FCM Token: $token");
