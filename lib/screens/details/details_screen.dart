@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart'; // لاستخدام supabase
 import 'package:intl/intl.dart';
+// 1. استيراد حزمة فيسبوك
+import 'package:facebook_app_events/facebook_app_events.dart';
 
 class DetailsScreen extends StatefulWidget {
   final int productId;
@@ -16,29 +18,35 @@ class DetailsScreen extends StatefulWidget {
 class _DetailsScreenState extends State<DetailsScreen> {
   int _currentPage = 0;
   late PageController _pageController;
-
-  // --- 1. تعريف الـ Future كمتغير في الـ State ---
   late Future<Map<String, dynamic>> _productFuture;
+
+  // 2. تعريف متغير التتبع
+  static final facebookAppEvents = FacebookAppEvents();
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-
-    // --- 2. جلب البيانات مرة واحدة فقط عند تهيئة الشاشة ---
     _productFuture = _fetchProductDetails();
   }
 
-  // --- 3. إنشاء دالة منفصلة لجلب البيانات ---
-  Future<Map<String, dynamic>> _fetchProductDetails() {
-    return supabase
+  Future<Map<String, dynamic>> _fetchProductDetails() async {
+    final data = await supabase
         .from('products')
         .select()
         .eq('id', widget.productId)
         .single();
-  }
-  // --- نهاية التعديلات ---
 
+    // 3. تتبع "مشاهدة محتوى" عند تحميل البيانات
+    facebookAppEvents.logViewContent(
+      id: widget.productId.toString(),
+      type: 'product',
+      currency: 'IQD',
+      price: (data['price'] ?? 0.0).toDouble(),
+    );
+
+    return data;
+  }
 
   @override
   void dispose() {
@@ -46,17 +54,21 @@ class _DetailsScreenState extends State<DetailsScreen> {
     super.dispose();
   }
 
-  // --- دوال إضافة السلة (تبقى كما هي) ---
   Future<void> _addToCart() async {
+    // نحتاج لجلب السعر أولاً للتتبع (يمكن تحسينه بتمريره للدالة)
+    // هنا سنعتمد على أن البيانات قد تم تحميلها
+    final productData = await _productFuture;
+    final double price = (productData['price'] ?? 0.0).toDouble();
+
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) {
-      await _addLocalCart();
+      await _addLocalCart(price);
     } else {
-      await _addDbCart(currentUser.id);
+      await _addDbCart(currentUser.id, price);
     }
   }
 
-  Future<void> _addLocalCart() async {
+  Future<void> _addLocalCart(double price) async {
     final prefs = await SharedPreferences.getInstance();
     final String? cartString = prefs.getString('cartMap');
     final Map<String, dynamic> cartMap = cartString != null
@@ -72,6 +84,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
     await prefs.setString('cartMap', json.encode(cartMap));
 
+    // 4. تتبع "إضافة للسلة" (زائر)
+    facebookAppEvents.logAddToCart(
+      id: widget.productId.toString(),
+      type: 'product',
+      currency: 'IQD',
+      price: price,
+    );
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -83,7 +103,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     }
   }
 
-  Future<void> _addDbCart(String userId) async {
+  Future<void> _addDbCart(String userId, double price) async {
     try {
       final existingItem = await supabase
           .from('cart')
@@ -101,6 +121,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
         'product_id': widget.productId,
         'quantity': newQuantity,
       }, onConflict: 'user_id, product_id');
+
+      // 5. تتبع "إضافة للسلة" (مسجل)
+      facebookAppEvents.logAddToCart(
+        id: widget.productId.toString(),
+        type: 'product',
+        currency: 'IQD',
+        price: price,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,15 +150,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
       }
     }
   }
-  // --- نهاية دوال إضافة السلة ---
-
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
-      // --- 4. استخدام المتغير _productFuture هنا ---
       future: _productFuture,
-      // --- نهاية التعديل ---
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -161,16 +185,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
               icon: const Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            ////////////////
-            //actions: [
-            //  IconButton(
-            //    icon: const Icon(Icons.favorite_border, color: Colors.black),
-            //    onPressed: () {
-                  // TODO: إضافة منطق إضافة/إزالة من المفضلة
-            //    },
-           //   ),
-           // ],
-            ////////////////////////////
+            // تمت إزالة زر المفضلة لتنظيف الكود كما في نسختك
           ),
           bottomNavigationBar: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -189,13 +204,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
               icon: const Icon(Icons.add_shopping_cart_outlined, color: Colors.white),
               label: const Text(
                 'أضف إلى السلة',
-                style: TextStyle(fontSize: 18, color: Colors.white),
+                style: TextStyle(fontSize: 20, color: Colors.white),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(15),
                 ),
                 minimumSize: const Size(double.infinity, 50),
               ),
@@ -226,8 +241,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                             );
                           }
                           final String imageUrl = imageList[index] as String;
-                          // --- بداية التعديل الجديد ---
-                          // استخدام GestureDetector للنقر وفتح الشاشة الكاملة
+                          // --- استخدام GestureDetector للنقر وفتح الشاشة الكاملة ---
                           return GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -235,14 +249,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
                                 MaterialPageRoute(
                                   builder: (context) => FullScreenImageViewer(
                                     imageUrls: imageList,
-                                    initialIndex: index, // تمرير رقم الصورة الحالية
+                                    initialIndex: index,
                                   ),
                                 ),
                               );
                             },
                             child: Image.network(
                               imageUrl,
-                              fit: BoxFit.cover, // الصورة العادية تملأ الإطار
+                              fit: BoxFit.cover,
                               loadingBuilder: (context, child, progress) {
                                 if (progress == null) return child;
                                 return Container(
@@ -258,7 +272,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
                               },
                             ),
                           );
-                          // --- نهاية التعديل الجديد ---
                         },
                       ),
 
@@ -329,10 +342,9 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 }
 
-// --- أضف هذا الكلاس في نهاية الملف ---
-
+// --- كلاس عارض الصور بالحجم الكامل ---
 class FullScreenImageViewer extends StatelessWidget {
-  final List<dynamic> imageUrls; // القائمة قد تكون String أو JsonB
+  final List<dynamic> imageUrls;
   final int initialIndex;
 
   const FullScreenImageViewer({
@@ -343,12 +355,10 @@ class FullScreenImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // للبدء من الصورة التي تم النقر عليها
     PageController pageController = PageController(initialPage: initialIndex);
 
     return Scaffold(
-      backgroundColor: Colors.black, // خلفية سوداء للتركيز
-      // زر إغلاق في الأعلى
+      backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -357,20 +367,20 @@ class FullScreenImageViewer extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      extendBodyBehindAppBar: true, // لجعل الصورة خلف زر الإغلاق
+      extendBodyBehindAppBar: true,
       body: PageView.builder(
         controller: pageController,
         itemCount: imageUrls.length,
         itemBuilder: (context, index) {
           final String imageUrl = imageUrls[index] as String;
           return InteractiveViewer(
-            panEnabled: true, // السماح بالتحريك
-            minScale: 0.5,    // أقل تصغير
-            maxScale: 4.0,    // أقصى تكبير
+            panEnabled: true,
+            minScale: 0.5,
+            maxScale: 4.0,
             child: Center(
               child: Image.network(
                 imageUrl,
-                fit: BoxFit.contain, // عرض الصورة كاملة بدون قص
+                fit: BoxFit.contain,
                 loadingBuilder: (context, child, progress) {
                   if (progress == null) return child;
                   return const Center(child: CircularProgressIndicator(color: Colors.white));

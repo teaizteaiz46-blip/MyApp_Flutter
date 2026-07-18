@@ -228,6 +228,25 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               child: const Text('تسجيل الدخول'),
             ),
+
+              ////////////////////
+              // 👇 رابط سياسة الخصوصية وتحسين المظهر
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/privacy');
+                },
+                child: const Text(
+                  'سياسة الخصوصية لتطبيق GG',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    decoration: TextDecoration.underline,
+                    fontSize: 13,
+                      ),
+                    ),
+                  ),
+              ////////////////////
+
           ],
         ),
       ),
@@ -272,6 +291,35 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               child: const Text('إنشاء حساب جديد'),
             ),
+            //////////////////////////////
+        // 👇 نص الإقرار وسياسة الخصوصية
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.center,
+          //cross: WrapCrossAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center, // 👈 كود صحيح
+          children: [
+            const Text(
+              'بإنشاء حساب، فإنك توافق على ',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.pushNamed(context, '/privacy');
+              },
+              child: const Text(
+                'سياسة الخصوصية',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+            /////////////////////////////////
           ],
         ),
       ),

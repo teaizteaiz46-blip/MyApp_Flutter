@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart';
 import '../checkout/checkout_screen.dart'; // <-- أضف هذا
 import 'package:intl/intl.dart'; // <-- أضف هذا
+import 'package:myapprun/facebook_service.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -22,6 +23,8 @@ class _CartScreenState extends State<CartScreen> {
     super.initState();
     // التحقق من حالة المستخدم أولاً
     _isLoggedIn = supabase.auth.currentUser != null;
+
+
 
     // تحميل السلة المناسبة
     if (_isLoggedIn) {
@@ -176,6 +179,17 @@ class _CartScreenState extends State<CartScreen> {
             ),
             ElevatedButton(
               onPressed: () {
+                ///////////////////
+                // 🟢 --- هنا تم وضع كود التتبع لفيسبوك --- 🟢
+                FacebookAnalyticsService.logCustomEvent(
+                  eventName: 'fb_mobile_initiated_checkout',
+                  parameters: {
+                    'total_price': _totalPrice,
+                    'currency': 'IQD',
+                  },
+                );
+                // ------------------------------------------
+                ////////////////////
                 // --- هذا هو الكود المفقود ---
                 Navigator.push(
                   context,

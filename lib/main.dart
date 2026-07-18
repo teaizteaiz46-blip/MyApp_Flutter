@@ -4,6 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // ✅ 1. استيراد حزمة الإشعارات
 import 'firebase_options.dart';
+import 'facebook_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:facebook_app_events/facebook_app_events.dart';
+import 'package:myapprun/screens/policy/privacy_policy_screen.dart'; // 👈 أضف هذا السطر هنا (عدل المسار إذا كان الملف داخل مجلد screens)
 
 // تعريف متغير عالمي للوصول السهل إلى Supabase
 final supabase = Supabase.instance.client;
@@ -17,6 +21,13 @@ final supabase = Supabase.instance.client;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb) {
+    // 🔹 تفعيل تتبع فيسبوك
+    final facebookAppEvents = FacebookAppEvents();
+    await facebookAppEvents.setAutoLogAppEventsEnabled(true);
+    await facebookAppEvents.setAdvertiserTracking(enabled: true);
+  }
 
   // --- 1. محاولة تهيئة Firebase (مع حماية من الفشل) ---
   try {
@@ -87,7 +98,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VELIN',
+      title: 'GG',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.orange,
@@ -101,7 +112,11 @@ class MyApp extends StatelessWidget {
         ),
       ),
       //home: const SplashScreen(),
-      home: const HomeScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const HomeScreen(), // شاشتك الرئيسية
+        '/privacy': (context) => const PrivacyPolicyScreen(), // صفحة الخصوصية
+      },
     );
   }
 }

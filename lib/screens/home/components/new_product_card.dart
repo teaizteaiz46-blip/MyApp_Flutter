@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../main.dart'; // لاستخدام supabase
 import 'package:intl/intl.dart';
+import 'package:myapprun/facebook_service.dart'; // أو حسب المسار الصحيح لديك
 
 
 class NewProductCard extends StatefulWidget {
@@ -24,6 +25,13 @@ class _NewProductCardState extends State<NewProductCard> {
   Future<void> _addToCart(BuildContext context) async {
     final currentUser = supabase.auth.currentUser;
     final int currentProductId = widget.product['id'] ?? 0;
+    // 🔹 تتبع إضافة للمنتج في فيسبوك
+    FacebookAnalyticsService.logAddToCart(
+      id: currentProductId.toString(),
+      type: 'product',
+      price: ((widget.product['price'] ?? 0) as num).toDouble(),
+      currency: 'IQD',
+    );
     if (currentUser == null) {
       await _addLocalCart(currentProductId);
     } else {
