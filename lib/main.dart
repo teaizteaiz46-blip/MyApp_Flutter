@@ -8,6 +8,7 @@ import 'facebook_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:myapprun/screens/policy/privacy_policy_screen.dart'; // 👈 أضف هذا السطر هنا (عدل المسار إذا كان الملف داخل مجلد screens)
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 // تعريف متغير عالمي للوصول السهل إلى Supabase
 final supabase = Supabase.instance.client;
@@ -98,8 +99,19 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GG',
+      title: 'MODO',
       debugShowCheckedModeBanner: false,
+      // 🌐 👇 هنا التعديل السحري: إجبار التطبيق على الاتجاه العربي (من اليمين لليسار)
+      locale: const Locale('ar', 'IQ'),
+      supportedLocales: const [
+        Locale('ar', 'IQ'), // يدعم اللغة العربية بشكل افتراضي
+      ],
+      localizationsDelegates:[
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // ----------------------------------------------------
       theme: ThemeData(
         primarySwatch: Colors.orange,
         scaffoldBackgroundColor: const Color(0xFFF5F5F5),

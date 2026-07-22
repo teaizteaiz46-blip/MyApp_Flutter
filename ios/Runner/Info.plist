@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>GG</string>
+		<string>MODO</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>GG</string>
+		<string>MODO</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -35,12 +35,12 @@
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
 		<key>UIBackgroundModes</key>
-        <array>
-            <string>fetch</string>
-            <string>remote-notification</string>
-        </array>
-        <key>FirebaseAppDelegateProxyEnabled</key>
-        <false/>
+		<array>
+			<string>fetch</string>
+			<string>remote-notification</string>
+		</array>
+		<key>FirebaseAppDelegateProxyEnabled</key>
+		<false/>
 		<key>UISupportedInterfaceOrientations~ipad</key>
 		<array>
 			<string>UIInterfaceOrientationPortrait</string>
@@ -60,6 +60,6 @@
 			<true/>
 		</dict>
 		<key>ITSAppUsesNonExemptEncryption</key>
-            <false/>
+		<false/>
 	</dict>
 </plist>
