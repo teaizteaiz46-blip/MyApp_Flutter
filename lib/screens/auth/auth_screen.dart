@@ -237,7 +237,7 @@ class _AuthScreenState extends State<AuthScreen>
                   Navigator.pushNamed(context, '/privacy');
                 },
                 child: const Text(
-                  'سياسة الخصوصية لتطبيق GG',
+                  'سياسة الخصوصية لتطبيق مودو',
                   style: TextStyle(
                     color: Colors.grey,
                     decoration: TextDecoration.underline,

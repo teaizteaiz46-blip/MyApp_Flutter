@@ -10,6 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_web_plugins: # 👈 أضف هذا السطر هنا
+    sdk: flutter
+
   flutter_localizations:
     sdk: flutter
 

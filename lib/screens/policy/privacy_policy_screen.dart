@@ -26,12 +26,12 @@ class PrivacyPolicyScreen extends StatelessWidget {
               ),
               child: const Padding(
                 padding: EdgeInsets.all(24.0),
-                child: SelectionArea( // يتيح تحديد وتحديد النصوص لمستخدمي الويب
+                child: SelectionArea( // يتيح تحديد ونسخ النص على الويب
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'سياسة الخصوصية لتطبيق جي جي (GG)',
+                        'سياسة الخصوصية لتطبيق مودو (Modo)',
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       SizedBox(height: 8),
@@ -43,7 +43,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
                       _SectionTitle('1. مقدمة'),
                       _SectionBody(
-                          'أهلاً بك في تطبيق جي جي - GG ("التطبيق"). نحن نقدر ثقتك بنا ونلتزم بحماية خصوصيتك. توضح سياسة الخصوصية هذه كيفية جمع واستخدام وحماية المعلومات التي قد تقدمها أثناء استخدامك للتطبيق. استخدامك للتطبيق يعني موافقتك على الممارسات الموضحة في هذه السياسة.'
+                          'أهلاً بك في تطبيق مودو - Modo ("التطبيق"). نحن نقدر ثقتك بنا ونلتزم بحماية خصوصيتك. توضح سياسة الخصوصية هذه كيفية جمع واستخدام وحماية المعلومات التي قد تقدمها أثناء استخدامك للتطبيق. استخدامك للتطبيق يعني موافقتك على الممارسات الموضحة في هذه السياسة.'
                       ),
 
                       _SectionTitle('2. البيانات التي نجمعها'),
@@ -93,7 +93,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
                       _SectionTitle('7. خصوصية الأطفال'),
                       _SectionBody(
-                          'تطبيق جي جي (GG) غير موجه للأطفال دون سن 13 عاماً. نحن لا نجمع عن قصد أي معلومات شخصية من الأطفال.'
+                          'تطبيق مودو (Modo) غير موجه للأطفال دون سن 13 عاماً. نحن لا نجمع عن قصد أي معلومات شخصية من الأطفال.'
                       ),
 
                       _SectionTitle('8. التغييرات على سياسة الخصوصية'),
