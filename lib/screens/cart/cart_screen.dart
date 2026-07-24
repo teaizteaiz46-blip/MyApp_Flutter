@@ -65,45 +65,60 @@ class _CartScreenState extends State<CartScreen> {
     setState(() => _totalPrice = tempTotal);
     return productsWithQuantity;
   }
-
+//////////////////////////
   // --- دالة تحميل السلة المحلية (للزوار) ---
   Future<List<Map<String, dynamic>>> _loadLocalCart() async {
     final prefs = await SharedPreferences.getInstance();
     final String? cartString = prefs.getString('cartMap');
-    final Map<String, dynamic> cartMap = cartString != null
-        ? json.decode(cartString) as Map<String, dynamic>
-        : {};
 
-    if (cartMap.isEmpty) {
+    if (cartString == null || cartString.isEmpty) {
       setState(() => _totalPrice = 0.0);
       return [];
     }
 
-    final List<int> intProductIds = cartMap.keys.map((id) => int.parse(id)).toList();
+    final List<dynamic> rawCartList = json.decode(cartString);
+    if (rawCartList.isEmpty) {
+      setState(() => _totalPrice = 0.0);
+      return [];
+    }
 
-    final String filter = intProductIds.map((id) => 'id.eq.$id').join(',');
+    // جمع IDs المنتجات
+    final List<int> productIds = rawCartList
+        .map((e) => int.parse(e['product_id'].toString()))
+        .toSet()
+        .toList();
+
+    final String filter = productIds.map((id) => 'id.eq.$id').join(',');
     final List<Map<String, dynamic>> productsData = await supabase
         .from('products')
         .select()
         .or(filter);
 
     double tempTotal = 0.0;
-    List<Map<String, dynamic>> productsWithQuantity = [];
+    List<Map<String, dynamic>> productsWithDetails = [];
 
-    for (var product in productsData) {
-      final String productIdStr = product['id'].toString();
-      final int quantity = cartMap[productIdStr] as int;
-      final double price = (product['price'] ?? 0.0).toDouble();
+    for (var cartItem in rawCartList) {
+      final int productId = int.parse(cartItem['product_id'].toString());
+      final product = productsData.firstWhere((p) => p['id'] == productId, orElse: () => {});
 
-      product['quantity'] = quantity;
-      tempTotal += (price * quantity);
-      productsWithQuantity.add(product);
+      if (product.isNotEmpty) {
+        final double price = (product['price'] ?? 0.0).toDouble();
+        final int quantity = cartItem['quantity'] as int;
+
+        Map<String, dynamic> itemMap = Map<String, dynamic>.from(product);
+        itemMap['quantity'] = quantity;
+        itemMap['selected_color'] = cartItem['selected_color'];
+
+        tempTotal += (price * quantity);
+        productsWithDetails.add(itemMap);
+      }
     }
 
     setState(() => _totalPrice = tempTotal);
-    return productsWithQuantity;
+    return productsWithDetails;
   }
 
+  /////////////////////////////////
   // --- دالة حذف "ذكية" ---
   Future<void> _removeFromCart(int id, bool isLocal) async {
     try { // <-- إضافة try/catch احتياطًا
@@ -241,6 +256,7 @@ class _CartScreenState extends State<CartScreen> {
               final String name = product['name'] ?? 'No Name';
               final double price = (product['price'] ?? 0.0).toDouble();
               final int quantity = product['quantity'] ?? 0;
+              final String? selectedColor = product['selected_color'];
 
               // تحديد المعرف الصحيح للحذف
               final int idForDelete = _isLoggedIn ? product['cart_id'] : product['id'];
@@ -252,12 +268,26 @@ class _CartScreenState extends State<CartScreen> {
                       ? Container(width: 50, color: Colors.grey[200])
                       : Image.network(imageUrl, width: 50, fit: BoxFit.cover),
                   title: Text(name),
-                  subtitle: Text(
-                      '${formatter.format(price)} د.ع x $quantity = ${(price * quantity).toStringAsFixed(0)} د.ع '
+                  // 🟢 التعديل على subtitle لعرض اللون
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (selectedColor != null && selectedColor.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2.0),
+                          child: Text(
+                            'اللون: $selectedColor',
+                            style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      Text(
+                        '${formatter.format(price)} د.ع x $quantity = ${formatter.format(price * quantity)} د.ع',
+                      ),
+                    ],
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
+                    onPressed: (){
                       _removeFromCart(idForDelete, !_isLoggedIn);
                     },
                   ),

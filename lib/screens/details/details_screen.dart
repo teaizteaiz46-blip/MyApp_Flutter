@@ -16,6 +16,7 @@ class DetailsScreen extends StatefulWidget {
 }
 
 class _DetailsScreenState extends State<DetailsScreen> {
+  String? _selectedColor; // نضيف هذا المتغير داخل _DetailsScreenState
   int _currentPage = 0;
   late PageController _pageController;
   late Future<Map<String, dynamic>> _productFuture;
@@ -67,24 +68,33 @@ class _DetailsScreenState extends State<DetailsScreen> {
       await _addDbCart(currentUser.id, price);
     }
   }
-
+///////////////////////////
   Future<void> _addLocalCart(double price) async {
     final prefs = await SharedPreferences.getInstance();
     final String? cartString = prefs.getString('cartMap');
-    final Map<String, dynamic> cartMap = cartString != null
-        ? json.decode(cartString) as Map<String, dynamic>
-        : {};
+
+    // سنقوم بتخزين عناصر السلة بهيكلية تدعم اللون
+    List<dynamic> cartList = cartString != null ? json.decode(cartString) : [];
+
     final String productIdStr = widget.productId.toString();
 
-    if (cartMap.containsKey(productIdStr)) {
-      cartMap[productIdStr] = (cartMap[productIdStr] as int) + 1;
+    // البحث عما إذا كان نفس المنتج وبنفس اللون موجوداً بالسلة
+    int existingIndex = cartList.indexWhere((item) =>
+    item['product_id'].toString() == productIdStr &&
+        item['selected_color'] == _selectedColor);
+
+    if (existingIndex != -1) {
+      cartList[existingIndex]['quantity'] += 1;
     } else {
-      cartMap[productIdStr] = 1;
+      cartList.add({
+        'product_id': widget.productId,
+        'quantity': 1,
+        'selected_color': _selectedColor,
+      });
     }
 
-    await prefs.setString('cartMap', json.encode(cartMap));
+    await prefs.setString('cartMap', json.encode(cartList));
 
-    // 4. تتبع "إضافة للسلة" (زائر)
     facebookAppEvents.logAddToCart(
       id: widget.productId.toString(),
       type: 'product',
@@ -94,35 +104,38 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تمت الإضافة للسلة! لديك ${cartMap[productIdStr]} من هذا المنتج.'),
+        const SnackBar(
+          content: Text('تمت الإضافة للسلة بنجاح!'),
           backgroundColor: Colors.green,
-          duration: const Duration(seconds: 1),
+          duration: Duration(seconds: 1),
         ),
       );
     }
   }
-
+  ////////////////////////////
   Future<void> _addDbCart(String userId, double price) async {
     try {
       final existingItem = await supabase
           .from('cart')
-          .select('quantity')
+          .select('id, quantity')
           .eq('user_id', userId)
           .eq('product_id', widget.productId)
+          .eq('selected_color', _selectedColor ?? '')
           .maybeSingle();
-      int newQuantity = 1;
+
       if (existingItem != null) {
-        newQuantity = (existingItem['quantity'] as int) + 1;
+        await supabase.from('cart').update({
+          'quantity': (existingItem['quantity'] as int) + 1,
+        }).eq('id', existingItem['id']);
+      } else {
+        await supabase.from('cart').insert({
+          'user_id': userId,
+          'product_id': widget.productId,
+          'quantity': 1,
+          'selected_color': _selectedColor,
+        });
       }
 
-      await supabase.from('cart').upsert({
-        'user_id': userId,
-        'product_id': widget.productId,
-        'quantity': newQuantity,
-      }, onConflict: 'user_id, product_id');
-
-      // 5. تتبع "إضافة للسلة" (مسجل)
       facebookAppEvents.logAddToCart(
         id: widget.productId.toString(),
         type: 'product',
@@ -133,7 +146,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم تحديث الكمية في سلة حسابك!'),
+            content: Text('تمت الإضافة لسلة حسابك!'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 1),
           ),
@@ -151,8 +164,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
     }
   }
 
+
+  //////////////////////////////
+
+
+
   @override
   Widget build(BuildContext context) {
+
     return FutureBuilder<Map<String, dynamic>>(
       future: _productFuture,
       builder: (context, snapshot) {
@@ -174,6 +193,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final String name = product['name'] ?? 'اسم المنتج غير متوفر';
         final double price = (product['price'] ?? 0.0).toDouble();
         final String description = product['description'] ?? 'لا يتوفر وصف لهذا المنتج.';
+        final List<dynamic> availableColors = product['colors'] ?? [];
         final formatter = NumberFormat('#,###');
 
         return Scaffold(
@@ -330,6 +350,38 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           height: 1.5,
                         ),
                       ),
+                      ////////////////
+                      // في قسم الـ Widget داخل Column بعد وصف المنتج:
+                      if (availableColors.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        const Text(
+                          'اختر اللون:',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          children: availableColors.map((colorName) {
+                            final isSelected = _selectedColor == colorName;
+                            return ChoiceChip(
+                              label: Text(
+                                colorName.toString(),
+                                style: TextStyle(color: isSelected ? Colors.white : Colors.black),
+                              ),
+                              selected: isSelected,
+                              selectedColor: Colors.orange,
+                              backgroundColor: Colors.grey[200],
+                              onSelected: (selected) {
+                                setState(() {
+                                  _selectedColor = selected ? colorName.toString() : null;
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+
+                      /////////////////
                     ],
                   ),
                 ),

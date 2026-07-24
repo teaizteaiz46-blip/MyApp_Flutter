@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart';
 import '../../screens/home/home_screen.dart';
 
-
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
 
@@ -15,81 +14,160 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  //final _addressController = TextEditingController();
-  // --- أضف هذه المتغيرات الجديدة ---
-  double _productsTotal = 0.0; // مجموع أسعار المنتجات
-  double _deliveryCost = 0.0;  // سعر التوصيل
-  // ----------------------------
+  final _addressDetailsController = TextEditingController();
+
+  // --- حقل الكوبون والمتغيرات الخاصة به ---
+  final _couponController = TextEditingController();
+  double _discountAmount = 0.0;
+  int? _appliedCouponId;
+  bool _isCheckingCoupon = false;
+  String? _couponErrorMessage;
+  // ------------------------------------
+
+  double _productsTotal = 0.0;
+  double _deliveryCost = 0.0;
   final _formKey = GlobalKey<FormState>();
 
-  // --- أضف هذا ---
-  final _addressDetailsController = TextEditingController(); // حقل جديد للتفاصيل
-  String? _selectedGovernorate; // لتخزين المحافظة المختارة
-  final List<String> _governorates = ['بغداد','كربلاء','الأنبار','الحلة - بابل','البصرة','دهوك','ديالى','أربيل','كركوك','العمارة - ميسان','السماوة - المثنى','النجف','نينوى','ديوانية - القادسية','صلاح الدين','السليمانية','الناصرية - ذي قار','الكوت - واسط']; // القائمة المنسدلة
-  // --- نهاية الإضافة ---
+  String? _selectedGovernorate;
+  final List<String> _governorates = [
+    'بغداد', 'كربلاء', 'الأنبار', 'الحلة - بابل', 'البصرة', 'دهوك', 'ديالى',
+    'أربيل', 'كركوك', 'العمارة - ميسان', 'السماوة - المثنى', 'النجف', 'نينوى',
+    'ديوانية - القادسية', 'صلاح الدين', 'السليمانية', 'الناصرية - ذي قار', 'الكوت - واسط'
+  ];
 
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateTotal();
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    //_addressController.dispose();
-    _addressDetailsController.dispose(); // <-- أضف هذا
+    _addressDetailsController.dispose();
+    _couponController.dispose();
     super.dispose();
   }
 
-  // --- دالة "إرسال الطلب" محدثة بالكامل ---
-// --- دالة "إرسال الطلب" محدثة بالكامل ---
-  Future<void> _submitOrder() async {
-    // 1. التحقق من أن الحقول مملوءة
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  // --- دالة التحقق من الكوبون (محدثة بدون شرط تسجيل الدخول) ---
+  Future<void> _applyCoupon() async {
+    final code = _couponController.text.trim().toUpperCase();
+    //final code = _couponController.text.trim();
+    if (code.isEmpty) return;
 
-    // التحقق من "mounted" قبل استخدام setState
-    if (mounted) {
-      setState(() => _isLoading = true);
-    }
+    final phone = _phoneController.text.trim();
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isCheckingCoupon = true;
+      _couponErrorMessage = null;
+    });
 
     try {
-      // متغير لتخزين خريطة السلة
-      Map<String, dynamic>? cartMap;
-
-      // 1. التحقق من حالة المستخدم وجلب السلة الصحيحة
       final currentUser = supabase.auth.currentUser;
-      final prefs = await SharedPreferences.getInstance(); // <-- فجوة 1
+
+      // 1. البحث عن الكوبون
+      final couponResponse = await supabase
+          .from('coupons')
+          .select()
+          .eq('code', code)
+          .eq('is_active', true)
+          .maybeSingle();
+
+      if (couponResponse == null) {
+        setState(() {
+          _couponErrorMessage = 'كود الخصم غير صحيح أو غير فعال.';
+          _isCheckingCoupon = false;
+        });
+        return;
+      }
+
+      final int couponId = couponResponse['id'];
+      final double discount = (couponResponse['discount_amount'] ?? 0).toDouble();
+
+      // 2. التحقق من التكرار (سواء عن طريق الحساب أو رقم الهاتف)
+      dynamic usageCheck;
+      if (currentUser != null) {
+        usageCheck = await supabase
+            .from('coupon_usages')
+            .select()
+            .eq('coupon_id', couponId)
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+      } else if (phone.isNotEmpty) {
+        usageCheck = await supabase
+            .from('coupon_usages')
+            .select()
+            .eq('coupon_id', couponId)
+            .eq('customer_phone', phone)
+            .maybeSingle();
+      }
+
+      if (usageCheck != null) {
+        setState(() {
+          _couponErrorMessage = 'لقد تم استخدام هذا الكوبون سابقاً!';
+          _isCheckingCoupon = false;
+        });
+        return;
+      }
+
+      // 3. نجاح التفعيل
+      setState(() {
+        _discountAmount = discount;
+        _appliedCouponId = couponId;
+        _isCheckingCoupon = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تطبيق خصم 2,000 د.ع بنجاح!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _couponErrorMessage = 'حدث خطأ أثناء فحص الكوبون.';
+        _isCheckingCoupon = false;
+      });
+    }
+  }
+/////////////////
+  Future<void> _submitOrder() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      List<Map<String, dynamic>> cartItemsList = [];
+      final currentUser = supabase.auth.currentUser;
+      final prefs = await SharedPreferences.getInstance();
 
       if (currentUser != null) {
-        // --- المستخدم مسجل: جلب السلة من Supabase ---
         final userId = currentUser.id;
-        final cartData = await supabase // <-- فجوة 2
+        // 🟢 جلب بيانات السلة مع اللون المختار للمستخدم المسجل
+        final cartData = await supabase
             .from('cart')
-            .select('product_id, quantity')
+            .select('product_id, quantity, selected_color')
             .eq('user_id', userId);
 
-        if (cartData.isEmpty) {
-          cartMap = null;
-        } else {
-          cartMap = {
-            for (var item in cartData)
-              item['product_id'].toString(): item['quantity']
-          };
+        if (cartData.isNotEmpty) {
+          cartItemsList = List<Map<String, dynamic>>.from(cartData);
         }
       } else {
-        // --- المستخدم زائر: جلب السلة من الذاكرة المحلية ---
+        // 🟢 جلب بيانات السلة للزائر من SharedPreferences
         final String? cartString = prefs.getString('cartMap');
         if (cartString != null && cartString.isNotEmpty) {
-          cartMap = json.decode(cartString);
-        } else {
-          cartMap = null;
+          final List<dynamic> localCart = json.decode(cartString);
+          cartItemsList = List<Map<String, dynamic>>.from(localCart);
         }
       }
 
-      // 2. التحقق مما إذا كانت السلة فارغة بالفعل
-      if (cartMap == null || cartMap.isEmpty) {
-
-        // --- الحل 1: إضافة فحص "mounted" هنا ---
+      if (cartItemsList.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('سلة المشتريات فارغة!'), backgroundColor: Colors.red),
@@ -99,34 +177,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      // 3. جلب بيانات العميل (تبقى كما هي)
       final String name = _nameController.text;
       final String phone = _phoneController.text;
-      // --- تعديل هذا السطر ---
       final String address = "$_selectedGovernorate، ${_addressDetailsController.text}";
-      // --- نهاية التعديل ---
+      final double finalTotal = (_productsTotal + _deliveryCost - _discountAmount).clamp(0, double.infinity);
 
-      // 4. إرسال الطلب إلى Supabase (تبقى كما هي مع إضافة user_id)
+      // 🟢 حفظ العناصر كقائمة تدعم تفاصيل كل منتج واللون الخاص به
       final Map<String, dynamic> orderData = {
         'customer_name': name,
         'customer_phone': phone,
         'customer_address': address,
-        'cart_items': cartMap,
-        'status': 'قيد المراجعة'
+        'cart_items': cartItemsList, // سيتم تخزينه كـ JSON يحتوي المنتجات والكميات والألوان
+        'status': 'قيد المراجعة',
+        'discount_amount': _discountAmount,
+        'total_amount': finalTotal,
       };
+
       if (currentUser != null) {
         orderData['user_id'] = currentUser.id;
       }
-      await supabase.from('orders').insert(orderData); // <-- فجوة 3
 
-      // 5. مسح السلة الصحيحة بعد نجاح الطلب
-      if (currentUser != null) {
-        await supabase.from('cart').delete().eq('user_id', currentUser.id); // <-- فجوة 4
-      } else {
-        await prefs.remove('cartMap'); // <-- فجوة 5
+      await supabase.from('orders').insert(orderData);
+
+      // تسجيل استخدام الكوبون للجميع (سواء زائر أو مستخدم)
+      if (_appliedCouponId != null) {
+        final Map<String, dynamic> usageData = {
+          'coupon_id': _appliedCouponId,
+          'customer_phone': phone,
+        };
+        if (currentUser != null) {
+          usageData['user_id'] = currentUser.id;
+        }
+        await supabase.from('coupon_usages').insert(usageData);
       }
 
-      // 6. إظهار رسالة نجاح والانتقال (الكود هنا صحيح لأنك أضفت "if (mounted)")
+      // تفريغ السلة بعد نجاح الطلب
+      if (currentUser != null) {
+        await supabase.from('cart').delete().eq('user_id', currentUser.id);
+      } else {
+        await prefs.remove('cartMap');
+      }
+
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -143,42 +234,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         });
       }
     } catch (error) {
-      // 7. التعامل مع الأخطاء
-
-      // --- الحل 2: إضافة فحص "mounted" هنا ---
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('حدث خطأ أثناء إرسال الطلب. الرجاء المحاولة مرة أخرى.'),
+            content: Text('حدث خطأ أثناء إرسال الطلب.'),
             backgroundColor: Colors.red,
           ),
         );
       }
-    }
-    // تأكد من إيقاف التحميل حتى لو لم يكن mounted
-    finally {
+    } finally {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
-      } else if (!mounted && _isLoading) {
-        _isLoading = false;
       }
     }
   }
 
-  ///////////////////////
-  @override
-  void initState() {
-    super.initState();
-    _calculateTotal(); // <-- استدعاء الدالة عند بدء الشاشة
-  }
+  ////////////////
 
-  // --- دالة جديدة لحساب المجموع ---
   Future<void> _calculateTotal() async {
     double productsTotal = 0.0;
     Map<String, dynamic> cartMap = {};
 
-    // 1. جلب محتويات السلة (نفس المنطق الذي تستخدمه في _submitOrder)
     final currentUser = supabase.auth.currentUser;
     if (currentUser != null) {
       final cartData = await supabase.from('cart').select('product_id, quantity').eq('user_id', currentUser.id);
@@ -191,7 +268,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (cartString != null) cartMap = json.decode(cartString);
     }
 
-    // 2. حساب سعر المنتجات
     if (cartMap.isNotEmpty) {
       final List<int> productIds = cartMap.keys.map((e) => int.parse(e)).toList();
       final String filter = productIds.map((id) => 'id.eq.$id').join(',');
@@ -204,50 +280,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
 
-    // 3. جلب سعر التوصيل (مبدئياً 5000 أو من جدول delivery إذا أردت)
-    double deliveryCost = 3000; // قيمة افتراضية
-    // إذا أردت جلبها من قاعدة البيانات لاحقاً:
-    // final deliveryData = await supabase.from('delivery').select().eq('governorate', 'كربلاء المقدسة').maybeSingle();
-    // if (deliveryData != null) deliveryCost = (deliveryData['delivery_cost'] ?? 0).toDouble();
-
-    // 4. تحديث الواجهة
     if (mounted) {
       setState(() {
         _productsTotal = productsTotal;
-        _deliveryCost = deliveryCost;
+        _deliveryCost = 3000;
       });
     }
   }
 
-  ///////////////
   @override
   Widget build(BuildContext context) {
-    // --- بداية التعديل ---
-    // تغليف كل شيء بـ GestureDetector
+    final double finalPrice = (_productsTotal + _deliveryCost - _discountAmount).clamp(0, double.infinity);
+
     return GestureDetector(
-      onTap: () {
-        // هذا السطر يخبر Flutter بإخفاء لوحة المفاتيح
-        FocusScope.of(context).unfocus();
-      },
-      // --- نهاية التعديل ---
+      onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('إتمام الطلب'),
           backgroundColor: Colors.white,
           elevation: 1,
         ),
-        ////////////////////////
         bottomNavigationBar: Container(
           padding: const EdgeInsets.all(20),
-          // أضفنا shadow وزخرفة بسيطة
           decoration: BoxDecoration(
             color: Colors.white,
             boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, -5))],
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // مهم جداً: يجعل العمود يأخذ أقل مساحة ممكنة
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // --- تفاصيل الأسعار ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -263,24 +324,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   Text('${_deliveryCost.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
+              if (_discountAmount > 0) ...[
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('خصم الكوبون:', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    Text('-${_discountAmount.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                  ],
+                ),
+              ],
               const Divider(),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('الإجمالي الكلي:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${(_productsTotal + _deliveryCost).toStringAsFixed(0)} د.ع',
+                  Text('${finalPrice.toStringAsFixed(0)} د.ع',
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
                 ],
               ),
               const SizedBox(height: 15),
 
-              // --- زر التأكيد (نفس الزر القديم) ---
               ElevatedButton(
                 onPressed: _isLoading ? null : _submitOrder,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  minimumSize: const Size(double.infinity, 50), // عرض كامل
+                  minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                   ),
@@ -295,14 +365,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ],
           ),
         ),
-        /////////////////////////////
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
           child: Form(
             key: _formKey,
             child: Column(
-              // ... (بقية كود Form يبقى كما هو) ...
-              // --- هذا هو الكود الذي يجب إضافته ---
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
@@ -318,12 +385,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.person),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال الاسم';
-                    }
-                    return null;
-                  },
+                  validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال الاسم' : null,
                 ),
                 const SizedBox(height: 20),
 
@@ -335,53 +397,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     prefixIcon: Icon(Icons.phone),
                   ),
                   keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال رقم الهاتف';
-                    }
-                    return null;
-                  },
+                  validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال رقم الهاتف' : null,
                 ),
                 const SizedBox(height: 20),
 
-                // --- استبدل حقل العنوان القديم بهذا ---
-
-                // --- 1. القائمة المنسدلة للمحافظة ---
                 SizedBox(
-                  width: 200, // 👈 حدد العرض هنا
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedGovernorate,                  hint: const Text('اختر المحافظة'),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_city),
+                  width: 200,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedGovernorate,
+                    hint: const Text('اختر المحافظة'),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_city),
+                    ),
+                    menuMaxHeight: 300,
+                    isDense: true,
+                    itemHeight: 50,
+                    items: _governorates.map((String governorate) {
+                      return DropdownMenuItem<String>(
+                        value: governorate,
+                        child: Text(governorate),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) => setState(() => _selectedGovernorate = newValue),
+                    validator: (value) => (value == null || value.isEmpty) ? 'الرجاء اختيار المحافظة' : null,
                   ),
-                  // 👇👇 هذا السطر هو الحل 👇👇
-                  menuMaxHeight: 300,
-                  isDense: true,      // ضغط المساحات الفارغة
-                  itemHeight: 50,     // (اختياري) تحديد ارتفاع السطر الواحد بدقة
-                  // 👆👆 سيجعل القائمة بطول 300 بكسل فقط والباقي سكرول 👆👆
-                  items: _governorates.map((String governorate) {
-                    return DropdownMenuItem<String>(
-                      value: governorate,
-                      child: Text(governorate),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      _selectedGovernorate = newValue;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء اختيار المحافظة';
-                    }
-                    return null;
-                  },
-                ),
                 ),
                 const SizedBox(height: 20),
 
-                // --- 2. حقل تفاصيل العنوان ---
                 TextFormField(
                   controller: _addressDetailsController,
                   decoration: const InputDecoration(
@@ -390,16 +433,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     prefixIcon: Icon(Icons.location_on),
                   ),
                   maxLines: 2,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال تفاصيل العنوان';
-                    }
-                    return null;
-                  },
+                  validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال تفاصيل العنوان' : null,
                 ),
-                // --- نهاية الاستبدال ---
+                const SizedBox(height: 30),
+
+                // --- قسم كود الخصم (الكوبون) ---
+                const Text(
+                  'كود الخصم (الكوبون)',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _couponController,
+                        enabled: _discountAmount == 0, // إغلاق الحقل عند التفعيل
+                        decoration: InputDecoration(
+                          hintText: 'أدخل الكود هنا',
+                          border: const OutlineInputBorder(),
+                          errorText: _couponErrorMessage,
+                          prefixIcon: const Icon(Icons.local_offer),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: (_discountAmount > 0 || _isCheckingCoupon) ? null : _applyCoupon,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      ),
+                      child: _isCheckingCoupon
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                          : Text(_discountAmount > 0 ? 'تم الخصم' : 'تطبيق'),
+                    ),
+                  ],
+                ),
               ],
-              // --- نهاية الكود المضاف ---
             ),
           ),
         ),
