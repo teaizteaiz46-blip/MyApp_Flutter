@@ -52,10 +52,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  // --- دالة التحقق من الكوبون (محدثة بدون شرط تسجيل الدخول) ---
+  // --- دالة التحقق من الكوبون ---
   Future<void> _applyCoupon() async {
     final code = _couponController.text.trim().toUpperCase();
-    //final code = _couponController.text.trim();
     if (code.isEmpty) return;
 
     final phone = _phoneController.text.trim();
@@ -123,8 +122,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم تطبيق خصم 2,000 د.ع بنجاح!'),
+          SnackBar(
+            content: Text('تم تطبيق خصم ${_discountAmount.toStringAsFixed(0)} د.ع بنجاح!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -136,7 +135,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       });
     }
   }
-/////////////////
+
+  // --- دالة إرسال الطلب ---
+
+  // --- دالة إرسال الطلب ---
   Future<void> _submitOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -149,7 +151,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       if (currentUser != null) {
         final userId = currentUser.id;
-        // 🟢 جلب بيانات السلة مع اللون المختار للمستخدم المسجل
         final cartData = await supabase
             .from('cart')
             .select('product_id, quantity, selected_color')
@@ -159,7 +160,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           cartItemsList = List<Map<String, dynamic>>.from(cartData);
         }
       } else {
-        // 🟢 جلب بيانات السلة للزائر من SharedPreferences
         final String? cartString = prefs.getString('cartMap');
         if (cartString != null && cartString.isNotEmpty) {
           final List<dynamic> localCart = json.decode(cartString);
@@ -177,37 +177,72 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      final String name = _nameController.text;
-      final String phone = _phoneController.text;
-      final String address = "$_selectedGovernorate، ${_addressDetailsController.text}";
+      final String name = _nameController.text.trim();
+      final String phone = _phoneController.text.trim();
+
+      // 🟢 1. جلب أسماء المنتجات باستخدام filter القياسي المعتمد في Supabase
+      final List<int> productIds = cartItemsList
+          .map((e) => int.parse(e['product_id'].toString()))
+          .toList();
+
+      final productsResponse = await supabase
+          .from('products')
+          .select('id, name')
+          .filter('id', 'in', productIds);
+
+      final Map<String, String> productNames = {
+        for (var p in productsResponse) p['id'].toString(): p['name'].toString()
+      };
+
+      // 🟢 2. بناء نص تفاصيل الألوان بالأسماء + بناء cart_items للتريجر
+      final StringBuffer colorsSummary = StringBuffer();
+      final Map<String, dynamic> cartItemsMap = {};
+
+      for (var item in cartItemsList) {
+        final String productId = item['product_id'].toString();
+        final int quantity = int.parse(item['quantity'].toString());
+        final String color = item['selected_color']?.toString() ?? 'غير محدد';
+        final String productName = productNames[productId] ?? 'منتج $productId';
+
+        // للـ Trigger (يبقى بالـ ID كما يتوقعه التريجر)
+        cartItemsMap[productId] = quantity;
+
+        // تجميع الألوان بالعرض (باسم المنتج)
+       // colorsSummary.write(' ($productName: لون $color) ');
+        // 👈 توضيح العدد واللون مع اسم المنتج
+        if (quantity > 1) {
+          colorsSummary.write(' ($productName: $quantity قطع - لون $color) ');
+        } else {
+          colorsSummary.write(' ($productName: قطعة واحدة - لون $color) ');
+        }
+
+      }
+
+      final String fullAddress = "$_selectedGovernorate، ${_addressDetailsController.text.trim()} | تفاصيل الألوان: $colorsSummary";
       final double finalTotal = (_productsTotal + _deliveryCost - _discountAmount).clamp(0, double.infinity);
 
-      // 🟢 حفظ العناصر كقائمة تدعم تفاصيل كل منتج واللون الخاص به
+      // 🟢 3. تجهيز بيانات الطلب
       final Map<String, dynamic> orderData = {
         'customer_name': name,
         'customer_phone': phone,
-        'customer_address': address,
-        'cart_items': cartItemsList, // سيتم تخزينه كـ JSON يحتوي المنتجات والكميات والألوان
+        'customer_address': fullAddress,        // 👈 العنوان + أسماء المنتجات والألوان
+        'cart_items': cartItemsMap,             // 👈 متوافق 100% مع التريجر
         'status': 'قيد المراجعة',
+        'price': _productsTotal,
         'discount_amount': _discountAmount,
         'total_amount': finalTotal,
+        'user_id': currentUser?.id,
       };
-
-      if (currentUser != null) {
-        orderData['user_id'] = currentUser.id;
-      }
 
       await supabase.from('orders').insert(orderData);
 
-      // تسجيل استخدام الكوبون للجميع (سواء زائر أو مستخدم)
+      // تسجيل استخدام الكوبون
       if (_appliedCouponId != null) {
         final Map<String, dynamic> usageData = {
           'coupon_id': _appliedCouponId,
           'customer_phone': phone,
+          'user_id': currentUser?.id,
         };
-        if (currentUser != null) {
-          usageData['user_id'] = currentUser.id;
-        }
         await supabase.from('coupon_usages').insert(usageData);
       }
 
@@ -234,11 +269,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         });
       }
     } catch (error) {
+      debugPrint('🛑 Supabase Order Error: $error');
+
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('حدث خطأ أثناء إرسال الطلب.'),
+          SnackBar(
+            content: Text('حدث خطأ أثناء إرسال الطلب: $error'),
             backgroundColor: Colors.red,
           ),
         );
@@ -250,40 +287,73 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  ////////////////
 
+  // --- دالة حساب إجمالي المشتريات ---
   Future<void> _calculateTotal() async {
     double productsTotal = 0.0;
-    Map<String, dynamic> cartMap = {};
-
     final currentUser = supabase.auth.currentUser;
-    if (currentUser != null) {
-      final cartData = await supabase.from('cart').select('product_id, quantity').eq('user_id', currentUser.id);
-      for (var item in cartData) {
-        cartMap[item['product_id'].toString()] = item['quantity'];
-      }
-    } else {
-      final prefs = await SharedPreferences.getInstance();
-      final String? cartString = prefs.getString('cartMap');
-      if (cartString != null) cartMap = json.decode(cartString);
-    }
 
-    if (cartMap.isNotEmpty) {
-      final List<int> productIds = cartMap.keys.map((e) => int.parse(e)).toList();
-      final String filter = productIds.map((id) => 'id.eq.$id').join(',');
-      final productsData = await supabase.from('products').select('id, price').or(filter);
+    try {
+      if (currentUser != null) {
+        // 1. حساب المجموع للمستخدم المسجل من Supabase
+        final cartData = await supabase
+            .from('cart')
+            .select('quantity, products(price)')
+            .eq('user_id', currentUser.id);
 
-      for (var product in productsData) {
-        final int qty = cartMap[product['id'].toString()] ?? 0;
-        final double price = (product['price'] ?? 0).toDouble();
-        productsTotal += (price * qty);
+        for (var item in cartData) {
+          final int qty = item['quantity'] as int? ?? 0;
+          final product = item['products'];
+          if (product != null) {
+            final double price = (product['price'] ?? 0).toDouble();
+            productsTotal += (price * qty);
+          }
+        }
+      } else {
+        // 2. حساب المجموع للزائر من الذاكرة المحلية
+        final prefs = await SharedPreferences.getInstance();
+        final String? cartString = prefs.getString('cartMap');
+
+        if (cartString != null && cartString.isNotEmpty) {
+          final List<dynamic> cartList = json.decode(cartString);
+
+          if (cartList.isNotEmpty) {
+            final List<int> productIds = cartList
+                .map((e) => int.parse(e['product_id'].toString()))
+                .toSet()
+                .toList();
+
+            final String filter = productIds.map((id) => 'id.eq.$id').join(',');
+            final productsData = await supabase
+                .from('products')
+                .select('id, price')
+                .or(filter);
+
+            for (var item in cartList) {
+              final int productId = int.parse(item['product_id'].toString());
+              final int qty = (item['quantity'] as int? ?? 1);
+
+              final product = productsData.firstWhere(
+                    (p) => p['id'] == productId,
+                orElse: () => {},
+              );
+
+              if (product.isNotEmpty) {
+                final double price = (product['price'] ?? 0).toDouble();
+                productsTotal += (price * qty);
+              }
+            }
+          }
+        }
       }
+    } catch (e) {
+      debugPrint('Error calculating total: $e');
     }
 
     if (mounted) {
       setState(() {
         _productsTotal = productsTotal;
-        _deliveryCost = 3000;
+        _deliveryCost = 3000; // كلفة التوصيل الثابتة
       });
     }
   }
@@ -304,7 +374,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, -5))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -339,8 +415,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('الإجمالي الكلي:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${finalPrice.toStringAsFixed(0)} د.ع',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+                  Text(
+                    '${finalPrice.toStringAsFixed(0)} د.ع',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
+                  ),
                 ],
               ),
               const SizedBox(height: 15),
@@ -385,7 +463,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.person),
                   ),
-                  validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال الاسم' : null,
+                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الرجاء إدخال الاسم' : null,
                 ),
                 const SizedBox(height: 20),
 
@@ -397,7 +475,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     prefixIcon: Icon(Icons.phone),
                   ),
                   keyboardType: TextInputType.phone,
-                  validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال رقم الهاتف' : null,
+                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الرجاء إدخال رقم الهاتف' : null,
                 ),
                 const SizedBox(height: 20),
 
@@ -433,7 +511,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     prefixIcon: Icon(Icons.location_on),
                   ),
                   maxLines: 2,
-                  validator: (value) => (value == null || value.isEmpty) ? 'الرجاء إدخال تفاصيل العنوان' : null,
+                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الرجاء إدخال تفاصيل العنوان' : null,
                 ),
                 const SizedBox(height: 30),
 
@@ -449,7 +527,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: _couponController,
-                        enabled: _discountAmount == 0, // إغلاق الحقل عند التفعيل
+                        enabled: _discountAmount == 0,
                         decoration: InputDecoration(
                           hintText: 'أدخل الكود هنا',
                           border: const OutlineInputBorder(),
