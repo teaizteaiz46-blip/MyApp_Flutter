@@ -38,8 +38,8 @@ class _NewProductCardState extends State<NewProductCard> {
       await _addDbCart(currentUser.id, currentProductId);
     }
   }
-
-  Future<void> _addLocalCart(int productId) async {
+///////////////////////////////////////
+ /* Future<void> _addLocalCart(int productId) async {
     final prefs = await SharedPreferences.getInstance(); // <-- فجوة زمنية
     final String? cartString = prefs.getString('cartMap');
     final Map<String, dynamic> cartMap = cartString != null
@@ -63,6 +63,69 @@ class _NewProductCardState extends State<NewProductCard> {
       );
     }
   }
+
+
+*/
+
+  //////////////////////////////////
+  Future<void> _addLocalCart(int productId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? cartString = prefs.getString('cartMap');
+
+    List<dynamic> cartList = [];
+
+    if (cartString != null && cartString.isNotEmpty) {
+      try {
+        final decoded = json.decode(cartString);
+
+        if (decoded is List) {
+          cartList = decoded;
+        } else if (decoded is Map) {
+          // تحويل البيانات القديمة (Map) إلى قائمة (List) لمنع حدوث Crash
+          decoded.forEach((key, value) {
+            cartList.add({
+              'product_id': int.tryParse(key) ?? key,
+              'quantity': value is int ? value : 1,
+              'selected_color': null,
+            });
+          });
+        }
+      } catch (e) {
+        cartList = [];
+      }
+    }
+
+    // البحث عما إذا كان المنتج موجوداً مسبقاً في القائمة
+    int existingIndex = cartList.indexWhere((item) =>
+    item['product_id'].toString() == productId.toString());
+
+    if (existingIndex != -1) {
+      // زيادة الكمية إذا كان موجوداً
+      cartList[existingIndex]['quantity'] =
+          (cartList[existingIndex]['quantity'] as int) + 1;
+    } else {
+      // إضافة المنتج كعنصر جديد في القائمة
+      cartList.add({
+        'product_id': productId,
+        'quantity': 1,
+        'selected_color': null, // الكارت السريع لا يتضمن اختيار لون
+      });
+    }
+
+    // حفظ القائمة المحدثة
+    await prefs.setString('cartMap', json.encode(cartList));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تمت الإضافة للسلة بنجاح!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+  //////////////////////////////////
 
   Future<void> _addDbCart(String userId, int productId) async {
     try {

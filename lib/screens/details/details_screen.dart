@@ -54,8 +54,90 @@ class _DetailsScreenState extends State<DetailsScreen> {
     _pageController.dispose();
     super.dispose();
   }
+////////////////
 
   Future<void> _addToCart() async {
+    final productData = await _productFuture;
+    final double price = (productData['price'] ?? 0.0).toDouble();
+
+    final currentUser = supabase.auth.currentUser;
+    if (currentUser == null) {
+      await _addLocalCart(price);
+    } else {
+      await _addDbCart(currentUser.id, price);
+    }
+  }
+
+  Future<void> _addLocalCart(double price) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? cartString = prefs.getString('cartMap');
+
+    List<dynamic> cartList = [];
+
+    if (cartString != null && cartString.isNotEmpty) {
+      try {
+        final decoded = json.decode(cartString);
+
+        // التأكد مما إذا كانت البيانات مصفوفة أم خريطة قديمة
+        if (decoded is List) {
+          cartList = decoded;
+        } else if (decoded is Map) {
+          // تحويل الهيكل القديم (Map) إلى الهيكل الجديد (List) لتجنب الخطأ
+          decoded.forEach((key, value) {
+            cartList.add({
+              'product_id': int.tryParse(key) ?? key,
+              'quantity': value is int ? value : 1,
+              'selected_color': null,
+            });
+          });
+        }
+      } catch (e) {
+        cartList = [];
+      }
+    }
+
+    // البحث عما إذا كان المنتج (ونفس اللون) موجوداً مسبقاً في السلة
+    int existingIndex = cartList.indexWhere((item) =>
+    item['product_id'].toString() == widget.productId.toString() &&
+        item['selected_color'] == _selectedColor);
+
+    if (existingIndex != -1) {
+      // زيادة الكمية إذا كان موجوداً
+      cartList[existingIndex]['quantity'] =
+          (cartList[existingIndex]['quantity'] as int) + 1;
+    } else {
+      // إضافة عنصر جديد للقائمة
+      cartList.add({
+        'product_id': widget.productId,
+        'quantity': 1,
+        'selected_color': _selectedColor,
+      });
+    }
+
+    // حفظ القائمة المحدثة
+    await prefs.setString('cartMap', json.encode(cartList));
+
+    // 🟢 تتبع إضافة السلة في فيسبوك
+    facebookAppEvents.logAddToCart(
+      id: widget.productId.toString(),
+      type: 'product',
+      currency: 'IQD',
+      price: price,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تمت إضافة المنتج إلى السلة بنجاح!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  /////////
+  /*Future<void> _addToCart() async {
     // نحتاج لجلب السعر أولاً للتتبع (يمكن تحسينه بتمريره للدالة)
     // هنا سنعتمد على أن البيانات قد تم تحميلها
     final productData = await _productFuture;
@@ -67,8 +149,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
     } else {
       await _addDbCart(currentUser.id, price);
     }
-  }
-///////////////////////////
+  }*/
+
+
+//////////////////////////////
+
+  ///////////////////////////////
+
+/*
   Future<void> _addLocalCart(double price) async {
     final prefs = await SharedPreferences.getInstance();
     final String? cartString = prefs.getString('cartMap');
@@ -112,7 +200,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
       );
     }
   }
-  ////////////////////////////
+
+*/
+////////////////////////////
+
+
   Future<void> _addDbCart(String userId, double price) async {
     try {
       final existingItem = await supabase
