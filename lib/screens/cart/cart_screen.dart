@@ -120,6 +120,7 @@ class _CartScreenState extends State<CartScreen> {
 
   /////////////////////////////////
   // --- دالة حذف "ذكية" ---
+  /*
   Future<void> _removeFromCart(int id, bool isLocal) async {
     try { // <-- إضافة try/catch احتياطًا
       if (isLocal) {
@@ -162,6 +163,59 @@ class _CartScreenState extends State<CartScreen> {
     } catch (error) {
       // التعامل مع أي خطأ قد يحدث أثناء الحذف
       //print('--- REMOVE FROM CART ERROR: $error ---');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('خطأ أثناء حذف المنتج.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }*/
+  ////////////////////////////////////////
+  // --- دالة حذف "ذكية" معدلة ---
+  Future<void> _removeFromCart(int id, bool isLocal) async {
+    try {
+      if (isLocal) {
+        // --- حذف من الذاكرة المحلية (زائر) ---
+        final prefs = await SharedPreferences.getInstance();
+        final String? cartString = prefs.getString('cartMap');
+
+        if (cartString != null && cartString.isNotEmpty) {
+          final List<dynamic> cartList = json.decode(cartString);
+
+          // حذف المنتج المطابق للـ product_id
+          cartList.removeWhere((item) => item['product_id'].toString() == id.toString());
+
+          // إعادة حفظ القائمة المعدلة
+          await prefs.setString('cartMap', json.encode(cartList));
+        }
+
+      } else {
+        // --- حذف من قاعدة البيانات (مسجل) ---
+        // هنا "id" هو معرف السلة (cart_id)
+        await supabase.from('cart').delete().eq('id', id);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم حذف المنتج من السلة.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        // تحديث الواجهة لإعادة تحميل السلة المناسبة
+        setState(() {
+          if (_isLoggedIn) {
+            _cartProductsFuture = _loadDbCart();
+          } else {
+            _cartProductsFuture = _loadLocalCart();
+          }
+        });
+      }
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
