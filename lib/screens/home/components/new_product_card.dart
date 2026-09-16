@@ -1,10 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../main.dart'; // لاستخدام supabase
 import 'package:intl/intl.dart';
-import 'package:myapprun/facebook_service.dart'; // أو حسب المسار الصحيح لديك
 
+import '../../../facebook_service.dart';
+import '../../../services/cart_service.dart';
+// import 'fitting_room_sheet.dart'; // 👈 غرفة القياس الافتراضية (الميزة ملغية حالياً، شوف الزر المعلّق تحت)
 
 class NewProductCard extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -17,173 +16,63 @@ class NewProductCard extends StatefulWidget {
 }
 
 class _NewProductCardState extends State<NewProductCard> {
-  // --- إضافة جديدة: متغير لتتبع الصفحة الحالية ---
+  static final NumberFormat _money = NumberFormat('#,###');
   int _currentPage = 0;
-  // --- نهاية الإضافة ---
 
-  // --- دوال إضافة السلة (تبقى كما هي) ---
-  Future<void> _addToCart(BuildContext context) async {
-    final currentUser = supabase.auth.currentUser;
-    final int currentProductId = widget.product['id'] ?? 0;
-    // 🔹 تتبع إضافة للمنتج في فيسبوك
-    FacebookAnalyticsService.logAddToCart(
-      id: currentProductId.toString(),
-      type: 'product',
-      price: ((widget.product['price'] ?? 0) as num).toDouble(),
-      currency: 'IQD',
-    );
-    if (currentUser == null) {
-      await _addLocalCart(currentProductId);
-    } else {
-      await _addDbCart(currentUser.id, currentProductId);
-    }
-  }
-///////////////////////////////////////
- /* Future<void> _addLocalCart(int productId) async {
-    final prefs = await SharedPreferences.getInstance(); // <-- فجوة زمنية
-    final String? cartString = prefs.getString('cartMap');
-    final Map<String, dynamic> cartMap = cartString != null
-        ? json.decode(cartString) as Map<String, dynamic>
-        : {};
-    final String productIdStr = productId.toString();
-    if (cartMap.containsKey(productIdStr)) {
-      cartMap[productIdStr] = (cartMap[productIdStr] as int) + 1;
-    } else {
-      cartMap[productIdStr] = 1;
-    }
-    await prefs.setString('cartMap', json.encode(cartMap)); // <-- فجوة زمنية
+  Future<void> _addToCart() async {
+    final product = widget.product;
+    final productId = (product['id'] as num?)?.toInt();
+    if (productId == null) return;
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تمت الإضافة للسلة! لديك ${cartMap[productIdStr]} من هذا المنتج.'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 1),
-        ),
+    final messenger = ScaffoldMessenger.of(context);
+    final colors = (product['colors'] as List?) ?? const [];
+
+    // المنتج الي بي ألوان لازم ينختار لونه من صفحة التفاصيل
+    if (colors.isNotEmpty) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('اختر اللون من صفحة المنتج'),
+          duration: Duration(seconds: 2),
+        ));
+      widget.onTap();
+      return;
+    }
+
+    try {
+      await CartService.instance.add(productId);
+      FacebookAnalyticsService.logAddToCart(
+        id: '$productId',
+        price: (product['price'] as num?)?.toDouble() ?? 0,
       );
-    }
-  }
-
-
-*/
-
-  //////////////////////////////////
-  Future<void> _addLocalCart(int productId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? cartString = prefs.getString('cartMap');
-
-    List<dynamic> cartList = [];
-
-    if (cartString != null && cartString.isNotEmpty) {
-      try {
-        final decoded = json.decode(cartString);
-
-        if (decoded is List) {
-          cartList = decoded;
-        } else if (decoded is Map) {
-          // تحويل البيانات القديمة (Map) إلى قائمة (List) لمنع حدوث Crash
-          decoded.forEach((key, value) {
-            cartList.add({
-              'product_id': int.tryParse(key) ?? key,
-              'quantity': value is int ? value : 1,
-              'selected_color': null,
-            });
-          });
-        }
-      } catch (e) {
-        cartList = [];
-      }
-    }
-
-    // البحث عما إذا كان المنتج موجوداً مسبقاً في القائمة
-    int existingIndex = cartList.indexWhere((item) =>
-    item['product_id'].toString() == productId.toString());
-
-    if (existingIndex != -1) {
-      // زيادة الكمية إذا كان موجوداً
-      cartList[existingIndex]['quantity'] =
-          (cartList[existingIndex]['quantity'] as int) + 1;
-    } else {
-      // إضافة المنتج كعنصر جديد في القائمة
-      cartList.add({
-        'product_id': productId,
-        'quantity': 1,
-        'selected_color': null, // الكارت السريع لا يتضمن اختيار لون
-      });
-    }
-
-    // حفظ القائمة المحدثة
-    await prefs.setString('cartMap', json.encode(cartList));
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تمت الإضافة للسلة بنجاح!'),
+      if (!mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('تمت الإضافة للسلة'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 1),
-        ),
-      );
+        ));
+    } catch (e) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('تعذر حفظ السلة، حاول مرة ثانية'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
-  //////////////////////////////////
-
-  Future<void> _addDbCart(String userId, int productId) async {
-    try {
-      final existingItem = await supabase
-          .from('cart')
-          .select('quantity')
-          .eq('user_id', userId)
-          .eq('product_id', productId)
-          .maybeSingle(); // <-- فجوة زمنية
-      int newQuantity = 1;
-      if (existingItem != null) {
-        newQuantity = (existingItem['quantity'] as int) + 1;
-      }
-      await supabase.from('cart').upsert({ // <-- فجوة زمنية
-        'user_id': userId,
-        'product_id': productId,
-        'quantity': newQuantity,
-      }, onConflict: 'user_id, product_id');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم تحديث الكمية في سلة حسابك!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('خطأ في إضافة المنتج لسلة الحساب'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-  // --- نهاية دوال إضافة السلة ---
-
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, dynamic> product = widget.product;
-    final VoidCallback onTap = widget.onTap;
-
+    final product = widget.product;
     final List<dynamic> imageList = product['image_url'] ?? [];
     final String name = product['name'] ?? 'اسم المنتج';
-    final double price = (product['price'] ?? 0.0).toDouble();
-    final double oldPrice = (product['old_price'] ?? 0.0).toDouble();
-    final double rating = (product['rating'] ?? 0.0).toDouble();
-    final int salesCount = (product['sales_count'] ?? 0);
-    // 2. أضف الفورماتر
-    final formatter = NumberFormat('#,###');
+    final double price = (product['price'] as num?)?.toDouble() ?? 0;
+    final double oldPrice = (product['old_price'] as num?)?.toDouble() ?? 0;
+    final double rating = (product['rating'] as num?)?.toDouble() ?? 0;
+    final int salesCount = (product['sales_count'] as num?)?.toInt() ?? 0;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Card(
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -191,47 +80,33 @@ class _NewProductCardState extends State<NewProductCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // --- 1. تعديل قسم الصورة بالكامل ---
             AspectRatio(
-              aspectRatio: 1, // الحفاظ على النسبة مربعة
+              aspectRatio: 1,
               child: Stack(
-                alignment: Alignment.bottomCenter, // لمحاذاة النقاط
+                alignment: Alignment.bottomCenter,
                 children: [
-                  // --- A. PageView لعرض الصور ---
                   PageView.builder(
-                    itemCount: imageList.isNotEmpty ? imageList.length : 1, // عرض صورة واحدة على الأقل
-                    onPageChanged: (value) {
-                      setState(() {
-                        _currentPage = value; // تحديث الصفحة الحالية عند التمرير
-                      });
-                    },
+                    itemCount: imageList.isNotEmpty ? imageList.length : 1,
+                    onPageChanged: (value) => setState(() => _currentPage = value),
                     itemBuilder: (context, index) {
                       if (imageList.isEmpty) {
-                        // عرض أيقونة افتراضية إذا لم تكن هناك صور
                         return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
                       }
-                      final String imageUrl = imageList[index] as String;
                       return Image.network(
-                        imageUrl,
+                        '${imageList[index]}',
                         fit: BoxFit.cover,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return const Center(child: CircularProgressIndicator.adaptive());
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
-                        },
+                        loadingBuilder: (context, child, progress) => progress == null
+                            ? child
+                            : const Center(child: CircularProgressIndicator.adaptive()),
+                        errorBuilder: (_, _, _) =>
+                            const Icon(Icons.broken_image, color: Colors.grey, size: 40),
                       );
                     },
                   ),
-
-                  // --- B. مؤشر النقاط (Page Indicator) ---
-                  if (imageList.length > 1) // لا تظهر النقاط إذا كانت هناك صورة واحدة
+                  if (imageList.length > 1)
                     Positioned(
-                      bottom: 8.0, // قليل من المسافة من الأسفل
+                      bottom: 8.0,
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(imageList.length, (index) {
                           return Container(
                             width: 8.0,
@@ -239,7 +114,6 @@ class _NewProductCardState extends State<NewProductCard> {
                             margin: const EdgeInsets.symmetric(horizontal: 4.0),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              // --- هذا هو السطر الذي تم تعديله ---
                               color: Colors.orange.withAlpha(_currentPage == index ? 230 : 102),
                             ),
                           );
@@ -249,9 +123,6 @@ class _NewProductCardState extends State<NewProductCard> {
                 ],
               ),
             ),
-            // --- نهاية تعديل قسم الصورة ---
-
-            // --- 2. التفاصيل (تبقى كما هي) ---
             Padding(
               padding: const EdgeInsets.all(6.0),
               child: Column(
@@ -259,7 +130,7 @@ class _NewProductCardState extends State<NewProductCard> {
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal),
+                    style: const TextStyle(fontSize: 13),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -272,8 +143,7 @@ class _NewProductCardState extends State<NewProductCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            //'${price.toStringAsFixed(0)} د.ع',
-                            '${formatter.format(price)} د.ع',
+                            '${_money.format(price)} د.ع',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -282,8 +152,7 @@ class _NewProductCardState extends State<NewProductCard> {
                           ),
                           if (oldPrice > 0)
                             Text(
-                              //'${oldPrice.toStringAsFixed(0)} د.ع',
-                              '${formatter.format(oldPrice)} د.ع',
+                              '${_money.format(oldPrice)} د.ع',
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.grey,
@@ -292,22 +161,59 @@ class _NewProductCardState extends State<NewProductCard> {
                             ),
                         ],
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          _addToCart(context);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.deepOrange.shade100,
+                      // --- أزرار التحكم: (زر غرفة القياس + زر إضافة السلة) ---
+                      Row(
+                        children: [
+                          // 1. زر غرفة القياس الافتراضية
+                          // ❌ تم إلغاء ميزة غرفة القياس واختصار الأيقونة
+                          /*
+                          GestureDetector(
+                            onTap: () {
+                              if (imageList.isNotEmpty) {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => FittingRoomBottomSheet(
+                                    garmentImageUrl: imageList.first as String,
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.checkroom_outlined, // أيقونة علاقة الملابس
+                                color: Colors.purple,
+                                size: 17,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 5), // مسافة بين الزرين
+                          */
+                          // 2. زر إضافة السلة
+                          InkWell(
+                            onTap: _addToCart,
                             borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.deepOrange.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.add_shopping_cart_outlined,
+                                color: Colors.deepOrange,
+                                size: 18,
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.add_shopping_cart_outlined,
-                            color: Colors.deepOrange,
-                            size: 17,
-                          ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -315,21 +221,15 @@ class _NewProductCardState extends State<NewProductCard> {
                   Row(
                     children: [
                       Icon(Icons.star, color: Colors.deepOrange[400], size: 14),
-                      Text(
-                        ' $rating',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
-                      ),
+                      Text(' $rating', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                       const Spacer(),
                       if (salesCount > 0)
-                        Text(
-                          'مبيع $salesCount',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
-                        ),
+                        Text('مبيع $salesCount', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                     ],
-                  )
+                  ),
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),

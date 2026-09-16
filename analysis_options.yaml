@@ -1,6 +1,8 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  # نسخة ملفات مصدرية للدمج، مو جزء من التطبيق
+
   errors:
     # هنا نخبر المحلل بتجاهل هذه التنبيهات تمامًا
     unused_import: ignore

@@ -1,10 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../main.dart';
-import '../checkout/checkout_screen.dart'; // <-- أضف هذا
-import 'package:intl/intl.dart'; // <-- أضف هذا
-import 'package:myapprun/facebook_service.dart';
+import 'package:intl/intl.dart';
+
+import '../../core/shop_api.dart';
+import '../../facebook_service.dart';
+import '../../services/cart_service.dart';
+import '../checkout/checkout_screen.dart';
+import '../details/details_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -14,342 +15,343 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  late Future<List<Map<String, dynamic>>> _cartProductsFuture;
-  double _totalPrice = 0.0;
-  bool _isLoggedIn = false; // لتتبع حالة المستخدم
+  final CartService _cart = CartService.instance;
+  final NumberFormat _money = NumberFormat('#,###');
+
+  Map<int, Map<String, dynamic>> _products = {};
+  Set<int> _checkedIds = {};
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // التحقق من حالة المستخدم أولاً
-    _isLoggedIn = supabase.auth.currentUser != null;
+    _cart.lines.addListener(_onCartChanged);
+    _refresh();
+  }
 
+  @override
+  void dispose() {
+    _cart.lines.removeListener(_onCartChanged);
+    super.dispose();
+  }
 
-
-    // تحميل السلة المناسبة
-    if (_isLoggedIn) {
-      _cartProductsFuture = _loadDbCart();
-    } else {
-      _cartProductsFuture = _loadLocalCart();
+  void _onCartChanged() {
+    final hasUnknown = _cart.lines.value.any((l) => !_checkedIds.contains(l.productId));
+    if (hasUnknown) {
+      _refresh();
+    } else if (mounted) {
+      setState(() {});
     }
   }
 
-  // --- دالة تحميل السلة من قاعدة البيانات (للمسجلين) ---
-  Future<List<Map<String, dynamic>>> _loadDbCart() async {
-    final userId = supabase.auth.currentUser!.id;
-
-    // جلب بيانات السلة مع تفاصيل المنتج (JOIN)
-    final cartData = await supabase
-        .from('cart')
-        .select('*, products(*)') // <-- جلب بيانات المنتج المرتبط
-        .eq('user_id', userId);
-
-    double tempTotal = 0.0;
-    List<Map<String, dynamic>> productsWithQuantity = [];
-
-    for (var item in cartData) {
-      final product = item['products']; // المنتج الآن موجود بداخل السلة
-      if (product == null) continue; // تخطي إذا كان المنتج محذوفًا
-
-      final int quantity = item['quantity'] as int;
-      final double price = (product['price'] ?? 0.0).toDouble();
-
-      product['quantity'] = quantity;
-      // ربط معرف السلة (cart_id) لعملية الحذف
-      product['cart_id'] = item['id'];
-
-      tempTotal += (price * quantity);
-      productsWithQuantity.add(product);
-    }
-
-    setState(() => _totalPrice = tempTotal);
-    return productsWithQuantity;
-  }
-//////////////////////////
-  // --- دالة تحميل السلة المحلية (للزوار) ---
-  Future<List<Map<String, dynamic>>> _loadLocalCart() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? cartString = prefs.getString('cartMap');
-
-    if (cartString == null || cartString.isEmpty) {
-      setState(() => _totalPrice = 0.0);
-      return [];
-    }
-
-    final List<dynamic> rawCartList = json.decode(cartString);
-    if (rawCartList.isEmpty) {
-      setState(() => _totalPrice = 0.0);
-      return [];
-    }
-
-    // جمع IDs المنتجات
-    final List<int> productIds = rawCartList
-        .map((e) => int.parse(e['product_id'].toString()))
-        .toSet()
-        .toList();
-
-    final String filter = productIds.map((id) => 'id.eq.$id').join(',');
-    final List<Map<String, dynamic>> productsData = await supabase
-        .from('products')
-        .select()
-        .or(filter);
-
-    double tempTotal = 0.0;
-    List<Map<String, dynamic>> productsWithDetails = [];
-
-    for (var cartItem in rawCartList) {
-      final int productId = int.parse(cartItem['product_id'].toString());
-      final product = productsData.firstWhere((p) => p['id'] == productId, orElse: () => {});
-
-      if (product.isNotEmpty) {
-        final double price = (product['price'] ?? 0.0).toDouble();
-        final int quantity = cartItem['quantity'] as int;
-
-        Map<String, dynamic> itemMap = Map<String, dynamic>.from(product);
-        itemMap['quantity'] = quantity;
-        itemMap['selected_color'] = cartItem['selected_color'];
-
-        tempTotal += (price * quantity);
-        productsWithDetails.add(itemMap);
-      }
-    }
-
-    setState(() => _totalPrice = tempTotal);
-    return productsWithDetails;
-  }
-
-  /////////////////////////////////
-  // --- دالة حذف "ذكية" ---
-  /*
-  Future<void> _removeFromCart(int id, bool isLocal) async {
-    try { // <-- إضافة try/catch احتياطًا
-      if (isLocal) {
-        // --- حذف من الذاكرة المحلية (زائر) ---
-        final prefs = await SharedPreferences.getInstance();
-        final String? cartString = prefs.getString('cartMap');
-
-        // إضافة تحقق أن cartString ليس null قبل استخدامه
-        if (cartString != null) {
-          final Map<String, dynamic> cartMap = json.decode(cartString);
-          cartMap.remove(id.toString());
-          await prefs.setString('cartMap', json.encode(cartMap));
-        }
-
-      } else {
-        // --- حذف من قاعدة البيانات (مسجل) ---
-        // هنا "id" هو معرف السلة (cart_id)
-        await supabase.from('cart').delete().eq('id', id);
-      }
-
-      // --- الحل: ---
-      // التحقق من "mounted" قبل استخدام context و setState
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم حذف المنتج من السلة.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        // تحديث الواجهة لإعادة تحميل السلة المناسبة
-        setState(() {
-          if (_isLoggedIn) {
-            _cartProductsFuture = _loadDbCart();
-          } else {
-            _cartProductsFuture = _loadLocalCart();
-          }
-        });
-      }
-    } catch (error) {
-      // التعامل مع أي خطأ قد يحدث أثناء الحذف
-      //print('--- REMOVE FROM CART ERROR: $error ---');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('خطأ أثناء حذف المنتج.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }*/
-  ////////////////////////////////////////
-  // --- دالة حذف "ذكية" معدلة ---
-  Future<void> _removeFromCart(int id, bool isLocal) async {
+  Future<void> _refresh() async {
     try {
-      if (isLocal) {
-        // --- حذف من الذاكرة المحلية (زائر) ---
-        final prefs = await SharedPreferences.getInstance();
-        final String? cartString = prefs.getString('cartMap');
-
-        if (cartString != null && cartString.isNotEmpty) {
-          final List<dynamic> cartList = json.decode(cartString);
-
-          // حذف المنتج المطابق للـ product_id
-          cartList.removeWhere((item) => item['product_id'].toString() == id.toString());
-
-          // إعادة حفظ القائمة المعدلة
-          await prefs.setString('cartMap', json.encode(cartList));
-        }
-
-      } else {
-        // --- حذف من قاعدة البيانات (مسجل) ---
-        // هنا "id" هو معرف السلة (cart_id)
-        await supabase.from('cart').delete().eq('id', id);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم حذف المنتج من السلة.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        // تحديث الواجهة لإعادة تحميل السلة المناسبة
-        setState(() {
-          if (_isLoggedIn) {
-            _cartProductsFuture = _loadDbCart();
-          } else {
-            _cartProductsFuture = _loadLocalCart();
-          }
-        });
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('خطأ أثناء حذف المنتج.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      await _cart.load();
+      final ids = _cart.lines.value.map((l) => l.productId).toSet();
+      final data = await ShopApi.fetchProductsByIds(ids);
+      if (!mounted) return;
+      setState(() {
+        _products = data;
+        _checkedIds = ids;
+        _loading = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = ShopApi.friendlyError(e);
+      });
     }
   }
+
+  // --------------------------------------------------------------------------
+
+  static double _price(Map<String, dynamic> p) => (p['price'] as num?)?.toDouble() ?? 0;
+  static int _stock(Map<String, dynamic> p) => (p['stock'] as num?)?.toInt() ?? 0;
+  static List<String> _colors(Map<String, dynamic> p) =>
+      ((p['colors'] as List?) ?? const []).map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();
+
+  int _qtyForProduct(int productId) => _cart.lines.value
+      .where((l) => l.productId == productId)
+      .fold(0, (sum, l) => sum + l.quantity);
+
+  String? _problemFor(CartLine line) {
+    final product = _products[line.productId];
+    if (product == null) return 'هذا المنتج لم يعد متوفراً، احذفه من السلة';
+    final stock = _stock(product);
+    if (stock <= 0) return 'نفد من المخزون، احذفه من السلة';
+    final colors = _colors(product);
+    if (colors.isNotEmpty && (line.color == null || !colors.contains(line.color))) {
+      return 'اللون غير محدد، اضغط على المنتج واختر اللون';
+    }
+    if (_qtyForProduct(line.productId) > stock) return 'المتوفر $stock قطع فقط، قلل الكمية';
+    return null;
+  }
+
+  double get _total {
+    var sum = 0.0;
+    for (final line in _cart.lines.value) {
+      final product = _products[line.productId];
+      if (product != null) sum += _price(product) * line.quantity;
+    }
+    return sum;
+  }
+
+  void _openProduct(int productId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DetailsScreen(productId: productId)),
+    );
+  }
+
+  void _goToCheckout() {
+    final messenger = ScaffoldMessenger.of(context);
+    final lines = _cart.lines.value;
+    if (lines.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('سلتك فارغة')));
+      return;
+    }
+    if (lines.any((l) => _problemFor(l) != null)) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('عدّل المنتجات المعلّمة بالأحمر قبل إتمام الطلب'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    FacebookAnalyticsService.logInitiatedCheckout(
+      totalPrice: _total,
+      numItems: _cart.itemCount,
+    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+  }
+
+  // --------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    // --- أضف هذا السطر ---
-    final formatter = NumberFormat('#,###');
-    // --- نهاية الإضافة ---
+    final lines = _cart.lines.value;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('سلتي'),
+      appBar: AppBar(title: Text(lines.isEmpty ? 'سلتي' : 'سلتي (${_cart.itemCount})')),
+      bottomNavigationBar: lines.isEmpty ? null : _buildBottomBar(),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: _buildBody(lines),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
+    );
+  }
+
+  Widget _buildBody(List<CartLine> lines) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+
+    if (_error != null && _products.isEmpty && lines.isNotEmpty) {
+      return ListView(
+        children: [
+          const SizedBox(height: 120),
+          Center(child: Text(_error!, textAlign: TextAlign.center)),
+          const SizedBox(height: 12),
+          Center(child: TextButton(onPressed: _refresh, child: const Text('إعادة المحاولة'))),
+        ],
+      );
+    }
+
+    if (lines.isEmpty) {
+      return ListView(
+        children: const [
+          SizedBox(height: 120),
+          Icon(Icons.shopping_cart_outlined, size: 72, color: Colors.grey),
+          SizedBox(height: 16),
+          Center(
+            child: Text('سلتك فارغة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+          SizedBox(height: 6),
+          Center(
+            child: Text(
+              'أضف منتجات من الصفحة الرئيسية وراح تظهر هنا.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      itemCount: lines.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) => _buildLine(lines[index]),
+    );
+  }
+
+  Widget _buildLine(CartLine line) {
+    final product = _products[line.productId];
+    final problem = _problemFor(line);
+    final images = ((product?['image_url'] as List?) ?? const []).map((e) => '$e').toList();
+    final imageUrl = images.isNotEmpty ? images.first : '';
+    final name = (product?['name'] ?? 'منتج غير متوفر').toString();
+    final price = product == null ? 0.0 : _price(product);
+    final stock = product == null ? 0 : _stock(product);
+    final maxQty = stock < CartService.maxQuantityPerLine ? stock : CartService.maxQuantityPerLine;
+    final canIncrease = product != null && line.quantity < maxQty;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: problem != null ? Colors.red.shade200 : Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: product == null ? null : () => _openProduct(line.productId),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 76,
+                height: 76,
+                color: Colors.grey[200],
+                child: imageUrl.isEmpty
+                    ? const Icon(Icons.image_not_supported_outlined, color: Colors.grey)
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const Icon(Icons.broken_image, color: Colors.grey),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: product == null ? null : () => _openProduct(line.productId),
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (line.color != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('اللون: ${line.color}', style: TextStyle(color: Colors.grey[700])),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_money.format(price)} د.ع',
+                  style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold),
+                ),
+                if (problem != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(problem, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _QtyButton(
+                      icon: line.quantity <= 1 ? Icons.delete_outline : Icons.remove,
+                      color: line.quantity <= 1 ? Colors.red : null,
+                      tooltip: line.quantity <= 1 ? 'حذف' : 'إنقاص',
+                      onPressed: () => line.quantity <= 1
+                          ? _cart.remove(line)
+                          : _cart.setQuantity(line, line.quantity - 1),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        '${line.quantity}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    _QtyButton(
+                      icon: Icons.add,
+                      tooltip: 'زيادة',
+                      onPressed: canIncrease ? () => _cart.setQuantity(line, line.quantity + 1) : null,
+                    ),
+                    const Spacer(),
+                    if (product != null)
+                      Text(
+                        '${_money.format(price * line.quantity)} د.ع',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              // 'Total: \$${_totalPrice.toStringAsFixed(2)}', // السطر القديم
-             // 'الإجمالي: ${_totalPrice.toStringAsFixed(0)} د.ع', // <-- التغيير هنا
-              'الإجمالي: ${formatter.format(_totalPrice)} د.ع', // <-- تم التعديل هنا
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('المجموع (بدون التوصيل)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(
+                    '${_money.format(_total)} د.ع',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
             ElevatedButton(
-              onPressed: () {
-                ///////////////////
-                // 🟢 --- هنا تم وضع كود التتبع لفيسبوك --- 🟢
-                FacebookAnalyticsService.logCustomEvent(
-                  eventName: 'fb_mobile_initiated_checkout',
-                  parameters: {
-                    'total_price': _totalPrice,
-                    'currency': 'IQD',
-                  },
-                );
-                // ------------------------------------------
-                ////////////////////
-                // --- هذا هو الكود المفقود ---
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CheckoutScreen()),
-                );
-                // --- نهاية الكود المفقود ---
-              },
+              onPressed: _goToCheckout,
               style: ElevatedButton.styleFrom(
-                // ... (بقية الكود) ...
+                backgroundColor: Colors.deepOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text(
-                'إتمام الطلب',
-                // ... (بقية الكود) ...
-              ),
+              child: const Text('إتمام الطلب', style: TextStyle(fontSize: 16)),
             ),
-
-
-
           ],
         ),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _cartProductsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(child: Text('خطأ في تحميل السلة.'));
-          }
+    );
+  }
+}
 
-          final products = snapshot.data;
-          if (products == null || products.isEmpty) {
-            return const Center(
-              child: Text(
-                'سلتك فارغة.',
-                style: TextStyle(fontSize: 20, color: Colors.grey),
-              ),
-            );
-          }
+class _QtyButton extends StatelessWidget {
+  const _QtyButton({required this.icon, required this.onPressed, required this.tooltip, this.color});
 
-          return ListView.builder(
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String tooltip;
+  final Color? color;
 
-              final List<dynamic> imageList = product['image_url'] ?? [];
-              final String imageUrl = imageList.isNotEmpty ? imageList.first as String : '';
-              final String name = product['name'] ?? 'No Name';
-              final double price = (product['price'] ?? 0.0).toDouble();
-              final int quantity = product['quantity'] ?? 0;
-              final String? selectedColor = product['selected_color'];
-
-              // تحديد المعرف الصحيح للحذف
-              final int idForDelete = _isLoggedIn ? product['cart_id'] : product['id'];
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: ListTile(
-                  leading: imageUrl.isEmpty
-                      ? Container(width: 50, color: Colors.grey[200])
-                      : Image.network(imageUrl, width: 50, fit: BoxFit.cover),
-                  title: Text(name),
-                  // 🟢 التعديل على subtitle لعرض اللون
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (selectedColor != null && selectedColor.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2.0),
-                          child: Text(
-                            'اللون: $selectedColor',
-                            style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      Text(
-                        '${formatter.format(price)} د.ع x $quantity = ${formatter.format(price * quantity)} د.ع',
-                      ),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: (){
-                      _removeFromCart(idForDelete, !_isLoggedIn);
-                    },
-                  ),
-                ),
-              );
-            },
-          );
-        },
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: IconButton.outlined(
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        tooltip: tooltip,
+        color: color,
+        onPressed: onPressed,
+        icon: Icon(icon),
       ),
     );
   }

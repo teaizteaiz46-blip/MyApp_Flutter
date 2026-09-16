@@ -1,7 +1,7 @@
 name: myapprun
 description: "Modo Iraq E-commerce App"
 publish_to: 'none'
-version: 1.3.9+36
+version: 1.5.0+38
 
 environment:
   sdk: ^3.9.2
@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  http: ^1.6.0 # 👈 أضف هذا السطر
+  connectivity_plus: ^7.3.1
 
   flutter_web_plugins: # 👈 أضف هذا السطر هنا
     sdk: flutter

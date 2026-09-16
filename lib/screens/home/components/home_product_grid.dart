@@ -1,146 +1,147 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import '../../../main.dart'; // تأكد من مسار ملف main.dart
-import 'new_product_card.dart';
+
+import '../../../core/shop_api.dart';
+import '../../../main.dart';
+import '../../../theme/app_theme.dart';
+import '../../../widgets/modo_product_card.dart';
 import '../../details/details_screen.dart';
+
+/// ترتيب المنتجات بالتبويبات.
+enum HomeSort { mix, bestSelling, newest }
+
+/// الأعمدة من عرض products_ranked (نفس أعمدة المنتج + الترتيب داخل الفئة).
+const String kRankedColumns = '$kProductColumns, offer_ends_at, category_name, category_rank';
 
 class HomeProductGrid extends StatefulWidget {
   final int categoryId;
   final Future<List<Map<String, dynamic>>>? productsFuture;
   final bool onlyOffers;
-  final bool isMix; // <-- 1. تعريف المتغير الذي يسبب الخطأ
+  final bool isMix;
+  final HomeSort sort;
 
   const HomeProductGrid({
     super.key,
     required this.categoryId,
     this.productsFuture,
     this.onlyOffers = false,
-    this.isMix = false, // <-- 2. إضافته في الكونستركتور
+    this.isMix = false,
+    this.sort = HomeSort.newest,
   });
+
+  HomeSort get effectiveSort => isMix ? HomeSort.mix : sort;
 
   @override
   State<HomeProductGrid> createState() => _HomeProductGridState();
 }
 
 class _HomeProductGridState extends State<HomeProductGrid> {
+  static const int _pageSize = 10;
+
   final List<Map<String, dynamic>> _products = [];
   int _currentPage = 0;
   bool _isLoading = false;
   bool _hasMore = true;
   bool _isInitialLoad = true;
   bool _didError = false;
-  bool _isExternalFuture = false;
 
-  static const int _pageSize = 10;
+  /// يزيد كل ما تتغير الفئة، حتى نتجاهل نتائج الطلبات القديمة.
+  int _generation = 0;
+
+  bool get _isExternal => widget.productsFuture != null;
 
   @override
   void initState() {
     super.initState();
-    if (widget.productsFuture != null) {
-      _isExternalFuture = true;
+    if (_isExternal) {
       _hasMore = false;
       _loadExternalFuture();
     } else {
-      _isExternalFuture = false;
       _fetchProducts();
-    }
-  }
-
-  Future<void> _loadExternalFuture() async {
-    setState(() {
-      _isInitialLoad = true;
-    });
-    try {
-      final data = await widget.productsFuture!;
-      setState(() {
-        _products.addAll(data);
-        _isInitialLoad = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isInitialLoad = false;
-        _didError = true;
-      });
     }
   }
 
   @override
   void didUpdateWidget(HomeProductGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final filtersChanged = oldWidget.categoryId != widget.categoryId ||
+        oldWidget.onlyOffers != widget.onlyOffers ||
+        oldWidget.isMix != widget.isMix ||
+        oldWidget.sort != widget.sort;
 
-    // التحقق من التغييرات لإعادة التحميل
-    if (!_isExternalFuture &&
-        (oldWidget.categoryId != widget.categoryId ||
-            oldWidget.onlyOffers != widget.onlyOffers ||
-            oldWidget.isMix != widget.isMix)) { // <-- التحقق من isMix
-
-      setState(() {
-        _products.clear();
-        _currentPage = 0;
-        _isLoading = false;
-        _hasMore = true;
-        _isInitialLoad = true;
-        _didError = false;
-      });
-
+    if (!_isExternal && filtersChanged) {
+      _generation++;
+      _products.clear();
+      _currentPage = 0;
+      _isLoading = false;
+      _hasMore = true;
+      _isInitialLoad = true;
+      _didError = false;
       _fetchProducts();
     }
   }
 
-  // --- دالة جلب المنتجات ---
+  Future<void> _loadExternalFuture() async {
+    try {
+      final data = await widget.productsFuture!;
+      if (!mounted) return;
+      setState(() {
+        _products.addAll(data);
+        _isInitialLoad = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isInitialLoad = false;
+        _didError = true;
+      });
+    }
+  }
+
   Future<void> _fetchProducts() async {
     if (_isLoading || !_hasMore) return;
-
-    setState(() {
-      _isLoading = true;
-    });
+    final generation = _generation;
+    setState(() => _isLoading = true);
 
     try {
       final from = _currentPage * _pageSize;
       final to = from + _pageSize - 1;
 
-      var query = supabase.from('products').select().gt('stock', 0);
-
-      // تطبيق الفلاتر
-      if (!widget.isMix && widget.categoryId != 0) {
+      var query = supabase.from('products_ranked').select(kRankedColumns).gt('stock', 0);
+      if (widget.categoryId != 0) {
         query = query.eq('category_id', widget.categoryId);
       }
-
       if (widget.onlyOffers) {
         query = query.eq('is_offer', true);
       }
 
-      dynamic data;
+      final List<Map<String, dynamic>> data = switch (widget.effectiveSort) {
+        HomeSort.mix => await query.order('random_id', ascending: true).order('id').range(from, to),
+        HomeSort.bestSelling => await query
+            .order('sales_count', ascending: false, nullsFirst: false)
+            .order('id')
+            .range(from, to),
+        HomeSort.newest => await query.order('created_at', ascending: false).order('id').range(from, to),
+      };
 
-      // --- منطق الترتيب (الميكس باستخدام random_id) ---
-      if (widget.isMix) {
-        // يجب أن يكون لديك عمود random_id في Supabase
-        data = await query
-            .order('random_id', ascending: true)
-            .range(from, to);
-      } else {
-        // الترتيب العادي حسب الأحدث
-        data = await query
-            .order('created_at', ascending: false)
-            .range(from, to);
-      }
+      // الفئة تغيّرت أثناء التحميل: نتجاهل هاي النتيجة
+      if (!mounted || generation != _generation) return;
 
       setState(() {
-        _products.addAll(List<Map<String, dynamic>>.from(data));
+        _products.addAll(data);
         _currentPage++;
         _isLoading = false;
         _isInitialLoad = false;
-
-        if (data.length < _pageSize) {
-          _hasMore = false;
-        }
+        if (data.length < _pageSize) _hasMore = false;
       });
     } catch (e) {
-      // print('Error: $e');
+      debugPrint('HomeProductGrid: $e');
+      if (!mounted || generation != _generation) return;
       setState(() {
         _isLoading = false;
         _isInitialLoad = false;
-        _didError = true;
+        _didError = _products.isEmpty;
+        _hasMore = false;
       });
     }
   }
@@ -148,59 +149,67 @@ class _HomeProductGridState extends State<HomeProductGrid> {
   @override
   Widget build(BuildContext context) {
     if (_isInitialLoad) {
-      return const SliverFillRemaining(
-        child: Center(child: CircularProgressIndicator()),
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
-
-    if (_didError) {
-      return const SliverFillRemaining(
-        child: Center(child: Text('خطأ في جلب المنتجات')),
-      );
-    }
-
-    if (_products.isEmpty) {
-      return const SliverFillRemaining(
-        child: Center(child: Text('لا توجد منتجات حاليًا.')),
+    if (_didError || _products.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+          child: Column(
+            children: [
+              Icon(
+                _didError ? Icons.wifi_off_rounded : Icons.inventory_2_outlined,
+                size: 44,
+                color: AppColors.muted,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _didError ? 'تعذر تحميل المنتجات، اسحب للأسفل للتحديث' : 'لا توجد منتجات هنا حالياً',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.muted),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
     return SliverMasonryGrid(
+      gridDelegate: const SliverSimpleGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
       delegate: SliverChildBuilderDelegate(
-            (context, index) {
+        (context, index) {
           if (index >= _products.length) {
-            if (!_isExternalFuture && !_isLoading) {
+            if (!_isExternal && !_isLoading) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _fetchProducts();
-                }
+                if (mounted) _fetchProducts();
               });
             }
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 32.0),
-                child: CircularProgressIndicator(),
-              ),
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
             );
           }
 
           final product = _products[index];
-          return NewProductCard(
+          return ModoProductCard(
+            key: ValueKey(product['id']),
             product: product,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DetailsScreen(productId: product['id']),
-                ),
-              );
-            },
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DetailsScreen(productId: (product['id'] as num).toInt()),
+              ),
+            ),
           );
         },
         childCount: _products.length + (_hasMore ? 1 : 0),
-      ),
-      gridDelegate: const SliverSimpleGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
       ),
     );
   }

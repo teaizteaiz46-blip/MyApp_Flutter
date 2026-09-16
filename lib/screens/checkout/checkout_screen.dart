@@ -1,8 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../main.dart';
-import '../../screens/home/home_screen.dart';
+
+import '../../core/shop_api.dart';
+import '../../facebook_service.dart';
+import '../../services/cart_service.dart';
+import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
+import '../home/home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -12,552 +16,498 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
+  static const _kName = 'checkout_name';
+  static const _kPhone = 'checkout_phone';
+  static const _kGovernorate = 'checkout_governorate';
+  static const _kAddress = 'checkout_address';
+
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _addressDetailsController = TextEditingController();
-
-  // --- حقل الكوبون والمتغيرات الخاصة به ---
+  final _addressController = TextEditingController();
   final _couponController = TextEditingController();
-  double _discountAmount = 0.0;
-  int? _appliedCouponId;
-  bool _isCheckingCoupon = false;
-  String? _couponErrorMessage;
-  // ------------------------------------
+  final NumberFormat _money = NumberFormat('#,###');
+  final CartService _cart = CartService.instance;
 
-  double _productsTotal = 0.0;
-  double _deliveryCost = 0.0;
-  final _formKey = GlobalKey<FormState>();
+  String? _governorate;
+  Map<String, double> _deliveryCosts = {};
+  Map<int, Map<String, dynamic>> _products = {};
 
-  String? _selectedGovernorate;
-  final List<String> _governorates = [
-    'بغداد', 'كربلاء', 'الأنبار', 'الحلة - بابل', 'البصرة', 'دهوك', 'ديالى',
-    'أربيل', 'كركوك', 'العمارة - ميسان', 'السماوة - المثنى', 'النجف', 'نينوى',
-    'ديوانية - القادسية', 'صلاح الدين', 'السليمانية', 'الناصرية - ذي قار', 'الكوت - واسط'
-  ];
+  bool _loading = true;
+  bool _submitting = false;
+  String? _loadError;
 
-  bool _isLoading = false;
+  String? _appliedCoupon;
+  double _couponAmount = 0;
+  bool _checkingCoupon = false;
+  String? _couponError;
 
   @override
   void initState() {
     super.initState();
-    _calculateTotal();
+    _load();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _addressDetailsController.dispose();
+    _addressController.dispose();
     _couponController.dispose();
     super.dispose();
   }
 
-  // --- دالة التحقق من الكوبون ---
-  Future<void> _applyCoupon() async {
-    final code = _couponController.text.trim().toUpperCase();
-    if (code.isEmpty) return;
-
-    final phone = _phoneController.text.trim();
-
-    FocusScope.of(context).unfocus();
-    setState(() {
-      _isCheckingCoupon = true;
-      _couponErrorMessage = null;
-    });
-
+  Future<void> _load() async {
     try {
-      final currentUser = supabase.auth.currentUser;
+      await _cart.load();
+      final prefs = await SharedPreferences.getInstance();
+      final results = await Future.wait([
+        ShopApi.fetchProductsByIds(_cart.lines.value.map((l) => l.productId)),
+        ShopApi.fetchDeliveryCosts(),
+      ]);
+      if (!mounted) return;
 
-      // 1. البحث عن الكوبون
-      final couponResponse = await supabase
-          .from('coupons')
-          .select()
-          .eq('code', code)
-          .eq('is_active', true)
-          .maybeSingle();
-
-      if (couponResponse == null) {
-        setState(() {
-          _couponErrorMessage = 'كود الخصم غير صحيح أو غير فعال.';
-          _isCheckingCoupon = false;
-        });
-        return;
-      }
-
-      final int couponId = couponResponse['id'];
-      final double discount = (couponResponse['discount_amount'] ?? 0).toDouble();
-
-      // 2. التحقق من التكرار (سواء عن طريق الحساب أو رقم الهاتف)
-      dynamic usageCheck;
-      if (currentUser != null) {
-        usageCheck = await supabase
-            .from('coupon_usages')
-            .select()
-            .eq('coupon_id', couponId)
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
-      } else if (phone.isNotEmpty) {
-        usageCheck = await supabase
-            .from('coupon_usages')
-            .select()
-            .eq('coupon_id', couponId)
-            .eq('customer_phone', phone)
-            .maybeSingle();
-      }
-
-      if (usageCheck != null) {
-        setState(() {
-          _couponErrorMessage = 'لقد تم استخدام هذا الكوبون سابقاً!';
-          _isCheckingCoupon = false;
-        });
-        return;
-      }
-
-      // 3. نجاح التفعيل
+      final savedGov = prefs.getString(_kGovernorate);
+      final pendingCoupon = (prefs.getString(kPendingCouponKey) ?? '').trim();
       setState(() {
-        _discountAmount = discount;
-        _appliedCouponId = couponId;
-        _isCheckingCoupon = false;
+        _products = results[0] as Map<int, Map<String, dynamic>>;
+        _deliveryCosts = results[1] as Map<String, double>;
+        _nameController.text = prefs.getString(_kName) ?? '';
+        _phoneController.text = prefs.getString(_kPhone) ?? '';
+        _addressController.text = prefs.getString(_kAddress) ?? '';
+        _governorate = kIraqGovernorates.contains(savedGov) ? savedGov : null;
+        _loading = false;
+        if (pendingCoupon.isNotEmpty) _couponController.text = pendingCoupon;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم تطبيق خصم ${_discountAmount.toStringAsFixed(0)} د.ع بنجاح!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      // كوبون الترحيب المحفوظ ينطبق تلقائياً
+      if (pendingCoupon.isNotEmpty) _applyCoupon();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _couponErrorMessage = 'حدث خطأ أثناء فحص الكوبون.';
-        _isCheckingCoupon = false;
+        _loading = false;
+        _loadError = ShopApi.friendlyError(e);
       });
     }
   }
 
-  // --- دالة إرسال الطلب ---
+  Future<void> _saveCustomerInfo(String phone) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kName, _nameController.text.trim());
+    await prefs.setString(_kPhone, phone);
+    await prefs.setString(_kAddress, _addressController.text.trim());
+    if (_governorate != null) await prefs.setString(_kGovernorate, _governorate!);
+    if (_appliedCoupon != null) await prefs.remove(kPendingCouponKey);
+  }
 
-  // --- دالة إرسال الطلب ---
-  Future<void> _submitOrder() async {
+  // --------------------------------------------------------------------------
+
+  double get _subtotal {
+    var sum = 0.0;
+    for (final line in _cart.lines.value) {
+      final price = (_products[line.productId]?['price'] as num?)?.toDouble() ?? 0;
+      sum += price * line.quantity;
+    }
+    return sum;
+  }
+
+  double get _delivery => ShopApi.deliveryFor(_governorate, _deliveryCosts);
+
+  double get _discount => _couponAmount > _subtotal ? _subtotal : _couponAmount;
+
+  double get _total {
+    final t = _subtotal + _delivery - _discount;
+    return t < 0 ? 0 : t;
+  }
+
+  // --------------------------------------------------------------------------
+
+  Future<void> _applyCoupon() async {
+    FocusScope.of(context).unfocus();
+    final code = _couponController.text.trim();
+    if (code.isEmpty) {
+      setState(() => _couponError = 'أدخل كود الخصم');
+      return;
+    }
+    setState(() {
+      _checkingCoupon = true;
+      _couponError = null;
+    });
+    try {
+      final result = await ShopApi.validateCoupon(
+        code,
+        phone: ShopApi.normalizePhone(_phoneController.text),
+      );
+      if (!mounted) return;
+      setState(() {
+        _checkingCoupon = false;
+        if (result.valid) {
+          _appliedCoupon = code;
+          _couponAmount = result.discount;
+        } else {
+          _couponError = result.message;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _checkingCoupon = false;
+        _couponError = ShopApi.friendlyError(e);
+      });
+    }
+  }
+
+  void _removeCoupon() {
+    setState(() {
+      _appliedCoupon = null;
+      _couponAmount = 0;
+      _couponError = null;
+      _couponController.clear();
+    });
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
 
-    if (mounted) setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final lines = List<CartLine>.of(_cart.lines.value);
 
-    try {
-      List<Map<String, dynamic>> cartItemsList = [];
-      final currentUser = supabase.auth.currentUser;
-      final prefs = await SharedPreferences.getInstance();
-
-      if (currentUser != null) {
-        final userId = currentUser.id;
-        final cartData = await supabase
-            .from('cart')
-            .select('product_id, quantity, selected_color')
-            .eq('user_id', userId);
-
-        if (cartData.isNotEmpty) {
-          cartItemsList = List<Map<String, dynamic>>.from(cartData);
-        }
-      } else {
-        final String? cartString = prefs.getString('cartMap');
-        if (cartString != null && cartString.isNotEmpty) {
-          final List<dynamic> localCart = json.decode(cartString);
-          cartItemsList = List<Map<String, dynamic>>.from(localCart);
-        }
-      }
-
-      if (cartItemsList.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('سلة المشتريات فارغة!'), backgroundColor: Colors.red),
-          );
-          setState(() => _isLoading = false);
-        }
-        return;
-      }
-
-      final String name = _nameController.text.trim();
-      final String phone = _phoneController.text.trim();
-
-      // 🟢 1. جلب أسماء المنتجات باستخدام filter القياسي المعتمد في Supabase
-      final List<int> productIds = cartItemsList
-          .map((e) => int.parse(e['product_id'].toString()))
-          .toList();
-
-      final productsResponse = await supabase
-          .from('products')
-          .select('id, name')
-          .filter('id', 'in', productIds);
-
-      final Map<String, String> productNames = {
-        for (var p in productsResponse) p['id'].toString(): p['name'].toString()
-      };
-
-      // 🟢 2. بناء نص تفاصيل الألوان بالأسماء + بناء cart_items للتريجر
-      final StringBuffer colorsSummary = StringBuffer();
-      final Map<String, dynamic> cartItemsMap = {};
-
-      for (var item in cartItemsList) {
-        final String productId = item['product_id'].toString();
-        final int quantity = int.parse(item['quantity'].toString());
-        final String color = item['selected_color']?.toString() ?? 'غير محدد';
-        final String productName = productNames[productId] ?? 'منتج $productId';
-
-        // للـ Trigger (يبقى بالـ ID كما يتوقعه التريجر)
-        cartItemsMap[productId] = quantity;
-
-        // تجميع الألوان بالعرض (باسم المنتج)
-       // colorsSummary.write(' ($productName: لون $color) ');
-        // 👈 توضيح العدد واللون مع اسم المنتج
-        if (quantity > 1) {
-          colorsSummary.write(' ($productName: $quantity قطع - لون $color) ');
-        } else {
-          colorsSummary.write(' ($productName: قطعة واحدة - لون $color) ');
-        }
-
-      }
-
-      final String fullAddress = "$_selectedGovernorate، ${_addressDetailsController.text.trim()} | تفاصيل الألوان: $colorsSummary";
-      final double finalTotal = (_productsTotal + _deliveryCost - _discountAmount).clamp(0, double.infinity);
-
-      // 🟢 3. تجهيز بيانات الطلب
-      final Map<String, dynamic> orderData = {
-        'customer_name': name,
-        'customer_phone': phone,
-        'customer_address': fullAddress,        // 👈 العنوان + أسماء المنتجات والألوان
-        'cart_items': cartItemsMap,             // 👈 متوافق 100% مع التريجر
-        'status': 'قيد المراجعة',
-        'price': _productsTotal,
-        'discount_amount': _discountAmount,
-        'total_amount': finalTotal,
-        'user_id': currentUser?.id,
-      };
-
-      await supabase.from('orders').insert(orderData);
-
-      // تسجيل استخدام الكوبون
-      if (_appliedCouponId != null) {
-        final Map<String, dynamic> usageData = {
-          'coupon_id': _appliedCouponId,
-          'customer_phone': phone,
-          'user_id': currentUser?.id,
-        };
-        await supabase.from('coupon_usages').insert(usageData);
-      }
-
-      // تفريغ السلة بعد نجاح الطلب
-      if (currentUser != null) {
-        await supabase.from('cart').delete().eq('user_id', currentUser.id);
-      } else {
-        await prefs.remove('cartMap');
-      }
-
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (Route<dynamic> route) => false,
-        );
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تم إرسال طلبك بنجاح!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        });
-      }
-    } catch (error) {
-      debugPrint('🛑 Supabase Order Error: $error');
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('حدث خطأ أثناء إرسال الطلب: $error'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted && _isLoading) {
-        setState(() => _isLoading = false);
-      }
+    if (lines.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('سلة المشتريات فارغة'), backgroundColor: Colors.red));
+      return;
     }
-  }
 
-
-  // --- دالة حساب إجمالي المشتريات ---
-  Future<void> _calculateTotal() async {
-    double productsTotal = 0.0;
-    final currentUser = supabase.auth.currentUser;
+    final phone = ShopApi.normalizePhone(_phoneController.text)!;
+    setState(() => _submitting = true);
 
     try {
-      if (currentUser != null) {
-        // 1. حساب المجموع للمستخدم المسجل من Supabase
-        final cartData = await supabase
-            .from('cart')
-            .select('quantity, products(price)')
-            .eq('user_id', currentUser.id);
+      final result = await ShopApi.placeOrder(
+        lines: lines,
+        customerName: _nameController.text,
+        customerPhone: phone,
+        governorate: _governorate!,
+        address: _addressController.text,
+        couponCode: _appliedCoupon,
+      );
 
-        for (var item in cartData) {
-          final int qty = item['quantity'] as int? ?? 0;
-          final product = item['products'];
-          if (product != null) {
-            final double price = (product['price'] ?? 0).toDouble();
-            productsTotal += (price * qty);
-          }
-        }
-      } else {
-        // 2. حساب المجموع للزائر من الذاكرة المحلية
-        final prefs = await SharedPreferences.getInstance();
-        final String? cartString = prefs.getString('cartMap');
+      await _saveCustomerInfo(phone);
+      await _cart.clear();
 
-        if (cartString != null && cartString.isNotEmpty) {
-          final List<dynamic> cartList = json.decode(cartString);
+      FacebookAnalyticsService.logPurchase(
+        amount: result.total,
+        productIds: lines.map((l) => l.productId).toSet().toList(),
+        numItems: lines.fold(0, (sum, l) => sum + l.quantity),
+        orderId: result.orderId,
+      );
 
-          if (cartList.isNotEmpty) {
-            final List<int> productIds = cartList
-                .map((e) => int.parse(e['product_id'].toString()))
-                .toSet()
-                .toList();
-
-            final String filter = productIds.map((id) => 'id.eq.$id').join(',');
-            final productsData = await supabase
-                .from('products')
-                .select('id, price')
-                .or(filter);
-
-            for (var item in cartList) {
-              final int productId = int.parse(item['product_id'].toString());
-              final int qty = (item['quantity'] as int? ?? 1);
-
-              final product = productsData.firstWhere(
-                    (p) => p['id'] == productId,
-                orElse: () => {},
-              );
-
-              if (product.isNotEmpty) {
-                final double price = (product['price'] ?? 0).toDouble();
-                productsTotal += (price * qty);
-              }
-            }
-          }
-        }
-      }
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (_) => false,
+      );
+      messenger.showSnackBar(SnackBar(
+        content: Text('تم إرسال طلبك رقم ${result.orderId} بنجاح، راح نتواصل وياك للتأكيد'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 5),
+      ));
     } catch (e) {
-      debugPrint('Error calculating total: $e');
-    }
-
-    if (mounted) {
-      setState(() {
-        _productsTotal = productsTotal;
-        _deliveryCost = 3000; // كلفة التوصيل الثابتة
-      });
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      messenger.showSnackBar(SnackBar(
+        content: Text(ShopApi.friendlyError(e)),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+      ));
     }
   }
+
+  // --------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    final double finalPrice = (_productsTotal + _deliveryCost - _discountAmount).clamp(0, double.infinity);
-
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('إتمام الطلب'),
-          backgroundColor: Colors.white,
-          elevation: 1,
-        ),
-        bottomNavigationBar: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withValues(alpha: 0.1),
-                blurRadius: 10,
-                offset: const Offset(0, -5),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('مجموع المنتجات:', style: TextStyle(color: Colors.grey)),
-                  Text('${_productsTotal.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('كلفة التوصيل:', style: TextStyle(color: Colors.grey)),
-                  Text('${_deliveryCost.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              if (_discountAmount > 0) ...[
-                const SizedBox(height: 5),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('خصم الكوبون:', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                    Text('-${_discountAmount.toStringAsFixed(0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                  ],
-                ),
-              ],
-              const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('الإجمالي الكلي:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(
-                    '${finalPrice.toStringAsFixed(0)} د.ع',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
+        appBar: AppBar(title: const Text('إتمام الطلب'), backgroundColor: Colors.white, elevation: 1),
+        bottomNavigationBar: _loading || _loadError != null ? null : _buildTotals(),
+        body: _buildBody(),
+      ),
+    );
+  }
 
-              ElevatedButton(
-                onPressed: _isLoading ? null : _submitOrder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                  'تأكيد وإرسال الطلب',
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
+  Widget _buildBody() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loadError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_loadError!, textAlign: TextAlign.center),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _loading = true;
+                  _loadError = null;
+                });
+                _load();
+              },
+              child: const Text('إعادة المحاولة'),
+            ),
+          ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _SectionTitle('معلومات التوصيل'),
+            TextFormField(
+              controller: _nameController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'الاسم الكامل',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'الرجاء إدخال الاسم' : null,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'رقم الهاتف',
+                hintText: '07XXXXXXXXX',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.phone_outlined),
+              ),
+              validator: (v) => ShopApi.normalizePhone(v ?? '') == null
+                  ? 'رقم غير صحيح، اكتبه بصيغة 07XXXXXXXXX'
+                  : null,
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _governorate,
+              isExpanded: true,
+              menuMaxHeight: 360,
+              hint: const Text('اختر المحافظة'),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_city_outlined),
+              ),
+              items: [
+                for (final gov in kIraqGovernorates)
+                  DropdownMenuItem(value: gov, child: Text(gov)),
+              ],
+              onChanged: (value) => setState(() => _governorate = value),
+              validator: (v) => v == null ? 'الرجاء اختيار المحافظة' : null,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _addressController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'تفاصيل العنوان',
+                hintText: 'المنطقة، الشارع، أقرب نقطة دالة',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_on_outlined),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'الرجاء إدخال تفاصيل العنوان' : null,
+            ),
+            const SizedBox(height: 24),
+            const _SectionTitle('طلبك'),
+            _buildItemsSummary(),
+            const SizedBox(height: 24),
+            const _SectionTitle('كود الخصم'),
+            _buildCoupon(),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                const Text(
-                  'معلومات التوصيل',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'الاسم الكامل',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الرجاء إدخال الاسم' : null,
-                ),
-                const SizedBox(height: 20),
-
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الرجاء إدخال رقم الهاتف' : null,
-                ),
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  width: 200,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedGovernorate,
-                    hint: const Text('اختر المحافظة'),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.location_city),
-                    ),
-                    menuMaxHeight: 300,
-                    isDense: true,
-                    itemHeight: 50,
-                    items: _governorates.map((String governorate) {
-                      return DropdownMenuItem<String>(
-                        value: governorate,
-                        child: Text(governorate),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) => setState(() => _selectedGovernorate = newValue),
-                    validator: (value) => (value == null || value.isEmpty) ? 'الرجاء اختيار المحافظة' : null,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                TextFormField(
-                  controller: _addressDetailsController,
-                  decoration: const InputDecoration(
-                    labelText: 'تفاصيل العنوان (الحي، الشارع، أقرب نقطة دالة)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_on),
-                  ),
-                  maxLines: 2,
-                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الرجاء إدخال تفاصيل العنوان' : null,
-                ),
-                const SizedBox(height: 30),
-
-                // --- قسم كود الخصم (الكوبون) ---
-                const Text(
-                  'كود الخصم (الكوبون)',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _couponController,
-                        enabled: _discountAmount == 0,
-                        decoration: InputDecoration(
-                          hintText: 'أدخل الكود هنا',
-                          border: const OutlineInputBorder(),
-                          errorText: _couponErrorMessage,
-                          prefixIcon: const Icon(Icons.local_offer),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: (_discountAmount > 0 || _isCheckingCoupon) ? null : _applyCoupon,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                      ),
-                      child: _isCheckingCoupon
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                          : Text(_discountAmount > 0 ? 'تم الخصم' : 'تطبيق'),
-                    ),
-                  ],
-                ),
+                Icon(Icons.payments_outlined, color: Colors.grey[700], size: 20),
+                const SizedBox(width: 6),
+                Text('الدفع نقداً عند الاستلام', style: TextStyle(color: Colors.grey[700])),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemsSummary() {
+    final lines = _cart.lines.value;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          for (final line in lines)
+            ListTile(
+              dense: true,
+              title: Text(
+                (_products[line.productId]?['name'] ?? 'منتج غير متوفر').toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                [
+                  '${line.quantity} × ${_money.format((_products[line.productId]?['price'] as num?) ?? 0)} د.ع',
+                  if (line.color != null) 'اللون: ${line.color}',
+                ].join('   '),
+              ),
+              trailing: Text(
+                '${_money.format((((_products[line.productId]?['price'] as num?) ?? 0) * line.quantity))} د.ع',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoupon() {
+    if (_appliedCoupon != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.green.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'الكود $_appliedCoupon: خصم ${_money.format(_discount)} د.ع',
+                style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(onPressed: _removeCoupon, child: const Text('إزالة')),
+          ],
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _couponController,
+            textCapitalization: TextCapitalization.characters,
+            onChanged: (_) {
+              if (_couponError != null) setState(() => _couponError = null);
+            },
+            decoration: InputDecoration(
+              hintText: 'أدخل الكود',
+              border: const OutlineInputBorder(),
+              errorText: _couponError,
+              prefixIcon: const Icon(Icons.local_offer_outlined),
             ),
           ),
         ),
+        const SizedBox(width: 8),
+        SizedBox(
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _checkingCoupon ? null : _applyCoupon,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+            ),
+            child: _checkingCoupon
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  )
+                : const Text('تطبيق'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTotals() {
+    Widget row(String label, String value, {Color? color, bool bold = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: TextStyle(color: color ?? Colors.grey[700], fontWeight: bold ? FontWeight.bold : null, fontSize: bold ? 17 : 14)),
+              Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: bold ? 17 : 14)),
+            ],
+          ),
+        );
+
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            row('مجموع المنتجات', '${_money.format(_subtotal)} د.ع'),
+            row(
+              'التوصيل',
+              _governorate == null ? 'حسب المحافظة' : '${_money.format(_delivery)} د.ع',
+            ),
+            if (_discount > 0)
+              row('الخصم', '-${_money.format(_discount)} د.ع', color: Colors.green.shade700),
+            const Divider(height: 16),
+            row('الإجمالي', '${_money.format(_total)} د.ع', bold: true),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _submitting ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : const Text('تأكيد وإرسال الطلب', style: TextStyle(fontSize: 17)),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
   }
 }

@@ -1,9 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/shop_api.dart';
 import '../../main.dart';
 
+/// سلة الزائر تبقى بالجهاز بعد تسجيل الدخول تلقائياً،
+/// وأي سلة قديمة بالحساب تنسحب من main.dart عند تسجيل الدخول.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -11,9 +13,8 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tabController = TabController(length: 2, vsync: this);
 
   bool _isLoading = false;
 
@@ -22,19 +23,11 @@ class _AuthScreenState extends State<AuthScreen>
 
   final _emailLoginController = TextEditingController();
   final _passwordLoginController = TextEditingController();
-
   final _emailSignUpController = TextEditingController();
   final _passwordSignUpController = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
   void dispose() {
-    // ... (كود dispose يبقى كما هو) ...
     _tabController.dispose();
     _emailLoginController.dispose();
     _passwordLoginController.dispose();
@@ -43,153 +36,92 @@ class _AuthScreenState extends State<AuthScreen>
     super.dispose();
   }
 
-  // --- دالة دمج السلة (محدثة مع onConflict) ---
-  Future<void> _mergeCarts() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? cartString = prefs.getString('cartMap');
-
-      if (cartString == null) return;
-
-      final Map<String, dynamic> localCart = json.decode(cartString);
-      if (localCart.isEmpty) return;
-
-      final String userId = supabase.auth.currentUser!.id;
-
-      // --- هذا هو الجزء الأهم ---
-      // 1. جلب السلة الحالية من قاعدة البيانات
-      final dbCartData = await supabase
-          .from('cart')
-          .select('product_id, quantity')
-          .eq('user_id', userId);
-
-      // تحويلها إلى خريطة لسهولة الوصول
-      final Map<String, int> dbCart = {
-        for (var item in dbCartData)
-          item['product_id'].toString(): item['quantity'] as int
-      };
-
-      // 2. دمج السلتين
-      final List<Map<String, dynamic>> itemsToUpsert = [];
-      for (var localEntry in localCart.entries) {
-        final String productId = localEntry.key;
-        final int localQuantity = localEntry.value as int;
-
-        // التحقق من الكمية الموجودة في قاعدة البيانات
-        final int dbQuantity = dbCart[productId] ?? 0;
-
-        itemsToUpsert.add({
-          'user_id': userId,
-          'product_id': int.parse(productId),
-          'quantity': localQuantity + dbQuantity, // <-- دمج الكميات
-        });
-      }
-      // --- نهاية الجزء المهم ---
-
-      // 3. إرسال القائمة المدمجة (مع onConflict)
-      await supabase
-          .from('cart')
-          .upsert(itemsToUpsert, onConflict: 'user_id, product_id');
-
-      await prefs.remove('cartMap');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم دمج سلة المشتريات الخاصة بك!'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-      }
-
-    } catch (error) {
-      //print('--- CART MERGE ERROR: $error ---');
-    }
+  void _showMessage(String text, {Color color = Colors.red}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text), backgroundColor: color));
   }
-  // --- نهاية دالة الدمج ---
-
 
   Future<void> _signIn() async {
-    // ... (كود التحقق يبقى كما هو) ...
     if (!_signInFormKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
-
     try {
       await supabase.auth.signInWithPassword(
         email: _emailLoginController.text.trim(),
         password: _passwordLoginController.text.trim(),
       );
-
-      //if (mounted) await _mergeCarts();
-      //if (mounted) Navigator.of(context).pop();
-
+      // ProfileScreen يبدّل للحساب تلقائياً
     } on AuthException catch (error) {
-      // ... (كود معالجة الأخطاء يبقى كما هو) ...
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: ${error.message}'), backgroundColor: Colors.red));
+      _showMessage(ShopApi.authMessage(error));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ غير متوقع'), backgroundColor: Colors.red));
+      _showMessage(ShopApi.friendlyError(error));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _signUp() async {
-    // ... (كود التحقق يبقى كما هو) ...
     if (!_signUpFormKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
-
     try {
-      await supabase.auth.signUp(
+      final res = await supabase.auth.signUp(
         email: _emailSignUpController.text.trim(),
         password: _passwordSignUpController.text.trim(),
       );
-
-      if (mounted) await _mergeCarts(); // دمج السلة عند إنشاء حساب
-
-      if (mounted) {
-        // ... (كود رسالة النجاح يبقى كما هو) ...
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إنشاء الحساب بنجاح!'), backgroundColor: Colors.green));
+      if (res.session == null) {
+        // المشروع يطلب تفعيل البريد
+        _emailLoginController.text = _emailSignUpController.text.trim();
         _tabController.animateTo(0);
+        _showMessage('تم إنشاء الحساب، افتح رسالة التفعيل ببريدك ثم سجّل الدخول', color: Colors.green);
+      } else {
+        _showMessage('تم إنشاء الحساب بنجاح', color: Colors.green);
       }
-
     } on AuthException catch (error) {
-      // ... (كود معالجة الأخطاء يبقى كما هو) ...
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: ${error.message}'), backgroundColor: Colors.red));
+      _showMessage(ShopApi.authMessage(error));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ غير متوقع'), backgroundColor: Colors.red));
+      _showMessage(ShopApi.friendlyError(error));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  String? _validateEmail(String? value) {
+    final v = value?.trim() ?? '';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)) {
+      return 'الرجاء إدخال بريد إلكتروني صحيح';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.trim().length < 6) {
+      return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ... (كود واجهة المستخدم يبقى كما هو) ...
     return Scaffold(
       appBar: AppBar(
         title: const Text('الملف الشخصي'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'تسجيل الدخول'),
-            Tab(text: 'إنشاء حساب'),
-          ],
+          tabs: const [Tab(text: 'تسجيل الدخول'), Tab(text: 'إنشاء حساب')],
         ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
-        controller: _tabController,
-        children: [
-          _buildSignInForm(),
-          _buildSignUpForm(),
-        ],
-      ),
+              controller: _tabController,
+              children: [_buildSignInForm(), _buildSignUpForm()],
+            ),
     );
   }
 
-  // ... (دوال بناء الواجهة _buildSignInForm و _buildSignUpForm تبقى كما هي) ...
   Widget _buildSignInForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
@@ -201,52 +133,32 @@ class _AuthScreenState extends State<AuthScreen>
               controller: _emailLoginController,
               decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
               keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.isEmpty || !value.contains('@')) {
-                  return 'الرجاء إدخال بريد إلكتروني صحيح';
-                }
-                return null;
-              },
+              autofillHints: const [AutofillHints.email],
+              validator: _validateEmail,
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _passwordLoginController,
               decoration: const InputDecoration(labelText: 'كلمة المرور'),
               obscureText: true,
-              validator: (value) {
-                if (value == null || value.isEmpty || value.length < 6) {
-                  return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
-                }
-                return null;
-              },
+              autofillHints: const [AutofillHints.password],
+              validator: _validatePassword,
+              onFieldSubmitted: (_) => _signIn(),
             ),
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: _signIn,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
               child: const Text('تسجيل الدخول'),
             ),
-
-              ////////////////////
-              // 👇 رابط سياسة الخصوصية وتحسين المظهر
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/privacy');
-                },
-                child: const Text(
-                  'سياسة الخصوصية لتطبيق مودو',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    decoration: TextDecoration.underline,
-                    fontSize: 13,
-                      ),
-                    ),
-                  ),
-              ////////////////////
-
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.pushNamed(context, '/privacy'),
+              child: const Text(
+                'سياسة الخصوصية لتطبيق مودو',
+                style: TextStyle(color: Colors.grey, decoration: TextDecoration.underline, fontSize: 13),
+              ),
+            ),
           ],
         ),
       ),
@@ -264,62 +176,44 @@ class _AuthScreenState extends State<AuthScreen>
               controller: _emailSignUpController,
               decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
               keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.isEmpty || !value.contains('@')) {
-                  return 'الرجاء إدخال بريد إلكتروني صحيح';
-                }
-                return null;
-              },
+              autofillHints: const [AutofillHints.email],
+              validator: _validateEmail,
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _passwordSignUpController,
               decoration: const InputDecoration(labelText: 'كلمة المرور'),
               obscureText: true,
-              validator: (value) {
-                if (value == null || value.isEmpty || value.length < 6) {
-                  return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
-                }
-                return null;
-              },
+              autofillHints: const [AutofillHints.newPassword],
+              validator: _validatePassword,
+              onFieldSubmitted: (_) => _signUp(),
             ),
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: _signUp,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
               child: const Text('إنشاء حساب جديد'),
             ),
-            //////////////////////////////
-        // 👇 نص الإقرار وسياسة الخصوصية
-        const SizedBox(height: 16),
-        Wrap(
-          alignment: WrapAlignment.center,
-          //cross: WrapCrossAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center, // 👈 كود صحيح
-          children: [
-            const Text(
-              'بإنشاء حساب، فإنك توافق على ',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            GestureDetector(
-              onTap: () {
-                Navigator.pushNamed(context, '/privacy');
-              },
-              child: const Text(
-                'سياسة الخصوصية',
-                style: TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold,
-                  decoration: TextDecoration.underline,
-                  fontSize: 12,
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text('بإنشاء حساب، فإنك توافق على ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/privacy'),
+                  child: const Text(
+                    'سياسة الخصوصية',
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-            /////////////////////////////////
           ],
         ),
       ),

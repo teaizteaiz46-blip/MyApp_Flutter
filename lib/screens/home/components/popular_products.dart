@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/shop_api.dart';
 import '../../../main.dart'; // لجلب متغير supabase
 import 'product_grid.dart'; // لجلب ProductCard
 import '../../details/details_screen.dart'; // أضف هذا السطر
@@ -10,7 +11,7 @@ class PopularProducts extends StatelessWidget {
     // نستخدم FutureBuilder لجلب المنتجات "الشائعة"
     return FutureBuilder<List<Map<String, dynamic>>>(
       // نطلب فقط المنتجات التي يكون فيها 'is_popular' صحيحًا
-      future: supabase.from('products').select().eq('is_popular', true),
+      future: supabase.from('products').select(kProductColumns).eq('is_popular', true),
 
       builder: (context, snapshot) {
         // حالة التحميل
