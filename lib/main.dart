@@ -18,6 +18,7 @@ import 'screens/home/home_screen.dart';
 import 'screens/orders/my_orders_screen.dart';
 import 'screens/policy/privacy_policy_screen.dart';
 import 'services/cart_service.dart';
+import 'services/tiktok_service.dart';
 import '../../core/shop_api.dart';
 import 'theme/app_theme.dart';
 
@@ -33,7 +34,7 @@ Future<void> main() async {
     try {
       final facebookAppEvents = FacebookAppEvents();
       await facebookAppEvents.setAutoLogAppEventsEnabled(true);
-      await facebookAppEvents.setAdvertiserTracking(enabled: true);
+      await facebookAppEvents.setAdvertiserTracking(enabled: false);
     } catch (e) {
       debugPrint('Facebook init failed: $e');
     }
@@ -73,6 +74,7 @@ Future<void> main() async {
   runApp(const MyApp());
 
   // الإشعارات ما توقف فتح التطبيق
+  unawaited(TikTokAnalyticsService.init());
   unawaited(_setupNotifications());
 }
 

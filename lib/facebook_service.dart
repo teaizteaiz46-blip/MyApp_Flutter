@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:flutter/foundation.dart';
 
-/// كل أحداث فيسبوك تمر من هنا.
+import 'services/tiktok_service.dart';
+
+/// كل أحداث فيسبوك وتيك توك تمر من هنا.
 /// على الويب ما ينبعث شي (المكتبة ما تدعم الويب)، وأي خطأ ما يوگف التطبيق.
 class FacebookAnalyticsService {
   FacebookAnalyticsService._();
@@ -21,13 +23,15 @@ class FacebookAnalyticsService {
   }
 
   /// 👀 مشاهدة منتج
-  static Future<void> logViewContent({required String id, required double price}) =>
-      _safe('view_content', () => _fb.logViewContent(
-            id: id,
-            type: 'product',
-            currency: kCurrency,
-            price: price,
-          ));
+  static Future<void> logViewContent({required String id, required double price}) {
+    TikTokAnalyticsService.logViewContent(id: id, price: price);
+    return _safe('view_content', () => _fb.logViewContent(
+          id: id,
+          type: 'product',
+          currency: kCurrency,
+          price: price,
+        ));
+  }
 
   /// 🛍️ إضافة للسلة
   static Future<void> logAddToCart({
@@ -35,25 +39,29 @@ class FacebookAnalyticsService {
     required double price,
     String type = 'product',
     String currency = kCurrency,
-  }) =>
-      _safe('add_to_cart', () => _fb.logAddToCart(
-            id: id,
-            type: type,
-            price: price,
-            currency: currency,
-          ));
+  }) {
+    TikTokAnalyticsService.logAddToCart(id: id, price: price);
+    return _safe('add_to_cart', () => _fb.logAddToCart(
+          id: id,
+          type: type,
+          price: price,
+          currency: currency,
+        ));
+  }
 
   /// 🧾 بدء إتمام الطلب
   static Future<void> logInitiatedCheckout({
     required double totalPrice,
     required int numItems,
-  }) =>
-      _safe('initiated_checkout', () => _fb.logInitiatedCheckout(
-            totalPrice: totalPrice,
-            currency: kCurrency,
-            contentType: 'product',
-            numItems: numItems,
-          ));
+  }) {
+    TikTokAnalyticsService.logInitiateCheckout(totalPrice: totalPrice, numItems: numItems);
+    return _safe('initiated_checkout', () => _fb.logInitiatedCheckout(
+          totalPrice: totalPrice,
+          currency: kCurrency,
+          contentType: 'product',
+          numItems: numItems,
+        ));
+  }
 
   /// 🛒 شراء ناجح (هذا الحدث الي يعتمد عليه فيسبوك لتحسين الإعلانات)
   static Future<void> logPurchase({
@@ -62,8 +70,14 @@ class FacebookAnalyticsService {
     required int numItems,
     int? orderId,
     String currency = kCurrency,
-  }) =>
-      _safe('purchase', () => _fb.logPurchase(
+  }) {
+    TikTokAnalyticsService.logPurchase(
+      amount: amount,
+      productIds: productIds,
+      numItems: numItems,
+      orderId: orderId,
+    );
+    return _safe('purchase', () => _fb.logPurchase(
             amount: amount,
             currency: currency,
             parameters: {
@@ -72,7 +86,8 @@ class FacebookAnalyticsService {
               'fb_num_items': numItems,
               if (orderId != null) 'fb_order_id': '$orderId',
             },
-          ));
+        ));
+  }
 
   /// 👆 أحداث مخصصة
   static Future<void> logCustomEvent({
