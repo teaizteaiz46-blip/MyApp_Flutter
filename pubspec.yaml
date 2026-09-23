@@ -1,7 +1,7 @@
 name: myapprun
 description: "Modo Iraq E-commerce App"
 publish_to: 'none'
-version: 1.7.1+42
+version: 1.7.2+43
 
 environment:
   sdk: ^3.9.2
@@ -36,6 +36,7 @@ dependencies:
   cached_network_image: ^4.0.0
   path_provider: ^2.1.6
   flutter_cache_manager: ^3.4.5
+  app_links: ^7.2.1
 
 dev_dependencies:
   flutter_test:

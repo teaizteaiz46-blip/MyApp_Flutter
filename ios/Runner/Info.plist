@@ -63,5 +63,35 @@
 		</dict>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
+		<!-- Meta (فيسبوك/انستغرام): نفس تطبيق الأندرويد حتى الأحداث والإعلانات تشتغل على الجهازين -->
+		<key>FacebookAppID</key>
+		<string>2389635998228651</string>
+		<key>FacebookClientToken</key>
+		<string>fd972c6885c95a2e102e6df6eafb97a5</string>
+		<key>FacebookDisplayName</key>
+		<string>MODO</string>
+		<key>FacebookAutoLogAppEventsEnabled</key>
+		<true/>
+		<key>FacebookAdvertiserIDCollectionEnabled</key>
+		<true/>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>fbapi</string>
+			<string>fb-messenger-share-api</string>
+		</array>
+		<!-- روابط تفتح التطبيق: fb… لميتا، و modoiraq://product/<id> لفتح منتج من الإعلان -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>fb2389635998228651</string>
+					<string>modoiraq</string>
+				</array>
+			</dict>
+		</array>
+		<!-- الروابط يستلمها app_links بالكود، مو موجّه Flutter الافتراضي -->
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 	</dict>
 </plist>

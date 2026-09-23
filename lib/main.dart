@@ -18,11 +18,15 @@ import 'screens/home/home_screen.dart';
 import 'screens/orders/my_orders_screen.dart';
 import 'screens/policy/privacy_policy_screen.dart';
 import 'services/cart_service.dart';
+import 'services/deep_link_service.dart';
 import 'services/tiktok_service.dart';
 import '../../core/shop_api.dart';
 import 'theme/app_theme.dart';
 
 final supabase = Supabase.instance.client;
+
+/// للتنقل من خارج الشاشات (مثلاً رابط منتج من إعلان).
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,6 +76,9 @@ Future<void> main() async {
 
   // تشغيل الواجهة فوراً لمنع تعليق الشاشة البيضاء
   runApp(const MyApp());
+
+  // روابط المنتجات من إعلانات فيسبوك/انستغرام
+  DeepLinkService.init(rootNavigatorKey);
 
   // الإشعارات ما توقف فتح التطبيق
   unawaited(TikTokAnalyticsService.init());
@@ -141,6 +148,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'MODO',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar', 'IQ'),

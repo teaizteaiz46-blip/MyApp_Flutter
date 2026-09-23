@@ -43,6 +43,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- modoiraq://product/<id>: يفتح المنتج من إعلانات الكتالوج بميتا -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="modoiraq" android:host="product"/>
+            </intent-filter>
+
+            <!-- الروابط يستلمها app_links بالكود، مو موجّه Flutter الافتراضي -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
 
         <meta-data
