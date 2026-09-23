@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/bulk_pricing.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart';
@@ -86,7 +87,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
       await CartService.instance.add(widget.productId, color: _selectedColor, quantity: _quantity);
       FacebookAnalyticsService.logAddToCart(
         id: '${widget.productId}',
-        price: _price(product) * _quantity,
+        price: quoteProduct(product, _quantity).total,
       );
       if (!mounted) return;
       messenger
@@ -148,6 +149,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final description = (product['description'] ?? '').toString().trim();
         final colors = _colors(product);
         final maxQty = _maxQty(product);
+        final tiers = BulkTier.ofProduct(product);
         final discount = oldPrice > price && oldPrice > 0 ? ((oldPrice - price) / oldPrice * 100).round() : 0;
 
         return Scaffold(
@@ -217,6 +219,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           ],
                         ],
                       ),
+                      if (tiers.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _BulkOffers(tiers: tiers, quote: stock > 0 ? quoteProduct(product, _quantity) : null),
+                      ],
                       const SizedBox(height: 8),
                       _StockLabel(stock: stock),
                       if (colors.isNotEmpty) ...[
@@ -353,6 +359,95 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 }),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// درجات عروض الكمية تحت السعر، ومعاها السعر الكلي والتوفير إذا الكمية المختارة وصلت درجة.
+class _BulkOffers extends StatelessWidget {
+  const _BulkOffers({required this.tiers, required this.quote});
+
+  final List<BulkTier> tiers;
+  final BulkQuote? quote;
+
+  static final NumberFormat _money = NumberFormat('#,###');
+
+  @override
+  Widget build(BuildContext context) {
+    final quote = this.quote;
+    final applied = quote != null && quote.applied;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.local_offer, size: 18, color: Colors.deepOrange.shade700),
+              const SizedBox(width: 6),
+              Text(
+                'عروض الكمية',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange.shade700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final tier in tiers)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    quote?.packs.containsKey(tier) == true ? Icons.check_circle : Icons.circle_outlined,
+                    size: 16,
+                    color: quote?.packs.containsKey(tier) == true ? Colors.green.shade700 : Colors.grey,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(tier.label(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+          if (applied) ...[
+            const Divider(height: 16),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              children: [
+                Text(
+                  '${piecesLabel(quote.qty)}: ${_money.format(quote.total)} د.ع',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                if (quote.saving > 0)
+                  Text(
+                    _money.format(quote.regularTotal),
+                    style: const TextStyle(color: Colors.grey, decoration: TextDecoration.lineThrough),
+                  ),
+              ],
+            ),
+            if (quote.saving > 0 || quote.freeDelivery)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  [
+                    if (quote.saving > 0) 'توفّر ${_money.format(quote.saving)} د.ع',
+                    if (quote.freeDelivery) 'توصيل مجاني',
+                  ].join(' + '),
+                  style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
         ],
       ),
     );

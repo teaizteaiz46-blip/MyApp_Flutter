@@ -11,7 +11,9 @@ import '../../details/details_screen.dart';
 enum HomeSort { mix, bestSelling, newest }
 
 /// الأعمدة من عرض products_ranked (نفس أعمدة المنتج + الترتيب داخل الفئة).
-const String kRankedColumns = '$kProductColumns, offer_ends_at, category_name, category_rank';
+/// العرض ما بيه bulk_tiers بعد، فنستخدم الأعمدة الأساسية حتى ما يفشل الاستعلام.
+/// لما ينضاف العمود للعرض بالسيرفر بدّلها لـ kProductColumns.
+const String kRankedColumns = '$kProductBaseColumns, offer_ends_at, category_name, category_rank';
 
 class HomeProductGrid extends StatefulWidget {
   final int categoryId;

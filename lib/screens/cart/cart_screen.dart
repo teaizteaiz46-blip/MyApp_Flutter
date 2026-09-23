@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/bulk_pricing.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
@@ -90,14 +91,10 @@ class _CartScreenState extends State<CartScreen> {
     return null;
   }
 
-  double get _total {
-    var sum = 0.0;
-    for (final line in _cart.lines.value) {
-      final product = _products[line.productId];
-      if (product != null) sum += _price(product) * line.quantity;
-    }
-    return sum;
-  }
+  /// للعرض فقط؛ السعر النهائي يتحسب بالسيرفر عند إرسال الطلب.
+  CartQuote get _quote => quoteCart(_cart.lines.value, _products);
+
+  double get _total => _quote.subtotal;
 
   void _openProduct(int productId) {
     Navigator.of(context).push(
@@ -176,17 +173,59 @@ class _CartScreenState extends State<CartScreen> {
       );
     }
 
+    final quote = _quote;
+    final banner = quote.freeDelivery ? 1 : 0;
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-      itemCount: lines.length,
+      itemCount: lines.length + banner,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) => _buildLine(lines[index]),
+      itemBuilder: (context, index) {
+        if (index < banner) return const _FreeDeliveryBanner();
+        final i = index - banner;
+        final line = lines[i];
+        // تلميح العرض يطلع مرة وحدة لكل منتج، تحت آخر سطر (لون) منه
+        final lastOfProduct = !lines.skip(i + 1).any((l) => l.productId == line.productId);
+        return _buildLine(line, quote, showHint: lastOfProduct);
+      },
     );
   }
 
-  Widget _buildLine(CartLine line) {
+  Widget? _buildHint(CartLine line, CartQuote quote) {
+    final product = _products[line.productId];
+    if (product == null || _problemFor(line) != null) return null;
+    final hint = nextBulkHintForProduct(product, quote.qtyByProduct[line.productId] ?? 0);
+    if (hint == null || hint.missing > kBulkHintMaxMissing) return null;
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.local_offer_outlined, size: 16, color: Colors.deepOrange.shade700),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'زيد ${piecesLabel(hint.missing)} وتاخذ '
+              '${hint.tier.label(withFreeDelivery: !quote.freeDelivery)}',
+              style: TextStyle(color: Colors.deepOrange.shade800, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLine(CartLine line, CartQuote quote, {required bool showHint}) {
     final product = _products[line.productId];
     final problem = _problemFor(line);
+    final lineTotal = quote.lineTotal(line);
+    final lineRegular = quote.lineRegularTotal(line);
+    final lineSaving = lineRegular - lineTotal;
+    final hint = showHint ? _buildHint(line, quote) : null;
     final images = ((product?['image_url'] as List?) ?? const []).map((e) => '$e').toList();
     final imageUrl = images.isNotEmpty ? images.first : '';
     final name = (product?['name'] ?? 'منتج غير متوفر').toString();
@@ -278,12 +317,35 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                     const Spacer(),
                     if (product != null)
-                      Text(
-                        '${_money.format(price * line.quantity)} د.ع',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (lineSaving >= 1)
+                            Text(
+                              '${_money.format(lineRegular)} د.ع',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                          Text(
+                            '${_money.format(lineTotal)} د.ع',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                   ],
                 ),
+                if (lineSaving >= 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'عرض الكمية: وفّرت ${_money.format(lineSaving)} د.ع',
+                      style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                if (hint != null) hint,
               ],
             ),
           ),
@@ -293,6 +355,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildBottomBar() {
+    final quote = _quote;
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -307,11 +370,19 @@ class _CartScreenState extends State<CartScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('المجموع (بدون التوصيل)', style: TextStyle(color: Colors.grey, fontSize: 12)),
                   Text(
-                    '${_money.format(_total)} د.ع',
+                    quote.freeDelivery ? 'المجموع (التوصيل مجاني)' : 'المجموع (بدون التوصيل)',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  Text(
+                    '${_money.format(quote.subtotal)} د.ع',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
+                  if (quote.saving >= 1)
+                    Text(
+                      'وفّرت ${_money.format(quote.saving)} د.ع',
+                      style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
                 ],
               ),
             ),
@@ -327,6 +398,32 @@ class _CartScreenState extends State<CartScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FreeDeliveryBanner extends StatelessWidget {
+  const _FreeDeliveryBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.local_shipping_outlined, color: Colors.green.shade700),
+          const SizedBox(width: 8),
+          Text(
+            'توصيلك مجاني 🎉',
+            style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/bulk_pricing.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
@@ -101,16 +102,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   // --------------------------------------------------------------------------
 
-  double get _subtotal {
-    var sum = 0.0;
-    for (final line in _cart.lines.value) {
-      final price = (_products[line.productId]?['price'] as num?)?.toDouble() ?? 0;
-      sum += price * line.quantity;
-    }
-    return sum;
-  }
+  /// نفس حساب place_order: عروض الكمية على مجموع كل منتج، والتوصيل صفر إذا أي منتج وصل درجة توصيل مجاني.
+  /// للعرض فقط؛ السيرفر هو المرجع.
+  CartQuote get _quote => quoteCart(_cart.lines.value, _products);
 
-  double get _delivery => ShopApi.deliveryFor(_governorate, _deliveryCosts);
+  double get _subtotal => _quote.subtotal;
+
+  bool get _freeDelivery => _quote.freeDelivery;
+
+  double get _delivery => _freeDelivery ? 0 : ShopApi.deliveryFor(_governorate, _deliveryCosts);
 
   double get _discount => _couponAmount > _subtotal ? _subtotal : _couponAmount;
 
@@ -343,6 +343,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _buildItemsSummary() {
     final lines = _cart.lines.value;
+    final quote = _quote;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -365,9 +366,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   if (line.color != null) 'اللون: ${line.color}',
                 ].join('   '),
               ),
-              trailing: Text(
-                '${_money.format((((_products[line.productId]?['price'] as num?) ?? 0) * line.quantity))} د.ع',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              trailing: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (quote.lineRegularTotal(line) - quote.lineTotal(line) >= 1)
+                    Text(
+                      '${_money.format(quote.lineRegularTotal(line))} د.ع',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 11,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  Text(
+                    '${_money.format(quote.lineTotal(line))} د.ع',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ),
         ],
@@ -463,10 +479,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             row('مجموع المنتجات', '${_money.format(_subtotal)} د.ع'),
-            row(
-              'التوصيل',
-              _governorate == null ? 'حسب المحافظة' : '${_money.format(_delivery)} د.ع',
-            ),
+            if (_freeDelivery)
+              row('التوصيل', 'مجاني', color: Colors.green.shade700)
+            else
+              row(
+                'التوصيل',
+                _governorate == null ? 'حسب المحافظة' : '${_money.format(_delivery)} د.ع',
+              ),
             if (_discount > 0)
               row('الخصم', '-${_money.format(_discount)} د.ع', color: Colors.green.shade700),
             const Divider(height: 16),

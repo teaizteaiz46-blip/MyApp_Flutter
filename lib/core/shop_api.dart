@@ -5,9 +5,12 @@ import '../services/cart_service.dart';
 
 /// الأعمدة المسموح للتطبيق يقراها من جدول المنتجات.
 /// لا تستخدم `.select()` بدون أعمدة، حتى ما تنسحب كلفة المنتج (product_cost).
-const String kProductColumns =
+const String kProductBaseColumns =
     'id, name, price, old_price, image_url, rating, sales_count, stock, '
     'colors, description, is_offer, category_id, promo_tag, brand, created_at';
+
+/// bulk_tiers: درجات عروض الكمية (jsonb)، شوف core/bulk_pricing.dart.
+const String kProductColumns = '$kProductBaseColumns, bulk_tiers';
 
 const double kDefaultDeliveryCost = 3000;
 
