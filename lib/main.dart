@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:connectivity_plus/connectivity_plus.dart'; // 👈 استيراد حزمة فحص الاتصال
 import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -81,8 +82,29 @@ Future<void> main() async {
   DeepLinkService.init(rootNavigatorKey);
 
   // الإشعارات ما توقف فتح التطبيق
-  unawaited(TikTokAnalyticsService.init());
+  unawaited(_setupTracking());
   unawaited(_setupNotifications());
+}
+
+/// آيفون: نطلب إذن التتبع (ATT) مرة وحدة، ونبلّغ ميتا بنفس اختيار الزبون،
+/// وبعدها يشتغل تيك توك (يشوف الاختيار جاهز فما يسأل مرة ثانية).
+/// أندرويد: ماكو إذن، يشتغلون مباشرة.
+Future<void> _setupTracking() async {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    try {
+      // نافذة الإذن ما تطلع إلا والتطبيق ظاهر: ننتظر أول إطار وشوية وقت
+      await WidgetsBinding.instance.endOfFrame;
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      var status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        status = await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+      await FacebookAppEvents().setAdvertiserTracking(enabled: status == TrackingStatus.authorized);
+    } catch (e) {
+      debugPrint('Tracking setup failed: $e');
+    }
+  }
+  await TikTokAnalyticsService.init();
 }
 
 Future<void> _setupNotifications() async {

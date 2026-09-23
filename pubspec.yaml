@@ -37,6 +37,7 @@ dependencies:
   path_provider: ^2.1.6
   flutter_cache_manager: ^3.4.5
   app_links: ^7.2.1
+  app_tracking_transparency: ^2.0.7
 
 dev_dependencies:
   flutter_test:
