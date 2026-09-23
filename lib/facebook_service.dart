@@ -50,15 +50,18 @@ class FacebookAnalyticsService {
   }
 
   /// 🧾 بدء إتمام الطلب
+  /// [productIds] نفس أرقام المنتجات بكتالوج ميتا، حتى الحدث ينربط بمنتجاته (match rate).
   static Future<void> logInitiatedCheckout({
     required double totalPrice,
     required int numItems,
+    required List<int> productIds,
   }) {
     TikTokAnalyticsService.logInitiateCheckout(totalPrice: totalPrice, numItems: numItems);
     return _safe('initiated_checkout', () => _fb.logInitiatedCheckout(
           totalPrice: totalPrice,
           currency: kCurrency,
           contentType: 'product',
+          contentId: jsonEncode(productIds.toSet().map((id) => '$id').toList()),
           numItems: numItems,
         ));
   }

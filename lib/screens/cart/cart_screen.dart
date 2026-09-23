@@ -120,6 +120,7 @@ class _CartScreenState extends State<CartScreen> {
     FacebookAnalyticsService.logInitiatedCheckout(
       totalPrice: _total,
       numItems: _cart.itemCount,
+      productIds: lines.map((l) => l.productId).toList(),
     );
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()));
   }
