@@ -294,7 +294,11 @@ class _HomeScreenState extends State<HomeScreen> {
             elevation: 0,
             scrolledUnderElevation: 0.5,
             systemOverlayStyle: overlay,
-            title: _SearchField(onTap: () => _push(const SearchScreen()), onColor: onHero),
+            title: _SearchField(
+              onTap: () => _push(const SearchScreen()),
+              onColor: onHero,
+              heroColor: _heroColor,
+            ),
             flexibleSpace: _slides.isEmpty
                 ? null
                 : FlexibleSpaceBar(
@@ -522,38 +526,52 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
+/// فوق السلايدر يتلوّن بلون الشريحة الحالية (أغمق شوية، أو أفتح إذا الشريحة غامقة) حتى ما يبين بارز.
 class _SearchField extends StatelessWidget {
-  const _SearchField({required this.onTap, required this.onColor});
+  const _SearchField({required this.onTap, required this.onColor, required this.heroColor});
 
   final VoidCallback onTap;
   final bool onColor;
+  final Color heroColor;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: onColor ? Colors.white : AppColors.background,
-      borderRadius: BorderRadius.circular(24),
-      elevation: onColor ? 1 : 0,
-      shadowColor: Colors.black26,
-      child: InkWell(
-        onTap: onTap,
+    final dark = onColor && ThemeData.estimateBrightnessForColor(heroColor) == Brightness.dark;
+    final shade = dark ? Colors.white : Colors.black;
+    final fill = onColor ? Color.lerp(heroColor, shade, 0.06)! : AppColors.background;
+    final border = onColor ? Color.lerp(heroColor, shade, 0.14)! : Colors.transparent;
+    final iconColor = dark ? Colors.white : AppColors.ink;
+    final hintColor = dark ? Colors.white70 : AppColors.muted;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 450),
+      decoration: BoxDecoration(
+        color: fill,
         borderRadius: BorderRadius.circular(24),
-        child: const SizedBox(
-          height: 44,
-          child: Row(
-            children: [
-              SizedBox(width: 14),
-              Icon(Icons.search_rounded, color: AppColors.ink),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'ابحث عن حجاب، شال، عطر...',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.muted, fontSize: 14, fontWeight: FontWeight.w400),
+        border: Border.all(color: border),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: SizedBox(
+            height: 44,
+            child: Row(
+              children: [
+                const SizedBox(width: 14),
+                Icon(Icons.search_rounded, color: iconColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ابحث عن حجاب، شال، عطر...',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: hintColor, fontSize: 14, fontWeight: FontWeight.w400),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
