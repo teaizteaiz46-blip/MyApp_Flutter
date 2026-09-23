@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
+import '../core/offline_cache.dart';
 import '../facebook_service.dart';
 import '../services/cart_service.dart';
 import '../theme/app_theme.dart';
@@ -38,8 +39,8 @@ class ProductImage extends StatelessWidget {
     if (u.isEmpty) return _placeholder;
     return ColoredBox(
       color: AppColors.placeholder,
-      child: Image.network(
-        u,
+      child: Image(
+        image: cachedImage(u),
         fit: fit,
         width: double.infinity,
         height: double.infinity,

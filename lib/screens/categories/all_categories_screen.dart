@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/offline_cache.dart';
 import '../../main.dart'; // لاستخدام supabase
 // لاحقًا، قد نحتاج للانتقال لشاشة تعرض منتجات فئة معينة
 // import '../home/components/home_product_grid.dart';
@@ -9,13 +10,11 @@ class AllCategoriesScreen extends StatelessWidget {
   const AllCategoriesScreen({super.key});
 
   // دالة جلب الفئات
-  Future<List<Map<String, dynamic>>> _fetchCategories() async {
-    final data = await supabase
-        .from('categories')
-        .select()
-        .order('id', ascending: true);
-    return data;
-  }
+  // من الجهاز فوراً، والنسخة الجديدة تنحفظ بالخلفية وتبين بالفتحة الجاية.
+  Future<List<Map<String, dynamic>>> _fetchCategories() => OfflineCache.fetch(
+        'all_categories',
+        () async => await supabase.from('categories').select().order('id', ascending: true),
+      );
 
   @override
   Widget build(BuildContext context) {

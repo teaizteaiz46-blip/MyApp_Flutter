@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/offline_cache.dart';
 import '../../../facebook_service.dart';
 import '../../../services/cart_service.dart';
 // import 'fitting_room_sheet.dart'; // 👈 غرفة القياس الافتراضية (الميزة ملغية حالياً، شوف الزر المعلّق تحت)
@@ -92,8 +93,8 @@ class _NewProductCardState extends State<NewProductCard> {
                       if (imageList.isEmpty) {
                         return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
                       }
-                      return Image.network(
-                        '${imageList[index]}',
+                      return Image(
+                        image: cachedImage('${imageList[index]}'),
                         fit: BoxFit.cover,
                         loadingBuilder: (context, child, progress) => progress == null
                             ? child

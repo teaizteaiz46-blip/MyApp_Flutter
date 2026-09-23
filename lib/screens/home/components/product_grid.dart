@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/offline_cache.dart';
 import '../../details/details_screen.dart'; // أضف هذا السطر
 // -----------------------------------------------------------------
 // الجزء الأول: ويدجت ProductGrid (يستخدم لقسم "Special for you")
@@ -103,8 +104,8 @@ class ProductCard extends StatelessWidget {
                   ? const Icon(Icons.shopping_cart, color: Colors.grey)
                   : ClipRRect(
                 borderRadius: BorderRadius.circular(15),
-                child: Image.network(
-                  imageUrl,
+                child: Image(
+                  image: cachedImage(imageUrl),
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;

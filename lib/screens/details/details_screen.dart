@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/bulk_pricing.dart';
+import '../../core/offline_cache.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart';
@@ -40,12 +41,18 @@ class _DetailsScreenState extends State<DetailsScreen> {
     super.dispose();
   }
 
+  /// يفتح فوراً من آخر نسخة محفوظة بالجهاز (إذا الزبون فتح المنتج قبل)، ويتحدث من السيرفر بالخلفية.
   Future<Map<String, dynamic>> _fetchProductDetails() async {
-    final data = await supabase
-        .from('products')
-        .select(kProductColumns)
-        .eq('id', widget.productId)
-        .single();
+    final rows = await OfflineCache.fetch(
+      'product_${widget.productId}',
+      () async => [
+        await supabase.from('products').select(kProductColumns).eq('id', widget.productId).single(),
+      ],
+      onFresh: (fresh) {
+        if (mounted) setState(() => _productFuture = Future.value(fresh.first));
+      },
+    );
+    final data = rows.first;
     FacebookAnalyticsService.logViewContent(id: '${widget.productId}', price: _price(data));
     return data;
   }
@@ -116,7 +123,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     return FutureBuilder<Map<String, dynamic>>(
       future: _productFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return Scaffold(
             appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
             body: const Center(child: CircularProgressIndicator()),
@@ -326,8 +333,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
                     builder: (_) => FullScreenImageViewer(imageUrls: images, initialIndex: index),
                   ),
                 ),
-                child: Image.network(
-                  images[index],
+                child: Image(
+                  image: cachedImage(images[index]),
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, progress) => progress == null
                       ? child
@@ -516,8 +523,8 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
           minScale: 0.5,
           maxScale: 4.0,
           child: Center(
-            child: Image.network(
-              '${widget.imageUrls[index]}',
+            child: Image(
+              image: cachedImage('${widget.imageUrls[index]}'),
               fit: BoxFit.contain,
               loadingBuilder: (context, child, progress) => progress == null
                   ? child

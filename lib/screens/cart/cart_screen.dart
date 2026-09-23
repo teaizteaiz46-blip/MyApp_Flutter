@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/bulk_pricing.dart';
+import '../../core/offline_cache.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
@@ -254,8 +255,8 @@ class _CartScreenState extends State<CartScreen> {
                 color: Colors.grey[200],
                 child: imageUrl.isEmpty
                     ? const Icon(Icons.image_not_supported_outlined, color: Colors.grey)
-                    : Image.network(
-                        imageUrl,
+                    : Image(
+                        image: cachedImage(imageUrl),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) =>
                             const Icon(Icons.broken_image, color: Colors.grey),

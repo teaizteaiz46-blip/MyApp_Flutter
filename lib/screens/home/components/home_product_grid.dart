@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import '../../../core/offline_cache.dart';
 import '../../../core/shop_api.dart';
 import '../../../main.dart';
 import '../../../theme/app_theme.dart';
@@ -117,14 +118,31 @@ class _HomeProductGridState extends State<HomeProductGrid> {
         query = query.eq('is_offer', true);
       }
 
-      final List<Map<String, dynamic>> data = switch (widget.effectiveSort) {
-        HomeSort.mix => await query.order('random_id', ascending: true).order('id').range(from, to),
-        HomeSort.bestSelling => await query
-            .order('sales_count', ascending: false, nullsFirst: false)
-            .order('id')
-            .range(from, to),
-        HomeSort.newest => await query.order('created_at', ascending: false).order('id').range(from, to),
-      };
+      Future<List<Map<String, dynamic>>> load() async => switch (widget.effectiveSort) {
+            HomeSort.mix => await query.order('random_id', ascending: true).order('id').range(from, to),
+            HomeSort.bestSelling => await query
+                .order('sales_count', ascending: false, nullsFirst: false)
+                .order('id')
+                .range(from, to),
+            HomeSort.newest => await query.order('created_at', ascending: false).order('id').range(from, to),
+          };
+
+      // الصفحة الأولى تفتح فوراً من الجهاز وتتحدث بالخلفية؛ الصفحات الباقية من السيرفر مباشرة.
+      final data = _currentPage == 0
+          ? await OfflineCache.fetch(
+              'grid_${widget.categoryId}_${widget.onlyOffers}_${widget.effectiveSort.name}',
+              load,
+              onFresh: (fresh) {
+                if (!mounted || generation != _generation || _currentPage != 1) return;
+                setState(() {
+                  _products
+                    ..clear()
+                    ..addAll(fresh);
+                  _hasMore = fresh.length >= _pageSize;
+                });
+              },
+            )
+          : await load();
 
       // الفئة تغيّرت أثناء التحميل: نتجاهل هاي النتيجة
       if (!mounted || generation != _generation) return;

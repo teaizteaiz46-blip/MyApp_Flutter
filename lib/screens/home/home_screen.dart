@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/offline_cache.dart';
 import '../../main.dart';
 import '../../services/cart_service.dart';
 import '../../theme/app_theme.dart';
@@ -73,35 +74,60 @@ class _HomeScreenState extends State<HomeScreen> {
   // --------------------------------------------------------------------------
   // البيانات
 
+  // كل قسم يفتح فوراً من آخر نسخة محفوظة بالجهاز، ويتحدث من السيرفر بالخلفية.
   void _loadSections() {
-    _categoriesFuture = _fetch(() async => await supabase
-        .from('categories_home')
-        .select('id, name, image_url, total_sales')
-        .order('id', ascending: true));
+    void setCategories(_Rows rows) {
+      if (!mounted) return;
+      setState(() {
+        _categories = rows;
+        _categoriesFuture = Future.value(rows);
+      });
+    }
+
+    _categoriesFuture = _fetch(() => OfflineCache.fetch(
+          'home_categories',
+          () async => await supabase
+              .from('categories_home')
+              .select('id, name, image_url, total_sales')
+              .order('id', ascending: true),
+          onFresh: setCategories,
+        ));
     _categoriesFuture.then((rows) {
       if (mounted) setState(() => _categories = rows);
     });
 
-    _dealsFuture = _fetch(() async => await supabase
-        .from('products_ranked')
-        .select(kRankedColumns)
-        .eq('is_offer', true)
-        .gt('stock', 0)
-        .order('offer_ends_at', ascending: true, nullsFirst: false)
-        .order('sales_count', ascending: false, nullsFirst: false)
-        .limit(12));
+    _dealsFuture = _fetch(() => OfflineCache.fetch(
+          'home_deals',
+          () async => await supabase
+              .from('products_ranked')
+              .select(kRankedColumns)
+              .eq('is_offer', true)
+              .gt('stock', 0)
+              .order('offer_ends_at', ascending: true, nullsFirst: false)
+              .order('sales_count', ascending: false, nullsFirst: false)
+              .limit(12),
+          onFresh: (rows) {
+            if (mounted) setState(() => _dealsFuture = Future.value(rows));
+          },
+        ));
 
-    _fetch(() async => await supabase
-        .from('active_banners')
-        .select()
-        .order('sort_order', ascending: true)
-        .order('id', ascending: true)).then((rows) {
+    void setSlides(_Rows rows) {
       if (!mounted) return;
       setState(() {
         _slides = slidesFromRows(rows);
         if (_slides.isEmpty) _heroColor = AppColors.surface;
       });
-    });
+    }
+
+    _fetch(() => OfflineCache.fetch(
+          'home_banners',
+          () async => await supabase
+              .from('active_banners')
+              .select()
+              .order('sort_order', ascending: true)
+              .order('id', ascending: true),
+          onFresh: setSlides,
+        )).then(setSlides);
   }
 
   /// يرجّع قائمة فارغة بدل الخطأ للأقسام الثانوية، والقسم يختفي بهدوء.
@@ -664,7 +690,7 @@ class _CategoryBubble extends StatelessWidget {
                   child: loading
                       ? const ColoredBox(color: AppColors.placeholder)
                       : hasImage
-                          ? Image.network(imageUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback)
+                          ? Image(image: cachedImage(imageUrl!), fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback)
                           : fallback,
                 ),
               ),
