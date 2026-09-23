@@ -39,7 +39,6 @@ Future<void> main() async {
     try {
       final facebookAppEvents = FacebookAppEvents();
       await facebookAppEvents.setAutoLogAppEventsEnabled(true);
-      await facebookAppEvents.setAdvertiserTracking(enabled: false);
     } catch (e) {
       debugPrint('Facebook init failed: $e');
     }
@@ -86,22 +85,20 @@ Future<void> main() async {
   unawaited(_setupNotifications());
 }
 
-/// آيفون: نطلب إذن التتبع (ATT) مرة وحدة، ونبلّغ ميتا بنفس اختيار الزبون،
-/// وبعدها يشتغل تيك توك (يشوف الاختيار جاهز فما يسأل مرة ثانية).
-/// أندرويد: ماكو إذن، يشتغلون مباشرة.
+/// آيفون: نطلب إذن التتبع (ATT) مرة وحدة بعد ما تظهر الواجهة.
+/// ميتا (SDK 17+) تقرا جواب الزبون من النظام مباشرة، وتيك توك يشوف الجواب جاهز فما يسأل مرة ثانية.
+/// أندرويد: ماكو إذن، تيك توك يشتغل مباشرة.
 Future<void> _setupTracking() async {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
     try {
       // نافذة الإذن ما تطلع إلا والتطبيق ظاهر: ننتظر أول إطار وشوية وقت
       await WidgetsBinding.instance.endOfFrame;
       await Future<void>.delayed(const Duration(milliseconds: 800));
-      var status = await AppTrackingTransparency.trackingAuthorizationStatus;
-      if (status == TrackingStatus.notDetermined) {
-        status = await AppTrackingTransparency.requestTrackingAuthorization();
+      if (await AppTrackingTransparency.trackingAuthorizationStatus == TrackingStatus.notDetermined) {
+        await AppTrackingTransparency.requestTrackingAuthorization();
       }
-      await FacebookAppEvents().setAdvertiserTracking(enabled: status == TrackingStatus.authorized);
     } catch (e) {
-      debugPrint('Tracking setup failed: $e');
+      debugPrint('Tracking permission failed: $e');
     }
   }
   await TikTokAnalyticsService.init();
