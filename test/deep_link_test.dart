@@ -15,6 +15,14 @@ void main() {
     expect(id('https://teaizteaiz46-blip.github.io/Modo-orders/p.html?id=861&fbclid=x'), 861);
   });
 
+  test('مصدر فتح المنتج', () {
+    String src(String link) => DeepLinkService.sourceFrom(Uri.parse(link));
+    expect(src('modoiraq://product/861?al_applink_data=%7B%7D'), 'meta');
+    expect(src('modoiraq://product/861?fbclid=abc'), 'meta');
+    expect(src('modoiraq://product/861?utm_source=ig_story'), 'ig_story');
+    expect(src('modoiraq://product/861'), 'deeplink');
+  });
+
   test('روابط غير صالحة', () {
     expect(id('modoiraq://product/'), isNull);
     expect(id('modoiraq://product/abc'), isNull);

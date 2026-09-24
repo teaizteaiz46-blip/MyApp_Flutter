@@ -7,12 +7,17 @@ import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart';
 import '../../services/cart_service.dart';
+import '../../services/visit_logger.dart';
 import '../cart/cart_screen.dart';
 
 class DetailsScreen extends StatefulWidget {
   final int productId;
 
-  const DetailsScreen({super.key, required this.productId});
+  /// من وين انفتح المنتج (لشجرة الإعلانات): 'app' أو 'meta' أو 'deeplink'.
+  final String source;
+  final String? campaign;
+
+  const DetailsScreen({super.key, required this.productId, this.source = 'app', this.campaign});
 
   @override
   State<DetailsScreen> createState() => _DetailsScreenState();
@@ -33,6 +38,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   void initState() {
     super.initState();
     _productFuture = _fetchProductDetails();
+    VisitLogger.productOpened(widget.productId, source: widget.source, campaign: widget.campaign);
   }
 
   @override

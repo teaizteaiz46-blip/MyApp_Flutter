@@ -29,6 +29,16 @@ class DeepLinkService {
     return null;
   }
 
+  /// مصدر فتح المنتج من الرابط: utm_source إذا موجود، وإلا 'meta' إذا الرابط من إعلان ميتا
+  /// (ميتا تضيف al_applink_data أو fbclid)، وإلا 'deeplink'.
+  static String sourceFrom(Uri uri) {
+    final q = uri.queryParameters;
+    final utm = q['utm_source'];
+    if (utm != null && utm.isNotEmpty) return utm;
+    if (q.containsKey('al_applink_data') || q.containsKey('fbclid')) return 'meta';
+    return 'deeplink';
+  }
+
   /// يستمع للروابط (الرابط الي فتح التطبيق + أي رابط يوصل والتطبيق مفتوح) ويفتح المنتج.
   static void init(GlobalKey<NavigatorState> navigatorKey) {
     if (kIsWeb || _sub != null) return;
@@ -53,6 +63,8 @@ class DeepLinkService {
       }
       return;
     }
-    navigator.push(MaterialPageRoute(builder: (_) => DetailsScreen(productId: id)));
+    navigator.push(MaterialPageRoute(
+      builder: (_) => DetailsScreen(productId: id, source: sourceFrom(uri), campaign: uri.queryParameters['utm_campaign']),
+    ));
   }
 }

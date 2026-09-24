@@ -1,7 +1,7 @@
 name: myapprun
 description: "Modo Iraq E-commerce App"
 publish_to: 'none'
-version: 1.7.2+43
+version: 1.7.3+44
 
 environment:
   sdk: ^3.9.2
