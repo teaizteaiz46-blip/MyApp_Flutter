@@ -10,7 +10,7 @@ const String kProductBaseColumns =
     'colors, description, is_offer, category_id, promo_tag, brand, created_at';
 
 /// bulk_tiers: درجات عروض الكمية (jsonb)، شوف core/bulk_pricing.dart.
-const String kProductColumns = '$kProductBaseColumns, bulk_tiers';
+const String kProductColumns = '$kProductBaseColumns, bulk_tiers, offer_group';
 
 const double kDefaultDeliveryCost = 3000;
 

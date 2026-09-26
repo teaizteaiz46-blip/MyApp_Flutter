@@ -235,7 +235,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
                       ),
                       if (tiers.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        _BulkOffers(tiers: tiers, quote: stock > 0 ? quoteProduct(product, _quantity) : null),
+                        _BulkOffers(
+                          tiers: tiers,
+                          quote: stock > 0 ? quoteProduct(product, _quantity) : null,
+                          grouped: (product['offer_group'] ?? '').toString().trim().isNotEmpty,
+                        ),
                       ],
                       const SizedBox(height: 8),
                       _StockLabel(stock: stock),
@@ -384,10 +388,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
 /// درجات عروض الكمية تحت السعر، ومعاها السعر الكلي والتوفير إذا الكمية المختارة وصلت درجة.
 class _BulkOffers extends StatelessWidget {
-  const _BulkOffers({required this.tiers, required this.quote});
+  const _BulkOffers({required this.tiers, required this.quote, this.grouped = false});
 
   final List<BulkTier> tiers;
   final BulkQuote? quote;
+
+  /// المنتج بمجموعة عرض: قطعه تتجمع ويا منتجات ثانية بنفس العرض.
+  final bool grouped;
 
   static final NumberFormat _money = NumberFormat('#,###');
 
@@ -434,6 +441,14 @@ class _BulkOffers extends StatelessWidget {
                     child: Text(tier.label(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   ),
                 ],
+              ),
+            ),
+          if (grouped)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, bottom: 2),
+              child: Text(
+                'العرض يشمل موديلات ثانية بنفس العرض، تگدرين تجمعين قطع منها بالسلة',
+                style: TextStyle(fontSize: 12, color: Colors.deepOrange.shade800),
               ),
             ),
           if (applied) ...[

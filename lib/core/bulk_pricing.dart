@@ -121,11 +121,29 @@ BulkQuote quoteProduct(Map<String, dynamic> product, int qty) => quoteBulk(
       qty: qty,
     );
 
+/// مفتاح التجميع لعروض الكمية: منتجات بنفس offer_group تتجمع قطعها سوى، وغيرها كل منتج لحاله.
+/// نفس private.cart_price بالسيرفر.
+String offerGroupKey(int productId, Map<String, dynamic>? product) {
+  final group = (product?['offer_group'] ?? '').toString().trim();
+  return group.isEmpty ? 'p:$productId' : 'g:$group';
+}
+
 class CartQuote {
-  const CartQuote({required this.byProduct, required this.qtyByProduct});
+  const CartQuote({
+    required this.byProduct,
+    required this.qtyByProduct,
+    this.groupKeyByProduct = const {},
+    this.qtyByGroup = const {},
+  });
 
   final Map<int, BulkQuote> byProduct;
   final Map<int, int> qtyByProduct;
+  final Map<int, String> groupKeyByProduct;
+  final Map<String, int> qtyByGroup;
+
+  /// مجموع قطع مجموعة العرض الي بيها المنتج (أو قطع المنتج نفسه إذا بدون مجموعة).
+  int groupQtyFor(int productId) =>
+      qtyByGroup[groupKeyByProduct[productId]] ?? qtyByProduct[productId] ?? 0;
 
   double get subtotal => byProduct.values.fold(0.0, (s, q) => s + q.total);
   double get regularSubtotal => byProduct.values.fold(0.0, (s, q) => s + q.regularTotal);
@@ -150,18 +168,90 @@ class CartQuote {
   }
 }
 
-/// مجموع السلة كاملة: كمية كل منتج تتجمع عبر ألوانه ثم يتحسب العرض عليها.
-/// المنتجات غير الموجودة بـ [products] تنحسب صفر (السيرفر يرفض الطلب بكل الأحوال).
+/// مجموع السلة كاملة: كمية كل منتج تتجمع عبر ألوانه، ومنتجات نفس "مجموعة العرض" تتجمع سوى،
+/// ثم يتحسب العرض على المجموع. نسخة للعرض فقط من private.cart_price بالسيرفر:
+/// - المجموعة تستخدم درجات أول منتج بيها (أصغر id).
+/// - القطع الداخلة بالباقات من الأغلى للأرخص، وسعر الباقات يتوزع حسب السعر العادي
+///   (التقريب لأقرب دينار، والفرق على آخر منتج).
+/// المنتجات غير الموجودة بـ [products] ما تنحسب (السيرفر يرفض الطلب بكل الأحوال).
 CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> products) {
   final qtyByProduct = <int, int>{};
   for (final line in lines) {
     qtyByProduct[line.productId] = (qtyByProduct[line.productId] ?? 0) + line.quantity;
   }
-  final byProduct = <int, BulkQuote>{
-    for (final entry in qtyByProduct.entries)
-      if (products[entry.key] != null) entry.key: quoteProduct(products[entry.key]!, entry.value),
-  };
-  return CartQuote(byProduct: byProduct, qtyByProduct: qtyByProduct);
+
+  double priceOf(int id) => (products[id]?['price'] as num?)?.toDouble() ?? 0;
+
+  final groups = <String, List<int>>{};
+  final groupKeyByProduct = <int, String>{};
+  for (final id in qtyByProduct.keys) {
+    if (products[id] == null) continue;
+    final key = offerGroupKey(id, products[id]);
+    groupKeyByProduct[id] = key;
+    groups.putIfAbsent(key, () => []).add(id);
+  }
+
+  final byProduct = <int, BulkQuote>{};
+  final qtyByGroup = <String, int>{};
+  for (final entry in groups.entries) {
+    final ids = entry.value
+      ..sort((a, b) {
+        final byPrice = priceOf(b).compareTo(priceOf(a));
+        return byPrice != 0 ? byPrice : a.compareTo(b);
+      });
+    final tiersOwner = ids.reduce((a, b) => a < b ? a : b);
+    final tiers = BulkTier.ofProduct(products[tiersOwner]);
+    final totalQty = ids.fold(0, (s, id) => s + qtyByProduct[id]!);
+    qtyByGroup[entry.key] = totalQty;
+
+    // الباقات على مجموع القطع (بسعر قطعة صفر حتى total = سعر الباقات بس)
+    final packsQuote = quoteBulk(unitPrice: 0, tiers: tiers, qty: totalQty);
+    final packedUnits = packsQuote.packs.entries.fold(0, (s, e) => s + e.key.qty * e.value);
+
+    // توزيع القطع الداخلة بالباقات: من الأغلى للأرخص
+    var left = packedUnits;
+    final packed = <int, int>{};
+    var packedRegular = 0.0;
+    var lastPacked = -1;
+    for (final id in ids) {
+      final take = qtyByProduct[id]! < left ? qtyByProduct[id]! : left;
+      packed[id] = take;
+      left -= take;
+      packedRegular += take * priceOf(id);
+      if (take > 0) lastPacked = id;
+    }
+
+    var shared = 0.0;
+    for (final id in ids) {
+      final qty = qtyByProduct[id]!;
+      final p = packed[id]!;
+      double share;
+      if (p == 0) {
+        share = 0;
+      } else if (id == lastPacked) {
+        share = packsQuote.total - shared;
+      } else if (packedRegular > 0) {
+        share = (packsQuote.total * p * priceOf(id) / packedRegular).roundToDouble();
+      } else {
+        share = (packsQuote.total * p / (packedUnits > 0 ? packedUnits : 1)).roundToDouble();
+      }
+      shared += share;
+      byProduct[id] = BulkQuote(
+        qty: qty,
+        total: share + (qty - p) * priceOf(id),
+        regularTotal: priceOf(id) * qty,
+        freeDelivery: packsQuote.freeDelivery,
+        packs: packsQuote.packs,
+      );
+    }
+  }
+
+  return CartQuote(
+    byProduct: byProduct,
+    qtyByProduct: qtyByProduct,
+    groupKeyByProduct: groupKeyByProduct,
+    qtyByGroup: qtyByGroup,
+  );
 }
 
 class BulkHint {

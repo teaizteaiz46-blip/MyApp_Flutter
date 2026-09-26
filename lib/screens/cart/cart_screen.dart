@@ -189,9 +189,10 @@ class _CartScreenState extends State<CartScreen> {
         if (index < banner) return const _FreeDeliveryBanner();
         final i = index - banner;
         final line = lines[i];
-        // تلميح العرض يطلع مرة وحدة لكل منتج، تحت آخر سطر (لون) منه
-        final lastOfProduct = !lines.skip(i + 1).any((l) => l.productId == line.productId);
-        return _buildLine(line, quote, showHint: lastOfProduct);
+        // تلميح العرض يطلع مرة وحدة لكل منتج (أو مجموعة عرض)، تحت آخر سطر منه
+        String groupOf(CartLine l) => quote.groupKeyByProduct[l.productId] ?? 'p:${l.productId}';
+        final lastOfGroup = !lines.skip(i + 1).any((l) => groupOf(l) == groupOf(line));
+        return _buildLine(line, quote, showHint: lastOfGroup);
       },
     );
   }
@@ -199,7 +200,7 @@ class _CartScreenState extends State<CartScreen> {
   Widget? _buildHint(CartLine line, CartQuote quote) {
     final product = _products[line.productId];
     if (product == null || _problemFor(line) != null) return null;
-    final hint = nextBulkHintForProduct(product, quote.qtyByProduct[line.productId] ?? 0);
+    final hint = nextBulkHintForProduct(product, quote.groupQtyFor(line.productId));
     if (hint == null || hint.missing > kBulkHintMaxMissing) return null;
     return Container(
       margin: const EdgeInsets.only(top: 6),
