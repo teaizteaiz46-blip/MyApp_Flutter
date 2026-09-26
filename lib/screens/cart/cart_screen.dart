@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/bulk_pricing.dart';
 import '../../core/offline_cache.dart';
+import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
@@ -86,7 +87,10 @@ class _CartScreenState extends State<CartScreen> {
     if (stock <= 0) return 'نفد من المخزون، احذفه من السلة';
     final colors = _colors(product);
     if (colors.isNotEmpty && (line.color == null || !colors.contains(line.color))) {
-      return 'اللون غير محدد، اضغط على المنتج واختر اللون';
+      final title = optionTitle(colors);
+      return line.color == null
+          ? '$title غير محدد، اضغط على المنتج واختر $title'
+          : '"${line.color}" خلص، احذفه واختر غيره من صفحة المنتج';
     }
     if (_qtyForProduct(line.productId) > stock) return 'المتوفر $stock قطع فقط، قلل الكمية';
     return null;
@@ -282,7 +286,10 @@ class _CartScreenState extends State<CartScreen> {
                 if (line.color != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text('اللون: ${line.color}', style: TextStyle(color: Colors.grey[700])),
+                    child: Text(
+                      '${optionTitle(optionsOf(product))}: ${line.color}',
+                      style: TextStyle(color: Colors.grey[700]),
+                    ),
                   ),
                 const SizedBox(height: 4),
                 Text(

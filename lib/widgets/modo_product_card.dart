@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
 import '../core/offline_cache.dart';
+import '../core/product_options.dart';
 import '../facebook_service.dart';
 import '../services/cart_service.dart';
 import '../theme/app_theme.dart';
@@ -182,9 +183,9 @@ class _ModoProductCardState extends State<ModoProductCard> {
     if (colors.isNotEmpty) {
       messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('اختر اللون من صفحة المنتج'),
-          duration: Duration(seconds: 2),
+        ..showSnackBar(SnackBar(
+          content: Text('اختر ${optionTitle(optionsOf(product))} من صفحة المنتج'),
+          duration: const Duration(seconds: 2),
         ));
       widget.onTap();
       return;

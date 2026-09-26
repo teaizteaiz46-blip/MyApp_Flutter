@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/bulk_pricing.dart';
 import '../../core/offline_cache.dart';
+import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart';
@@ -88,8 +89,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
       setState(() => _colorMissing = true);
       messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('اختر اللون أولاً'),
+        ..showSnackBar(SnackBar(
+          content: Text('اختر ${optionTitle(_colors(product))} أولاً'),
           backgroundColor: Colors.red,
         ));
       return;
@@ -241,7 +242,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                       if (colors.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         Text(
-                          'اللون',
+                          optionTitle(colors),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -272,9 +273,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           ],
                         ),
                         if (_colorMissing)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 6),
-                            child: Text('اختر اللون قبل الإضافة للسلة', style: TextStyle(color: Colors.red, fontSize: 12)),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              'اختر ${optionTitle(colors)} قبل الإضافة للسلة',
+                              style: const TextStyle(color: Colors.red, fontSize: 12),
+                            ),
                           ),
                       ],
                       if (stock > 0) ...[

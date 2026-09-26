@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/offline_cache.dart';
+import '../../../core/product_options.dart';
 import '../../../facebook_service.dart';
 import '../../../services/cart_service.dart';
 // import 'fitting_room_sheet.dart'; // 👈 غرفة القياس الافتراضية (الميزة ملغية حالياً، شوف الزر المعلّق تحت)
@@ -32,9 +33,9 @@ class _NewProductCardState extends State<NewProductCard> {
     if (colors.isNotEmpty) {
       messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('اختر اللون من صفحة المنتج'),
-          duration: Duration(seconds: 2),
+        ..showSnackBar(SnackBar(
+          content: Text('اختر ${optionTitle(optionsOf(product))} من صفحة المنتج'),
+          duration: const Duration(seconds: 2),
         ));
       widget.onTap();
       return;

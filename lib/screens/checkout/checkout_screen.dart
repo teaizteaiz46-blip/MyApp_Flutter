@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/bulk_pricing.dart';
+import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
@@ -363,7 +364,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               subtitle: Text(
                 [
                   '${line.quantity} × ${_money.format((_products[line.productId]?['price'] as num?) ?? 0)} د.ع',
-                  if (line.color != null) 'اللون: ${line.color}',
+                  if (line.color != null) '${optionTitle(optionsOf(_products[line.productId]))}: ${line.color}',
                 ].join('   '),
               ),
               trailing: Column(
