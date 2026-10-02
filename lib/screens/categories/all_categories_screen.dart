@@ -13,7 +13,11 @@ class AllCategoriesScreen extends StatelessWidget {
   // من الجهاز فوراً، والنسخة الجديدة تنحفظ بالخلفية وتبين بالفتحة الجاية.
   Future<List<Map<String, dynamic>>> _fetchCategories() => OfflineCache.fetch(
         'all_categories',
-        () async => await supabase.from('categories').select().order('id', ascending: true),
+        () async => await supabase
+            .from('categories')
+            .select()
+            .order('sort_order', ascending: true, nullsFirst: false)
+            .order('id', ascending: true),
       );
 
   @override

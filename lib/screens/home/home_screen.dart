@@ -88,7 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
           'home_categories',
           () async => await supabase
               .from('categories_home')
-              .select('id, name, image_url, total_sales')
+              .select('id, name, image_url, total_sales, sort_order')
+              // الترتيب يتحكم بي المشرف (sort_order)، والأقسام بدون رقم تجي بالأخير حسب id
+              .order('sort_order', ascending: true, nullsFirst: false)
               .order('id', ascending: true),
           onFresh: setCategories,
         ));
