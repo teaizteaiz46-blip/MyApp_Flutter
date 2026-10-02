@@ -17,7 +17,22 @@ final CacheManager kImageCache = CacheManager(Config(
 ));
 
 /// صورة من الإنترنت تنحفظ بالجهاز. استخدمها بدل `Image.network`: `Image(image: cachedImage(url))`.
-ImageProvider cachedImage(String url) => CachedNetworkImageProvider(url, cacheManager: kImageCache);
+///
+/// [decodeWidth] (بالبكسل الحقيقي): ترسم الصورة بحجم عرضها بدل حجمها الكامل (لحد 1400 بكسل).
+/// يقلل ذاكرة كرت الشاشة هواية بالشبكات والقوائم، ومهم للأجهزة الضعيفة.
+ImageProvider cachedImage(String url, {int? decodeWidth}) {
+  final provider = CachedNetworkImageProvider(url, cacheManager: kImageCache);
+  if (decodeWidth == null || decodeWidth <= 0) return provider;
+  return ResizeImage(provider, width: decodeWidth, allowUpscaling: false);
+}
+
+/// عرض الرسم المناسب لمساحة [logical] بكسل منطقي: نستخدم الضلع الأكبر حتى BoxFit.cover
+/// يبقى حاد للصور المربعة والطولية.
+int? decodeWidthFor(BuildContext context, double width, double height) {
+  final side = width > height ? width : height;
+  if (!side.isFinite || side <= 0) return null;
+  return (side * MediaQuery.devicePixelRatioOf(context)).ceil();
+}
 
 /// كاش البيانات (stale-while-revalidate):
 /// يرجّع آخر نسخة محفوظة فوراً، وبنفس الوقت يجيب الجديد من السيرفر ويحفظه،

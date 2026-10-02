@@ -40,19 +40,22 @@ class ProductImage extends StatelessWidget {
     if (u.isEmpty) return _placeholder;
     return ColoredBox(
       color: AppColors.placeholder,
-      child: Image(
-        image: cachedImage(u),
-        fit: fit,
-        width: double.infinity,
-        height: double.infinity,
-        frameBuilder: (context, child, frame, wasSync) => wasSync
-            ? child
-            : AnimatedOpacity(
-                opacity: frame == null ? 0 : 1,
-                duration: const Duration(milliseconds: 250),
-                child: child,
-              ),
-        errorBuilder: (_, _, _) => _placeholder,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Image(
+          // نرسمها بحجم المساحة الي تنعرض بيها بس (مو 1400 بكسل كاملة)
+          image: cachedImage(u, decodeWidth: decodeWidthFor(context, constraints.maxWidth, constraints.maxHeight)),
+          fit: fit,
+          width: double.infinity,
+          height: double.infinity,
+          frameBuilder: (context, child, frame, wasSync) => wasSync
+              ? child
+              : AnimatedOpacity(
+                  opacity: frame == null ? 0 : 1,
+                  duration: const Duration(milliseconds: 250),
+                  child: child,
+                ),
+          errorBuilder: (_, _, _) => _placeholder,
+        ),
       ),
     );
   }

@@ -262,7 +262,7 @@ class _CartScreenState extends State<CartScreen> {
                 child: imageUrl.isEmpty
                     ? const Icon(Icons.image_not_supported_outlined, color: Colors.grey)
                     : Image(
-                        image: cachedImage(imageUrl),
+                        image: cachedImage(imageUrl, decodeWidth: decodeWidthFor(context, 76, 76)),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) =>
                             const Icon(Icons.broken_image, color: Colors.grey),

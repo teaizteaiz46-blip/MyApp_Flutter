@@ -348,7 +348,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
                   ),
                 ),
                 child: Image(
-                  image: cachedImage(images[index]),
+                  image: cachedImage(
+                    images[index],
+                    decodeWidth: decodeWidthFor(context, MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).width),
+                  ),
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, progress) => progress == null
                       ? child

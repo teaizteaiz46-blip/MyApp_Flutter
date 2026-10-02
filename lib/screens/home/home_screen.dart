@@ -710,7 +710,11 @@ class _CategoryBubble extends StatelessWidget {
                   child: loading
                       ? const ColoredBox(color: AppColors.placeholder)
                       : hasImage
-                          ? Image(image: cachedImage(imageUrl!), fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback)
+                          ? Image(
+                              image: cachedImage(imageUrl!, decodeWidth: decodeWidthFor(context, _size, _size)),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => fallback,
+                            )
                           : fallback,
                 ),
               ),
