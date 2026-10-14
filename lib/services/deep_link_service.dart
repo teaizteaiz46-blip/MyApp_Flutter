@@ -52,19 +52,31 @@ class DeepLinkService {
     }
   }
 
-  static void _open(GlobalKey<NavigatorState> navigatorKey, Uri uri, {int attempt = 0}) {
+  static void _open(GlobalKey<NavigatorState> navigatorKey, Uri uri) {
     final id = productIdFrom(uri);
     if (id == null) return;
+    openProduct(navigatorKey, id, source: sourceFrom(uri), campaign: uri.queryParameters['utm_campaign']);
+  }
+
+  /// يفتح صفحة منتج من برا الشاشات (رابط، إشعار...). إذا الواجهة بعدها ما انبنت ينتظر أول إطار.
+  static void openProduct(
+    GlobalKey<NavigatorState> navigatorKey,
+    int id, {
+    String source = 'app',
+    String? campaign,
+    int attempt = 0,
+  }) {
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
-      // الواجهة بعدها ما انبنت (التطبيق انفتح من الرابط): نحاول بعد أول إطار
       if (attempt < 20) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _open(navigatorKey, uri, attempt: attempt + 1));
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => openProduct(navigatorKey, id, source: source, campaign: campaign, attempt: attempt + 1),
+        );
       }
       return;
     }
     navigator.push(MaterialPageRoute(
-      builder: (_) => DetailsScreen(productId: id, source: sourceFrom(uri), campaign: uri.queryParameters['utm_campaign']),
+      builder: (_) => DetailsScreen(productId: id, source: source, campaign: campaign),
     ));
   }
 }

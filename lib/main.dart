@@ -4,7 +4,6 @@ import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:connectivity_plus/connectivity_plus.dart'; // 👈 استيراد حزمة فحص الاتصال
 import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -20,6 +19,7 @@ import 'screens/orders/my_orders_screen.dart';
 import 'screens/policy/privacy_policy_screen.dart';
 import 'services/cart_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/push_service.dart';
 import 'services/tiktok_service.dart';
 import '../../core/shop_api.dart';
 import 'theme/app_theme.dart';
@@ -28,6 +28,9 @@ final supabase = Supabase.instance.client;
 
 /// للتنقل من خارج الشاشات (مثلاً رابط منتج من إعلان).
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// لعرض رسائل من خارج الشاشات (مثلاً إشعار وصل والتطبيق مفتوح).
+final GlobalKey<ScaffoldMessengerState> rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +74,10 @@ Future<void> main() async {
       if (signedIn && data.session != null) {
         CartService.instance.pullAccountCart();
       }
+      // أجهزة المشرفين تستلم "إرسال تجربة" من صفحة الإدارة
+      if (signedIn || data.event == AuthChangeEvent.signedOut) {
+        unawaited(PushService.syncAdminTopic(signedIn: data.session != null));
+      }
     });
   }
 
@@ -82,7 +89,7 @@ Future<void> main() async {
 
   // الإشعارات ما توقف فتح التطبيق
   unawaited(_setupTracking());
-  unawaited(_setupNotifications());
+  unawaited(PushService.init(navigatorKey: rootNavigatorKey, messengerKey: rootMessengerKey));
 }
 
 /// آيفون: نطلب إذن التتبع (ATT) مرة وحدة بعد ما تظهر الواجهة.
@@ -102,28 +109,6 @@ Future<void> _setupTracking() async {
     }
   }
   await TikTokAnalyticsService.init();
-}
-
-Future<void> _setupNotifications() async {
-  try {
-    final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
-
-    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional) {
-      await messaging.subscribeToTopic('all');
-      if (kDebugMode) {
-        final token = await messaging.getToken();
-        debugPrint('FCM Token: $token');
-      }
-    }
-
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      // التعامل مع الإشعار والتطبيق مفتوح
-    });
-  } catch (e) {
-    debugPrint('Notification setup failed: $e');
-  }
 }
 
 class MyApp extends StatefulWidget {
@@ -168,6 +153,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
+      scaffoldMessengerKey: rootMessengerKey,
       title: 'MODO',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar', 'IQ'),
