@@ -44,6 +44,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _checkingCoupon = false;
   String? _couponError;
 
+  /// خيارات الطلب الجاهزة (من قاعدة البيانات) والي اختارها الزبون
+  List<String> _orderOptions = const [];
+  final Set<String> _selectedOptions = {};
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +70,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final results = await Future.wait([
         ShopApi.fetchProductsByIds(_cart.lines.value.map((l) => l.productId)),
         ShopApi.fetchDeliveryCosts(),
+        ShopApi.fetchOrderOptions(),
       ]);
       if (!mounted) return;
 
@@ -74,6 +79,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       setState(() {
         _products = results[0] as Map<int, Map<String, dynamic>>;
         _deliveryCosts = results[1] as Map<String, double>;
+        _orderOptions = results[2] as List<String>;
         _nameController.text = prefs.getString(_kName) ?? '';
         _phoneController.text = prefs.getString(_kPhone) ?? '';
         _addressController.text = prefs.getString(_kAddress) ?? '';
@@ -191,6 +197,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         governorate: _governorate!,
         address: _addressController.text,
         couponCode: _appliedCoupon,
+        options: [for (final o in _orderOptions) if (_selectedOptions.contains(o)) o],
       );
 
       await _saveCustomerInfo(phone);
@@ -326,6 +333,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const _SectionTitle('طلبك'),
             _buildItemsSummary(),
             const SizedBox(height: 24),
+            if (_orderOptions.isNotEmpty) ...[
+              const _SectionTitle('خيارات الطلب (اختياري)'),
+              _buildOrderOptions(),
+              const SizedBox(height: 24),
+            ],
             const _SectionTitle('كود الخصم'),
             _buildCoupon(),
             const SizedBox(height: 12),
@@ -386,6 +398,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ],
               ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderOptions() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          for (final option in _orderOptions)
+            CheckboxListTile(
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: Colors.deepOrange,
+              value: _selectedOptions.contains(option),
+              title: Text(option),
+              onChanged: (v) => setState(() {
+                if (v == true) {
+                  _selectedOptions.add(option);
+                } else {
+                  _selectedOptions.remove(option);
+                }
+              }),
             ),
         ],
       ),

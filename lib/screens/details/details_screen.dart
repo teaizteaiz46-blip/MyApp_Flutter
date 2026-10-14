@@ -35,6 +35,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
   int _quantity = 1;
   bool _adding = false;
 
+  /// منتجات الجملة: عدد كل لون/خيار (الصفر ما ينضاف)
+  final Map<String, int> _multiQty = {};
+
+  int get _multiTotal => _multiQty.values.fold(0, (s, q) => s + q);
+
+  bool _isMulti(Map<String, dynamic> p) => isWholesale(p) && _colors(p).isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +92,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
       messenger.showSnackBar(const SnackBar(content: Text('هذا المنتج نفد حالياً')));
       return;
     }
+    if (_isMulti(product)) {
+      await _addMultiToCart(product);
+      return;
+    }
     if (_colors(product).isNotEmpty && _selectedColor == null) {
       setState(() => _colorMissing = true);
       messenger
@@ -123,6 +134,148 @@ class _DetailsScreenState extends State<DetailsScreen> {
     } finally {
       if (mounted) setState(() => _adding = false);
     }
+  }
+
+  /// جملة: كل لون بعدده يتضاف كسطر بالسلة (نفس اللون يتجمع ويا الموجود)
+  Future<void> _addMultiToCart(Map<String, dynamic> product) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final picks = {for (final e in _multiQty.entries) if (e.value > 0) e.key: e.value};
+    if (picks.isEmpty) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('حددي عدد لـ ${optionTitle(_colors(product))} واحد على الأقل'),
+          backgroundColor: Colors.red,
+        ));
+      return;
+    }
+    final total = picks.values.fold(0, (s, q) => s + q);
+    setState(() => _adding = true);
+    try {
+      for (final e in picks.entries) {
+        await CartService.instance.add(widget.productId, color: e.key, quantity: e.value);
+      }
+      FacebookAnalyticsService.logAddToCart(id: '${widget.productId}', price: quoteProduct(product, total).total);
+      if (!mounted) return;
+      setState(_multiQty.clear);
+      final min = minQtyOf(product);
+      final inCart = CartService.instance.lines.value
+          .where((l) => l.productId == widget.productId)
+          .fold(0, (s, l) => s + l.quantity);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(min != null && inCart < min
+              ? 'انضافت $total قطعة. أقل طلب $min قطعة، باقي ${min - inCart}'
+              : 'انضافت $total قطعة إلى السلة'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'عرض السلة',
+            textColor: Colors.white,
+            onPressed: () => navigator.push(MaterialPageRoute(builder: (_) => const CartScreen())),
+          ),
+        ));
+    } catch (e) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('تعذر حفظ السلة، حاول مرة ثانية'),
+        backgroundColor: Colors.red,
+      ));
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  /// يوزّع [count] قطعة على كل الألوان بالتساوي (الباقي على الأوائل)
+  void _distribute(List<String> colors, int count, int maxPer) {
+    if (colors.isEmpty) return;
+    final per = count ~/ colors.length;
+    final rem = count % colors.length;
+    setState(() {
+      _multiQty.clear();
+      for (var i = 0; i < colors.length; i++) {
+        final q = (per + (i < rem ? 1 : 0)).clamp(0, maxPer);
+        if (q > 0) _multiQty[colors[i]] = q;
+      }
+    });
+  }
+
+  Widget _buildWholesalePicker(Map<String, dynamic> product, List<String> colors, int maxPer) {
+    final title = optionTitle(colors);
+    final target = minQtyOf(product) ?? 12;
+    Widget quick(String label, VoidCallback onTap) => ActionChip(
+          label: Text(label, style: const TextStyle(fontSize: 13)),
+          onPressed: onTap,
+          backgroundColor: Colors.orange.shade50,
+          side: BorderSide(color: Colors.orange.shade200),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Text('اختاري $title والكمية', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            quick('+1 لكل $title', () => setState(() {
+                  for (final c in colors) {
+                    _multiQty[c] = ((_multiQty[c] ?? 0) + 1).clamp(0, maxPer);
+                  }
+                })),
+            quick('وزّعي $target بالتساوي', () => _distribute(colors, target, maxPer)),
+            if (_multiTotal > 0) quick('تصفير', () => setState(_multiQty.clear)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: colors.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            mainAxisExtent: 48,
+          ),
+          itemBuilder: (context, i) {
+            final c = colors[i];
+            final q = _multiQty[c] ?? 0;
+            final on = q > 0;
+            return Container(
+              padding: const EdgeInsetsDirectional.only(start: 10, end: 4),
+              decoration: BoxDecoration(
+                color: on ? Colors.orange.shade50 : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: on ? Colors.deepOrange : Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(c, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: on ? Colors.deepOrange.shade800 : null)),
+                  ),
+                  _MiniStepButton(
+                    icon: Icons.remove,
+                    onTap: q > 0 ? () => setState(() => q == 1 ? _multiQty.remove(c) : _multiQty[c] = q - 1) : null,
+                  ),
+                  SizedBox(
+                    width: 26,
+                    child: Text('$q', textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: FontWeight.bold, color: on ? Colors.deepOrange.shade800 : Colors.grey)),
+                  ),
+                  _MiniStepButton(
+                    icon: Icons.add,
+                    onTap: q < maxPer ? () => setState(() => _multiQty[c] = q + 1) : null,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
   }
 
   @override
@@ -165,6 +318,9 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final maxQty = _maxQty(product);
         final tiers = BulkTier.ofProduct(product);
         final discount = oldPrice > price && oldPrice > 0 ? ((oldPrice - price) / oldPrice * 100).round() : 0;
+        final multi = _isMulti(product);
+        final minQty = minQtyOf(product);
+        final pickedQty = multi ? _multiTotal : _quantity;
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -176,13 +332,38 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Colors.grey.shade200)),
               ),
-              child: SizedBox(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (multi && stock > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${_multiQty.values.where((q) => q > 0).length} ${optionTitle(colors)} · $_multiTotal قطعة',
+                            style: TextStyle(color: Colors.grey[700]),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${_money.format(quoteProduct(product, _multiTotal).total)} د.ع',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                          ),
+                        ],
+                      ),
+                    ),
+                  SizedBox(
                 height: 52,
+                width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: (stock <= 0 || _adding) ? null : () => _addToCart(product),
                   icon: const Icon(Icons.add_shopping_cart_outlined),
                   label: Text(
-                    stock <= 0 ? 'نفد من المخزون' : 'أضف إلى السلة',
+                    stock <= 0
+                        ? 'نفد من المخزون'
+                        : multi && _multiTotal > 0
+                            ? 'أضف $_multiTotal قطعة للسلة'
+                            : 'أضف إلى السلة',
                     style: const TextStyle(fontSize: 18),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -191,6 +372,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
+              ),
+                ],
               ),
             ),
           ),
@@ -237,13 +420,29 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         const SizedBox(height: 12),
                         _BulkOffers(
                           tiers: tiers,
-                          quote: stock > 0 ? quoteProduct(product, _quantity) : null,
+                          quote: stock > 0 ? quoteProduct(product, pickedQty) : null,
                           grouped: (product['offer_group'] ?? '').toString().trim().isNotEmpty,
                         ),
                       ],
                       const SizedBox(height: 8),
                       _StockLabel(stock: stock),
-                      if (colors.isNotEmpty) ...[
+                      if (isWholesale(product))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              minQty != null ? 'جملة · أقل طلب $minQty قطعة' : 'جملة',
+                              style: TextStyle(color: Colors.deepOrange.shade800, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      if (multi && stock > 0) _buildWholesalePicker(product, colors, maxQty),
+                      if (!multi && colors.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         Text(
                           optionTitle(colors),
@@ -285,7 +484,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                             ),
                           ),
                       ],
-                      if (stock > 0) ...[
+                      if (stock > 0 && !multi) ...[
                         const SizedBox(height: 20),
                         Row(
                           children: [
@@ -561,6 +760,28 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// زر − / + صغير لشبكة ألوان الجملة
+class _MiniStepButton extends StatelessWidget {
+  const _MiniStepButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: IconButton.outlined(
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        onPressed: onTap,
+        icon: Icon(icon),
       ),
     );
   }

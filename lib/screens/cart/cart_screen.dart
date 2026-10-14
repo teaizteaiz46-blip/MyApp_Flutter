@@ -93,7 +93,16 @@ class _CartScreenState extends State<CartScreen> {
           : '"${line.color}" خلص، احذفه واختر غيره من صفحة المنتج';
     }
     if (_qtyForProduct(line.productId) > stock) return 'المتوفر $stock قطع فقط، قلل الكمية';
+    final min = minQtyOf(product);
+    final qty = _qtyForProduct(line.productId);
+    if (min != null && qty < min) return 'أقل طلب جملة $min قطعة، زيدي ${min - qty} قطعة';
     return null;
+  }
+
+  /// منتج جملة بألوان: يطلع بكارت واحد بالسلة
+  bool _isWholesaleGroup(int productId) {
+    final p = _products[productId];
+    return isWholesale(p) && _colors(p ?? const {}).isNotEmpty;
   }
 
   /// للعرض فقط؛ السعر النهائي يتحسب بالسيرفر عند إرسال الطلب.
@@ -181,19 +190,157 @@ class _CartScreenState extends State<CartScreen> {
 
     final quote = _quote;
     final banner = quote.freeDelivery ? 1 : 0;
+
+    // منتجات الجملة: كل الألوان بكارت واحد (أول مكان يطلع بي المنتج)
+    final entries = <Object>[];
+    final groupedShown = <int>{};
+    for (final line in lines) {
+      if (_isWholesaleGroup(line.productId)) {
+        if (groupedShown.add(line.productId)) entries.add(line.productId);
+      } else {
+        entries.add(line);
+      }
+    }
+    String groupOf(int productId) => quote.groupKeyByProduct[productId] ?? 'p:$productId';
+    int productOf(Object e) => e is CartLine ? e.productId : e as int;
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-      itemCount: lines.length + banner,
+      itemCount: entries.length + banner,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         if (index < banner) return const _FreeDeliveryBanner();
         final i = index - banner;
-        final line = lines[i];
-        // تلميح العرض يطلع مرة وحدة لكل منتج (أو مجموعة عرض)، تحت آخر سطر منه
-        String groupOf(CartLine l) => quote.groupKeyByProduct[l.productId] ?? 'p:${l.productId}';
-        final lastOfGroup = !lines.skip(i + 1).any((l) => groupOf(l) == groupOf(line));
-        return _buildLine(line, quote, showHint: lastOfGroup);
+        final entry = entries[i];
+        // تلميح العرض يطلع مرة وحدة لكل منتج (أو مجموعة عرض)، تحت آخر عنصر منه
+        final pid = productOf(entry);
+        final lastOfGroup = !entries.skip(i + 1).any((e) => groupOf(productOf(e)) == groupOf(pid));
+        if (entry is int) return _buildWholesaleGroup(entry, quote, showHint: lastOfGroup);
+        return _buildLine(entry as CartLine, quote, showHint: lastOfGroup);
       },
+    );
+  }
+
+  /// كارت منتج الجملة: الصورة والاسم، وتحته كل لون بعدده (− / +)، والمجموع والتنبيه
+  Widget _buildWholesaleGroup(int productId, CartQuote quote, {required bool showHint}) {
+    final product = _products[productId]!;
+    final lines = _cart.lines.value.where((l) => l.productId == productId).toList();
+    final problems = lines.map(_problemFor).whereType<String>().toSet();
+    final images = ((product['image_url'] as List?) ?? const []).map((e) => '$e').toList();
+    final imageUrl = images.isNotEmpty ? images.first : '';
+    final stock = _stock(product);
+    final maxQty = stock < CartService.maxQuantityPerLine ? stock : CartService.maxQuantityPerLine;
+    final totalQty = _qtyForProduct(productId);
+    final productQuote = quote.byProduct[productId];
+    final title = optionTitle(_colors(product));
+    final hint = showHint ? _buildHint(lines.last, quote) : null;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: problems.isNotEmpty ? Colors.red.shade200 : Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => _openProduct(productId),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    color: Colors.grey[200],
+                    child: imageUrl.isEmpty
+                        ? const Icon(Icons.image_not_supported_outlined, color: Colors.grey)
+                        : Image(
+                            image: cachedImage(imageUrl, decodeWidth: decodeWidthFor(context, 56, 56)),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text((product['name'] ?? '').toString(),
+                          maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text('جملة · ${_money.format(_price(product))} د.ع للقطعة',
+                          style: TextStyle(color: Colors.deepOrange.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 18),
+          for (final line in lines)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(line.color ?? '-',
+                        style: TextStyle(
+                          color: _problemFor(line)?.contains('خلص') == true ? Colors.red : Colors.grey[800],
+                          fontWeight: FontWeight.w600,
+                        )),
+                  ),
+                  _QtyButton(
+                    icon: line.quantity <= 1 ? Icons.delete_outline : Icons.remove,
+                    color: line.quantity <= 1 ? Colors.red : null,
+                    tooltip: line.quantity <= 1 ? 'حذف' : 'إنقاص',
+                    onPressed: () => line.quantity <= 1 ? _cart.remove(line) : _cart.setQuantity(line, line.quantity - 1),
+                  ),
+                  SizedBox(
+                    width: 36,
+                    child: Text('${line.quantity}',
+                        textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  ),
+                  _QtyButton(
+                    icon: Icons.add,
+                    tooltip: 'زيادة',
+                    onPressed: line.quantity < maxQty ? () => _cart.setQuantity(line, line.quantity + 1) : null,
+                  ),
+                ],
+              ),
+            ),
+          const Divider(height: 18),
+          Row(
+            children: [
+              Text('${lines.length} $title · $totalQty قطعة', style: TextStyle(color: Colors.grey[700])),
+              const Spacer(),
+              if (productQuote != null && productQuote.saving >= 1)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 6),
+                  child: Text('${_money.format(productQuote.regularTotal)} د.ع',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
+                ),
+              Text('${_money.format(productQuote?.total ?? 0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          for (final p in problems)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(p, style: const TextStyle(color: Colors.red, fontSize: 12)),
+            ),
+          if (hint != null) hint,
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () => _openProduct(productId),
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: Text('إضافة $title ثانية'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

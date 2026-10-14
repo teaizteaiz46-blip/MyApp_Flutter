@@ -10,7 +10,7 @@ const String kProductBaseColumns =
     'colors, description, is_offer, category_id, promo_tag, brand, created_at';
 
 /// bulk_tiers: درجات عروض الكمية (jsonb)، شوف core/bulk_pricing.dart.
-const String kProductColumns = '$kProductBaseColumns, bulk_tiers, offer_group';
+const String kProductColumns = '$kProductBaseColumns, bulk_tiers, offer_group, is_wholesale, min_qty';
 
 const double kDefaultDeliveryCost = 3000;
 
@@ -138,6 +138,7 @@ class ShopApi {
     required String governorate,
     required String address,
     String? couponCode,
+    List<String> options = const [],
   }) async {
     final code = couponCode?.trim();
     final res = await _db.rpc('place_order', params: {
@@ -150,8 +151,24 @@ class ShopApi {
       'p_governorate': governorate,
       'p_address': address.trim(),
       'p_coupon_code': (code == null || code.isEmpty) ? null : code,
+      if (options.isNotEmpty) 'p_options': options,
     });
     return OrderResult.fromJson(Map<String, dynamic>.from(res as Map));
+  }
+
+  /// خيارات الطلب الجاهزة (مثل "التوصيل مساءً")، يحددها المشرف من قاعدة البيانات.
+  static Future<List<String>> fetchOrderOptions() async {
+    try {
+      final rows = await _db
+          .from('order_options')
+          .select('label')
+          .order('sort_order', ascending: true)
+          .order('id', ascending: true);
+      return [for (final row in rows) (row['label'] ?? '').toString().trim()].where((e) => e.isNotEmpty).toList();
+    } catch (e) {
+      debugPrint('fetchOrderOptions: $e');
+      return const [];
+    }
   }
 
   /// يحوّل أي خطأ لرسالة عربية مفهومة للزبون.

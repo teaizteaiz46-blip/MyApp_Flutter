@@ -46,5 +46,14 @@ String optionTitle(List<String> options) => switch (optionKindOf(options)) {
       OptionKind.modelAndSize => 'الموديل والقياس',
     };
 
+/// منتج جملة: الزبون يختار أكثر من لون/خيار مرة وحدة، ولكل واحد عدد.
+bool isWholesale(Map<String, dynamic>? product) => product?['is_wholesale'] == true;
+
+/// أقل كمية للطلب (مجموع كل الألوان)، أو null إذا ماكو حد. السيرفر يتحقق منها بالطلب.
+int? minQtyOf(Map<String, dynamic>? product) {
+  final v = (product?['min_qty'] as num?)?.toInt();
+  return (v != null && v > 1) ? v : null;
+}
+
 List<String> optionsOf(Map<String, dynamic>? product) =>
     ((product?['colors'] as List?) ?? const []).map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();
