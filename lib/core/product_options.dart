@@ -55,5 +55,13 @@ int? minQtyOf(Map<String, dynamic>? product) {
   return (v != null && v > 1) ? v : null;
 }
 
+/// عدد القطع بالعربي الصحيح: قطعة وحدة، قطعتين، 3 قطع، 11 قطعة
+String pieces(int n) => switch (n) {
+      1 => 'قطعة وحدة',
+      2 => 'قطعتين',
+      >= 3 && <= 10 => '$n قطع',
+      _ => '$n قطعة',
+    };
+
 List<String> optionsOf(Map<String, dynamic>? product) =>
     ((product?['colors'] as List?) ?? const []).map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();

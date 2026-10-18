@@ -167,8 +167,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
           content: Text(min != null && inCart < min
-              ? 'انضافت $total قطعة. أقل طلب $min قطعة، باقي ${min - inCart}'
-              : 'انضافت $total قطعة إلى السلة'),
+              ? 'انضافت ${pieces(total)}. أقل طلب ${pieces(min)}، باقي ${pieces(min - inCart)}'
+              : 'انضافت ${pieces(total)} إلى السلة'),
           backgroundColor: Colors.green,
           action: SnackBarAction(
             label: 'عرض السلة',
@@ -200,9 +200,60 @@ class _DetailsScreenState extends State<DetailsScreen> {
     });
   }
 
+  /// كم قطعة من هذا المنتج موجودة أصلاً بالسلة (كل الألوان)
+  int get _inCartQty => CartService.instance.lines.value
+      .where((l) => l.productId == widget.productId)
+      .fold(0, (s, l) => s + l.quantity);
+
+  /// جملة بحد أدنى: كم قطعة باقية حتى يوصل الحد (الي بالسلة + المختار هسه)
+  int _remainingToMin(Map<String, dynamic> product) {
+    final min = minQtyOf(product);
+    if (min == null) return 0;
+    return (min - _inCartQty - _multiTotal).clamp(0, min);
+  }
+
+  Widget _buildMinProgress(int min) {
+    final have = _inCartQty + _multiTotal;
+    final done = have >= min;
+    final color = done ? Colors.green.shade700 : Colors.deepOrange;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _inCartQty > 0
+                      ? 'اخترتي ${pieces(have)} من $min (منها ${pieces(_inCartQty)} بالسلة)'
+                      : 'اخترتي ${pieces(have)} من $min',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+              Text(done ? '✓ مكتمل' : 'باقي ${min - have}',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: (have / min).clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildWholesalePicker(Map<String, dynamic> product, List<String> colors, int maxPer) {
     final title = optionTitle(colors);
-    final target = minQtyOf(product) ?? 12;
+    final minQty = minQtyOf(product);
+    final target = minQty ?? 12;
     Widget quick(String label, VoidCallback onTap) => ActionChip(
           label: Text(label, style: const TextStyle(fontSize: 13)),
           onPressed: onTap,
@@ -274,6 +325,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
             );
           },
         ),
+        if (minQty != null) _buildMinProgress(minQty),
       ],
     );
   }
@@ -321,6 +373,9 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final multi = _isMulti(product);
         final minQty = minQtyOf(product);
         final pickedQty = multi ? _multiTotal : _quantity;
+        // جملة: الزر يتعطل لحد ما المختار + الي بالسلة يوصل أقل طلب
+        final remaining = multi ? _remainingToMin(product) : 0;
+        final blockedByMin = multi && _multiTotal > 0 && remaining > 0;
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -341,7 +396,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                       child: Row(
                         children: [
                           Text(
-                            '${_multiQty.values.where((q) => q > 0).length} ${optionTitle(colors)} · $_multiTotal قطعة',
+                            '${_multiQty.values.where((q) => q > 0).length} ${optionTitle(colors)} · ${pieces(_multiTotal)}',
                             style: TextStyle(color: Colors.grey[700]),
                           ),
                           const Spacer(),
@@ -356,15 +411,17 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 height: 52,
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: (stock <= 0 || _adding) ? null : () => _addToCart(product),
+                  onPressed: (stock <= 0 || _adding || blockedByMin) ? null : () => _addToCart(product),
                   icon: const Icon(Icons.add_shopping_cart_outlined),
                   label: Text(
                     stock <= 0
                         ? 'نفد من المخزون'
-                        : multi && _multiTotal > 0
-                            ? 'أضف $_multiTotal قطعة للسلة'
-                            : 'أضف إلى السلة',
-                    style: const TextStyle(fontSize: 18),
+                        : blockedByMin
+                            ? 'زيدي ${pieces(remaining)} حتى تكدرين تضيفين'
+                            : multi && _multiTotal > 0
+                                ? 'أضف ${pieces(_multiTotal)} للسلة'
+                                : 'أضف إلى السلة',
+                    style: TextStyle(fontSize: blockedByMin ? 16 : 18),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepOrange,
@@ -436,9 +493,24 @@ class _DetailsScreenState extends State<DetailsScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              minQty != null ? 'جملة · أقل طلب $minQty قطعة' : 'جملة',
+                              minQty != null ? 'جملة · أقل طلب ${pieces(minQty)}' : 'جملة',
                               style: TextStyle(color: Colors.deepOrange.shade800, fontWeight: FontWeight.bold, fontSize: 13),
                             ),
+                          ),
+                        ),
+                      if (multi && minQty != null && stock > 0)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Text(
+                            '📦 أقل طلب ${pieces(minQty)} من هذا المنتج، تكدرين تجمعيها من أكثر من ${switch (optionTitle(colors)) { 'اللون' => 'لون', 'القياس' => 'قياس', _ => 'خيار' }}',
+                            style: TextStyle(color: Colors.deepOrange.shade900, fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                         ),
                       if (multi && stock > 0) _buildWholesalePicker(product, colors, maxQty),

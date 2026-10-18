@@ -28,4 +28,18 @@ void main() {
     expect(optionTitle(['أسود', 'M']), 'اللون');
     expect(optionTitle(const []), 'اللون');
   });
+
+  test('عدد القطع بالعربي', () {
+    expect(pieces(1), 'قطعة وحدة');
+    expect(pieces(2), 'قطعتين');
+    expect(pieces(6), '6 قطع');
+    expect(pieces(10), '10 قطع');
+    expect(pieces(12), '12 قطعة');
+  });
+
+  test('أقل كمية: 1 أو فارغ يعني ماكو حد', () {
+    expect(minQtyOf({'min_qty': 6}), 6);
+    expect(minQtyOf({'min_qty': 1}), isNull);
+    expect(minQtyOf({'min_qty': null}), isNull);
+  });
 }

@@ -95,7 +95,7 @@ class _CartScreenState extends State<CartScreen> {
     if (_qtyForProduct(line.productId) > stock) return 'المتوفر $stock قطع فقط، قلل الكمية';
     final min = minQtyOf(product);
     final qty = _qtyForProduct(line.productId);
-    if (min != null && qty < min) return 'أقل طلب جملة $min قطعة، زيدي ${min - qty} قطعة';
+    if (min != null && qty < min) return 'أقل طلب جملة ${pieces(min)}، زيدي ${pieces(min - qty)}';
     return null;
   }
 
