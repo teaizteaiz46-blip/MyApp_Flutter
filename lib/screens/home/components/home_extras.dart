@@ -82,18 +82,30 @@ class TrustTicker extends StatelessWidget {
 }
 
 // ============================================================================
-// 2) ستوريات: آخر المقاطع، والدائرة تصير رمادية بعد ما تنشاف
+// 2) دوائر الستوري: المقاطع + جديد + الأكثر طلباً + الأقسام (بدل شبكة الأقسام الكبيرة)
 
-class StoriesRow extends StatefulWidget {
-  const StoriesRow({super.key});
+class StoriesBar extends StatefulWidget {
+  const StoriesBar({
+    super.key,
+    required this.categories,
+    required this.selectedCategoryId,
+    required this.onCategoryTap,
+    this.hotCategoryId,
+  });
+
+  /// صفوف categories_home (id, name, image_url) أو null وهي تتحمل
+  final List<Map<String, dynamic>>? categories;
+  final int selectedCategoryId;
+  final int? hotCategoryId;
+  final void Function(int id, String name) onCategoryTap;
 
   @override
-  State<StoriesRow> createState() => _StoriesRowState();
+  State<StoriesBar> createState() => _StoriesBarState();
 }
 
-class _StoriesRowState extends State<StoriesRow> {
+class _StoriesBarState extends State<StoriesBar> {
   static const String _seenKey = 'stories_seen_v1';
-  _Rows? _clips;
+  _Rows _clips = const [];
   Set<String> _seen = {};
 
   @override
@@ -114,7 +126,7 @@ class _StoriesRowState extends State<StoriesRow> {
             .from('clips')
             .select('id, video_url, product_id, products(name, image_url, stock)')
             .order('created_at', ascending: false)
-            .limit(15),
+            .limit(30),
         onFresh: (fresh) {
           if (mounted) setState(() => _clips = _usable(fresh));
         },
@@ -122,7 +134,6 @@ class _StoriesRowState extends State<StoriesRow> {
       if (mounted) setState(() => _clips = _usable(rows));
     } catch (e) {
       debugPrint('Stories error: $e');
-      if (mounted) setState(() => _clips = const []);
     }
   }
 
@@ -137,114 +148,192 @@ class _StoriesRowState extends State<StoriesRow> {
     }).toList();
   }
 
-  Future<void> _open(int index) async {
-    final clips = _clips!;
-    final id = '${clips[index]['id']}';
-    setState(() => _seen.add(id));
+  bool get _allClipsSeen => _clips.every((c) => _seen.contains('${c['id']}'));
+
+  Future<void> _openClips() async {
+    // الي ما انشافت أولاً
+    final ordered = [
+      ..._clips.where((c) => !_seen.contains('${c['id']}')),
+      ..._clips.where((c) => _seen.contains('${c['id']}')),
+    ];
+    setState(() => _seen.addAll(_clips.map((c) => '${c['id']}')));
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_seenKey, _seen.take(200).toList());
+      await prefs.setStringList(_seenKey, _seen.take(300).toList());
     } catch (_) {}
     if (!mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => StoryClipsScreen(clips: clips, initialIndex: index),
+      builder: (_) => StoryClipsScreen(clips: ordered, initialIndex: 0),
     ));
   }
 
+  static String? _firstImage(Object? p) {
+    if (p is! Map) return null;
+    final images = ((p['image_url'] as List?) ?? const []).map((e) => '$e').where((e) => e.isNotEmpty);
+    return images.isEmpty ? null : images.first;
+  }
+
+  void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+
   @override
   Widget build(BuildContext context) {
-    final clips = _clips;
-    if (clips != null && clips.isEmpty) return const SizedBox.shrink();
-    // الي ما انشافت أولاً
-    final order = clips == null
-        ? const <int>[]
-        : [
-            for (var i = 0; i < clips.length; i++)
-              if (!_seen.contains('${clips[i]['id']}')) i,
-            for (var i = 0; i < clips.length; i++)
-              if (_seen.contains('${clips[i]['id']}')) i,
-          ];
+    final cats = widget.categories;
+    final bubbles = <Widget>[
+      if (_clips.isNotEmpty)
+        _StoryBubble(
+          imageUrl: _firstImage(_clips.first['products']),
+          label: 'مقاطع جديدة',
+          ring: _allClipsSeen ? _Ring.seen : _Ring.story,
+          play: true,
+          onTap: _openClips,
+        ),
+      _StoryBubble(
+        icon: Icons.fiber_new_rounded,
+        label: 'جديد',
+        ring: _Ring.plain,
+        onTap: () => _push(const ProductListScreen(title: 'وصل حديثاً', sort: HomeSort.newest)),
+      ),
+      _StoryBubble(
+        icon: Icons.local_fire_department_rounded,
+        label: 'الأكثر طلباً',
+        ring: _Ring.plain,
+        onTap: () => _push(const ProductListScreen(title: 'الأكثر مبيعاً')),
+      ),
+      if (cats == null)
+        for (var i = 0; i < 4; i++) const _StoryBubble.loading()
+      else
+        for (final c in cats)
+          _StoryBubble(
+            imageUrl: c['image_url']?.toString(),
+            label: (c['name'] ?? '').toString(),
+            ring: widget.selectedCategoryId == (c['id'] as num).toInt() ? _Ring.selected : _Ring.plain,
+            hot: widget.hotCategoryId == (c['id'] as num).toInt(),
+            onTap: () => widget.onCategoryTap((c['id'] as num).toInt(), (c['name'] ?? '').toString()),
+          ),
+    ];
 
     return Container(
       color: AppColors.surface,
-      height: 104,
+      height: 108,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
         scrollDirection: Axis.horizontal,
-        itemCount: clips == null ? 6 : order.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, k) {
-          if (clips == null) return const _StoryBubble.loading();
-          final i = order[k];
-          final c = clips[i];
-          final p = c['products'] as Map;
-          final images = ((p['image_url'] as List?) ?? const []).map((e) => '$e').where((e) => e.isNotEmpty);
-          return _StoryBubble(
-            imageUrl: images.isEmpty ? null : images.first,
-            label: (p['name'] ?? '').toString(),
-            seen: _seen.contains('${c['id']}'),
-            onTap: () => _open(i),
-          );
-        },
+        itemCount: bubbles.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (_, i) => bubbles[i],
       ),
     );
   }
 }
 
+enum _Ring { story, seen, plain, selected }
+
 class _StoryBubble extends StatelessWidget {
-  const _StoryBubble({required this.imageUrl, required this.label, required this.seen, required VoidCallback this.onTap})
-      : loading = false;
+  const _StoryBubble({
+    required this.label,
+    required this.ring,
+    required VoidCallback this.onTap,
+    this.imageUrl,
+    this.icon,
+    this.play = false,
+    this.hot = false,
+  }) : loading = false;
 
   const _StoryBubble.loading()
       : imageUrl = null,
+        icon = null,
         label = '',
-        seen = true,
+        ring = _Ring.plain,
+        play = false,
+        hot = false,
         onTap = null,
         loading = true;
 
   final String? imageUrl;
+  final IconData? icon;
   final String label;
-  final bool seen;
+  final _Ring ring;
+  final bool play;
+  final bool hot;
   final bool loading;
   final VoidCallback? onTap;
 
-  static const double _size = 64;
+  static const double _size = 66;
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
+    final Widget inner = loading
+        ? const ColoredBox(color: AppColors.placeholder)
+        : hasImage
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  ProductImage(url: imageUrl),
+                  if (play)
+                    const Center(
+                      child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28, shadows: [Shadow(blurRadius: 6)]),
+                    ),
+                ],
+              )
+            : ColoredBox(
+                color: AppColors.brandSoft,
+                child: Center(
+                  child: icon != null
+                      ? Icon(icon, color: AppColors.brandDark, size: 30)
+                      : Text(
+                          label.isEmpty ? '' : label.characters.first,
+                          style: const TextStyle(color: AppColors.brandDark, fontSize: 24, fontWeight: FontWeight.w800),
+                        ),
+                ),
+              );
+
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: _size + 6,
         child: Column(
           children: [
-            Container(
-              width: _size,
-              height: _size,
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: seen
-                    ? null
-                    : const SweepGradient(colors: [AppColors.brand, Color(0xFFFFB347), AppColors.brandDark, AppColors.brand]),
-                color: seen ? AppColors.line : null,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: ClipOval(
-                  child: loading
-                      ? const ColoredBox(color: AppColors.placeholder)
-                      : Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ProductImage(url: imageUrl),
-                            const Center(child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26, shadows: [Shadow(blurRadius: 6)])),
-                          ],
-                        ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: _size,
+                  height: _size,
+                  padding: EdgeInsets.all(ring == _Ring.plain ? 1.5 : 2.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: ring == _Ring.story
+                        ? const SweepGradient(colors: [AppColors.brand, Color(0xFFFFB347), AppColors.brandDark, AppColors.brand])
+                        : null,
+                    color: switch (ring) {
+                      _Ring.story => null,
+                      _Ring.seen => AppColors.line,
+                      _Ring.selected => AppColors.brand,
+                      _Ring.plain => const Color(0xFFFFC9AE),
+                    },
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: ClipOval(child: inner),
+                  ),
                 ),
-              ),
+                if (hot)
+                  const PositionedDirectional(
+                    top: -2,
+                    start: -2,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: Padding(
+                        padding: EdgeInsets.all(2),
+                        child: Icon(Icons.local_fire_department_rounded, color: AppColors.sale, size: 18),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -252,7 +341,11 @@ class _StoryBubble extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, fontWeight: seen ? FontWeight.w500 : FontWeight.w700, color: AppColors.ink),
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: ring == _Ring.story || ring == _Ring.selected ? FontWeight.w800 : FontWeight.w600,
+                color: AppColors.ink,
+              ),
             ),
           ],
         ),

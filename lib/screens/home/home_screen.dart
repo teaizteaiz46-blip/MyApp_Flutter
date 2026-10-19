@@ -46,13 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late Future<_Rows> _categoriesFuture;
   late Future<_Rows> _dealsFuture;
-  _Rows _categories = const [];
+  _Rows? _categories;
   List<BannerSlide> _slides = const [];
-  Color _heroColor = AppColors.brandSoft;
 
-  bool _collapsed = false;
   bool _showTop = false;
-  double _bannerHeight = 0;
 
   @override
   void initState() {
@@ -116,10 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     void setSlides(_Rows rows) {
       if (!mounted) return;
-      setState(() {
-        _slides = slidesFromRows(rows);
-        if (_slides.isEmpty) _heroColor = AppColors.surface;
-      });
+      setState(() => _slides = slidesFromRows(rows));
     }
 
     _fetch(() => OfflineCache.fetch(
@@ -155,15 +149,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // التمرير والتنقل
 
   void _onScroll() {
-    final offset = _scroll.offset;
-    final collapsed = offset > _bannerHeight - 12;
-    final showTop = offset > 1400;
-    if (collapsed != _collapsed || showTop != _showTop) {
-      setState(() {
-        _collapsed = collapsed;
-        _showTop = showTop;
-      });
-    }
+    final showTop = _scroll.offset > 1400;
+    if (showTop != _showTop) setState(() => _showTop = showTop);
   }
 
   void _scrollToGrid() {
@@ -198,7 +185,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _tab = index;
       _showTop = false;
-      _collapsed = false;
     });
   }
 
@@ -231,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       case 'category':
         if (id == null) return;
-        final match = _categories.where((c) => (c['id'] as num).toInt() == id);
+        final match = (_categories ?? const []).where((c) => (c['id'] as num).toInt() == id);
         final name = match.isEmpty ? (slide.row['title'] ?? '').toString() : (match.first['name'] ?? '').toString();
         _selectCategory(id, name);
         return;
@@ -270,14 +256,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHome(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
     final topPadding = MediaQuery.paddingOf(context).top;
-    _bannerHeight = _slides.isEmpty ? 0 : width / PromoCarousel.aspectRatio;
 
-    final onHero = _slides.isNotEmpty && !_collapsed;
-    final heroIsDark = ThemeData.estimateBrightnessForColor(_heroColor) == Brightness.dark;
-    final overlay = (onHero && heroIsDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
-        .copyWith(statusBarColor: Colors.transparent);
+    // القسم الأكثر مبيعاً ياخذ شارة النار
+    var hotId = -1;
+    num hotSales = 0;
+    for (final c in _categories ?? const <Map<String, dynamic>>[]) {
+      final s = (c['total_sales'] as num?) ?? 0;
+      if (s > hotSales) {
+        hotSales = s;
+        hotId = (c['id'] as num).toInt();
+      }
+    }
 
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -290,39 +280,45 @@ class _HomeScreenState extends State<HomeScreen> {
             pinned: true,
             automaticallyImplyLeading: false,
             toolbarHeight: _toolbarHeight,
-            expandedHeight: _toolbarHeight + _bannerHeight,
-            titleSpacing: 12,
+            titleSpacing: 14,
             backgroundColor: AppColors.surface,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             scrolledUnderElevation: 0.5,
-            systemOverlayStyle: overlay,
-            title: _SearchField(
-              onTap: () => _push(const SearchScreen()),
-              onColor: onHero,
-              heroColor: _heroColor,
+            systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+            title: Row(
+              children: [
+                const Text(
+                  'MODO',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.brand, letterSpacing: 1.5),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: _SearchField(onTap: () => _push(const SearchScreen()))),
+              ],
             ),
-            flexibleSpace: _slides.isEmpty
-                ? null
-                : FlexibleSpaceBar(
-                    collapseMode: CollapseMode.pin,
-                    background: AnimatedContainer(
-                      duration: const Duration(milliseconds: 450),
-                      color: _heroColor,
-                      alignment: Alignment.bottomCenter,
-                      child: PromoCarousel(
-                        slides: _slides,
-                        onSlideTap: _onBannerTap,
-                        onColorChanged: (c) {
-                          if (mounted && c != _heroColor) setState(() => _heroColor = c);
-                        },
-                      ),
-                    ),
-                  ),
           ),
           const SliverToBoxAdapter(child: TrustTicker()),
-          SliverToBoxAdapter(child: StoriesRow(key: ValueKey('stories-$_refreshTick'))),
-          SliverToBoxAdapter(child: _buildCategories(width)),
+          SliverToBoxAdapter(
+            child: StoriesBar(
+              key: ValueKey('stories-$_refreshTick'),
+              categories: _categories,
+              selectedCategoryId: _selectedCategoryId,
+              hotCategoryId: hotId < 0 ? null : hotId,
+              onCategoryTap: _selectCategory,
+            ),
+          ),
+          if (_slides.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Container(
+                color: AppColors.surface,
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: PromoCarousel(slides: _slides, onSlideTap: _onBannerTap, onColorChanged: (_) {}),
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: FlashDealsSection(
               dealsFuture: _dealsFuture,
@@ -375,82 +371,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCategories(double width) {
-    return FutureBuilder<_Rows>(
-      future: _categoriesFuture,
-      builder: (context, snapshot) {
-        final rows = snapshot.data;
-        if (rows != null && rows.isEmpty) return const SizedBox(height: 4);
-
-        var hotId = -1;
-        num hotSales = 0;
-        for (final c in rows ?? const <Map<String, dynamic>>[]) {
-          final s = (c['total_sales'] as num?) ?? 0;
-          if (s > hotSales) {
-            hotSales = s;
-            hotId = (c['id'] as num).toInt();
-          }
-        }
-
-        final items = <Widget>[
-          if (rows == null)
-            for (var i = 0; i < 6; i++) const _CategoryBubble.loading()
-          else ...[
-            _CategoryBubble(
-              name: 'الكل',
-              icon: Icons.apps_rounded,
-              selected: _selectedCategoryId == 0,
-              onTap: () => _selectCategory(0, ''),
-            ),
-            for (final c in rows)
-              _CategoryBubble(
-                name: (c['name'] ?? '').toString(),
-                imageUrl: c['image_url']?.toString(),
-                hot: (c['id'] as num).toInt() == hotId,
-                selected: _selectedCategoryId == (c['id'] as num).toInt(),
-                onTap: () => _selectCategory((c['id'] as num).toInt(), (c['name'] ?? '').toString()),
-              ),
-          ],
-        ];
-
-        const itemHeight = 100.0;
-        if (items.length > 8) {
-          // فئات كثيرة: سطرين يتمررون بالعرض
-          return SizedBox(
-            height: itemHeight * 2 + 30,
-            child: GridView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 4),
-              scrollDirection: Axis.horizontal,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisExtent: 86,
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
-              ),
-              itemCount: items.length,
-              itemBuilder: (_, i) => items[i],
-            ),
-          );
-        }
-
-        final cols = items.length <= 6 ? 3 : 4;
-        final itemWidth = (width - 24) / cols;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-          child: GridView.count(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: cols,
-            mainAxisSpacing: 6,
-            childAspectRatio: itemWidth / itemHeight,
-            children: items,
-          ),
-        );
-      },
     );
   }
 }
@@ -534,163 +454,37 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-/// فوق السلايدر يتلوّن بلون الشريحة الحالية (أغمق شوية، أو أفتح إذا الشريحة غامقة) حتى ما يبين بارز.
 class _SearchField extends StatelessWidget {
-  const _SearchField({required this.onTap, required this.onColor, required this.heroColor});
+  const _SearchField({required this.onTap});
 
   final VoidCallback onTap;
-  final bool onColor;
-  final Color heroColor;
 
   @override
   Widget build(BuildContext context) {
-    final dark = onColor && ThemeData.estimateBrightnessForColor(heroColor) == Brightness.dark;
-    final shade = dark ? Colors.white : Colors.black;
-    final fill = onColor ? Color.lerp(heroColor, shade, 0.06)! : AppColors.background;
-    final border = onColor ? Color.lerp(heroColor, shade, 0.14)! : Colors.transparent;
-    final iconColor = dark ? Colors.white : AppColors.ink;
-    final hintColor = dark ? Colors.white70 : AppColors.muted;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 450),
-      decoration: BoxDecoration(
-        color: fill,
+    return Material(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: border),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: SizedBox(
-            height: 44,
-            child: Row(
-              children: [
-                const SizedBox(width: 14),
-                Icon(Icons.search_rounded, color: iconColor),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'ابحث عن حجاب، شال، عطر...',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: hintColor, fontSize: 14, fontWeight: FontWeight.w400),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryBubble extends StatelessWidget {
-  const _CategoryBubble({
-    required this.name,
-    required this.selected,
-    required this.onTap,
-    this.imageUrl,
-    this.icon,
-    this.hot = false,
-  }) : loading = false;
-
-  const _CategoryBubble.loading()
-      : name = '',
-        selected = false,
-        onTap = null,
-        imageUrl = null,
-        icon = null,
-        hot = false,
-        loading = true;
-
-  final String name;
-  final String? imageUrl;
-  final IconData? icon;
-  final bool selected;
-  final bool hot;
-  final bool loading;
-  final VoidCallback? onTap;
-
-  static const double _size = 70;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
-    final fallback = ColoredBox(
-      color: AppColors.brandSoft,
-      child: Center(
-        child: icon != null
-            ? Icon(icon, color: AppColors.brandDark, size: 28)
-            : Text(
-                name.isEmpty ? '' : name.characters.first,
-                style: const TextStyle(color: AppColors.brandDark, fontSize: 24, fontWeight: FontWeight.w800),
-              ),
-      ),
-    );
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+        child: const SizedBox(
+          height: 42,
+          child: Row(
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: _size,
-                height: _size,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  border: Border.all(
-                    color: selected ? AppColors.brand : const Color(0xFFF1EDEA),
-                    width: selected ? 2.5 : 1,
-                  ),
-                ),
-                child: ClipOval(
-                  child: loading
-                      ? const ColoredBox(color: AppColors.placeholder)
-                      : hasImage
-                          ? Image(
-                              image: cachedImage(imageUrl!, decodeWidth: decodeWidthFor(context, _size, _size)),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => fallback,
-                            )
-                          : fallback,
+              SizedBox(width: 14),
+              Icon(Icons.search_rounded, color: AppColors.ink, size: 21),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'ابحثي عن حجاب، شال، عباية...',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.muted, fontSize: 13.5),
                 ),
               ),
-              if (hot)
-                const PositionedDirectional(
-                  top: -2,
-                  start: -2,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: Padding(
-                      padding: EdgeInsets.all(2),
-                      child: Icon(Icons.local_fire_department_rounded, color: AppColors.sale, size: 20),
-                    ),
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-              color: selected ? AppColors.ink : const Color(0xFF3D3833),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

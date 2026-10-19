@@ -58,7 +58,7 @@ class FlashDealsSection extends StatelessWidget {
                 child: Row(
                   children: [
                     Text(
-                      endsAt != null ? 'عروض فلاش' : 'عروض اليوم',
+                      endsAt != null ? 'عرض الساعة' : 'عروض اليوم',
                       style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink),
                     ),
                     const SizedBox(width: 4),
@@ -78,7 +78,7 @@ class FlashDealsSection extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                height: 204,
+                height: 196,
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
@@ -111,54 +111,64 @@ class _FlashCard extends StatelessWidget {
   final bool timed;
   final VoidCallback? onTap;
 
-  static const double _size = 116;
+  static const double _width = 118;
+  static const double _imageHeight = 140;
 
   @override
   Widget build(BuildContext context) {
     final p = product;
     if (p == null) {
-      return Column(
-        children: [
-          Container(
-            width: _size,
-            height: _size,
-            decoration: BoxDecoration(color: AppColors.placeholder, borderRadius: BorderRadius.circular(10)),
-          ),
-        ],
+      return Container(
+        width: _width,
+        height: _imageHeight,
+        decoration: BoxDecoration(color: AppColors.placeholder, borderRadius: BorderRadius.circular(12)),
       );
     }
     final images = imagesOf(p);
     final price = priceOf(p);
     final old = oldPriceOf(p);
     final discount = discountPercentOf(p);
+    final stock = (p['stock'] as num?)?.toInt() ?? 0;
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: _size,
+        width: _width,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               child: SizedBox(
-                width: _size,
-                height: _size,
+                width: _width,
+                height: _imageHeight,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     ProductImage(url: images.isEmpty ? null : images.first),
+                    if (discount > 0)
+                      PositionedDirectional(
+                        top: 6,
+                        start: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(color: AppColors.sale, borderRadius: BorderRadius.circular(6)),
+                          child: Text(
+                            '-$discount%',
+                            textDirection: TextDirection.ltr,
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
                     if (timed)
                       PositionedDirectional(
-                        top: 0,
-                        start: 0,
+                        top: 6,
+                        end: 6,
                         child: Container(
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: AppColors.brand,
-                            borderRadius: BorderRadiusDirectional.only(bottomEnd: Radius.circular(8)),
-                          ),
-                          child: const Icon(Icons.alarm_rounded, size: 15, color: Colors.white),
+                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          child: const Icon(Icons.alarm_rounded, size: 14, color: AppColors.sale),
                         ),
                       ),
                   ],
@@ -166,46 +176,31 @@ class _FlashCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text.rich(
-              TextSpan(children: [
-                TextSpan(
-                  text: kMoney.format(price),
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Flexible(
+                  child: Text(
+                    kMoney.format(price),
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.brandDark),
+                  ),
                 ),
-                const TextSpan(text: ' د.ع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-              ]),
-              style: const TextStyle(color: AppColors.brandDark),
-            ),
-            if (old > price)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+                if (old > price) ...[
+                  const SizedBox(width: 6),
                   Text(
                     kMoney.format(old),
                     style: const TextStyle(fontSize: 11, color: AppColors.muted, decoration: TextDecoration.lineThrough),
                   ),
-                  if (discount > 0) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3)),
-                      child: Text(
-                        '-$discount%',
-                        textDirection: TextDirection.ltr,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.sale),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
+            ),
             // مخزون حقيقي، يطلع بس إذا قليل
-            if (((p['stock'] as num?)?.toInt() ?? 0) case final s when s > 0 && s <= 10)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  'باقي ${pieces(s)}',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.sale),
-                ),
+            if (stock > 0 && stock <= 10)
+              Text(
+                'باقي ${pieces(stock)}',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.sale),
               ),
           ],
         ),
@@ -264,7 +259,7 @@ class _CountdownState extends State<_Countdown> {
           width: 26,
           height: 24,
           alignment: Alignment.center,
-          decoration: BoxDecoration(color: AppColors.ink, borderRadius: BorderRadius.circular(4)),
+          decoration: BoxDecoration(color: AppColors.sale, borderRadius: BorderRadius.circular(6)),
           child: Text(
             v,
             style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()]),
