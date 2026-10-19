@@ -8,6 +8,7 @@ import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart';
 import '../../services/cart_service.dart';
+import '../../services/recently_viewed.dart';
 import '../../services/visit_logger.dart';
 import '../cart/cart_screen.dart';
 
@@ -47,6 +48,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     super.initState();
     _productFuture = _fetchProductDetails();
     VisitLogger.productOpened(widget.productId, source: widget.source, campaign: widget.campaign);
+    RecentlyViewed.instance.add(widget.productId);
   }
 
   @override

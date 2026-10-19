@@ -23,6 +23,12 @@ class HomeProductGrid extends StatefulWidget {
   final bool isMix;
   final HomeSort sort;
 
+  /// تسوّقي حسب السعر: أعلى سعر (د.ع)
+  final double? maxPrice;
+
+  /// بس المنتجات الي بيها عروض كمية (قطعتين بسعر أقل)
+  final bool onlyBulk;
+
   const HomeProductGrid({
     super.key,
     required this.categoryId,
@@ -30,6 +36,8 @@ class HomeProductGrid extends StatefulWidget {
     this.onlyOffers = false,
     this.isMix = false,
     this.sort = HomeSort.newest,
+    this.maxPrice,
+    this.onlyBulk = false,
   });
 
   HomeSort get effectiveSort => isMix ? HomeSort.mix : sort;
@@ -70,7 +78,9 @@ class _HomeProductGridState extends State<HomeProductGrid> {
     final filtersChanged = oldWidget.categoryId != widget.categoryId ||
         oldWidget.onlyOffers != widget.onlyOffers ||
         oldWidget.isMix != widget.isMix ||
-        oldWidget.sort != widget.sort;
+        oldWidget.sort != widget.sort ||
+        oldWidget.maxPrice != widget.maxPrice ||
+        oldWidget.onlyBulk != widget.onlyBulk;
 
     if (!_isExternal && filtersChanged) {
       _generation++;
@@ -117,6 +127,12 @@ class _HomeProductGridState extends State<HomeProductGrid> {
       if (widget.onlyOffers) {
         query = query.eq('is_offer', true);
       }
+      if (widget.maxPrice != null) {
+        query = query.lte('price', widget.maxPrice!);
+      }
+      if (widget.onlyBulk) {
+        query = query.eq('has_bulk', true);
+      }
 
       Future<List<Map<String, dynamic>>> load() async => switch (widget.effectiveSort) {
             HomeSort.mix => await query.order('random_id', ascending: true).order('id').range(from, to),
@@ -130,7 +146,7 @@ class _HomeProductGridState extends State<HomeProductGrid> {
       // الصفحة الأولى تفتح فوراً من الجهاز وتتحدث بالخلفية؛ الصفحات الباقية من السيرفر مباشرة.
       final data = _currentPage == 0
           ? await OfflineCache.fetch(
-              'grid_${widget.categoryId}_${widget.onlyOffers}_${widget.effectiveSort.name}',
+              'grid_${widget.categoryId}_${widget.onlyOffers}_${widget.maxPrice}_${widget.onlyBulk}_${widget.effectiveSort.name}',
               load,
               onFresh: (fresh) {
                 if (!mounted || generation != _generation || _currentPage != 1) return;

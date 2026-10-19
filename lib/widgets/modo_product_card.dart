@@ -224,6 +224,9 @@ class _ModoProductCardState extends State<ModoProductCard> {
     final rank = (p['category_rank'] as num?)?.toInt();
     final categoryName = (p['category_name'] ?? '').toString().trim();
     final showRank = rank != null && rank <= 10 && categoryName.isNotEmpty;
+    final created = DateTime.tryParse('${p['created_at'] ?? ''}');
+    final isNew = created != null && DateTime.now().difference(created).inDays < 7;
+    final lowStock = stock > 0 && stock <= 3;
 
     return Material(
       color: AppColors.surface,
@@ -247,18 +250,18 @@ class _ModoProductCardState extends State<ModoProductCard> {
                       onPageChanged: (i) => setState(() => _page = i),
                       itemBuilder: (_, i) => ProductImage(url: images[i]),
                     ),
-                  if (stock > 0 && stock <= 3)
+                  if (lowStock || isNew)
                     PositionedDirectional(
                       top: 8,
                       start: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.sale,
+                          color: lowStock ? AppColors.sale : const Color(0xFF2F5BD3),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          'آخر $stock قطع',
+                          lowStock ? 'آخر ${pieces(stock)}' : 'جديد',
                           style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
                         ),
                       ),

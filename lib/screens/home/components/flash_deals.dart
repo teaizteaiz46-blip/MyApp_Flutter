@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/product_options.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/modo_product_card.dart';
 
@@ -77,7 +78,7 @@ class FlashDealsSection extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                height: 186,
+                height: 204,
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
@@ -196,6 +197,15 @@ class _FlashCard extends StatelessWidget {
                     ),
                   ],
                 ],
+              ),
+            // مخزون حقيقي، يطلع بس إذا قليل
+            if (((p['stock'] as num?)?.toInt() ?? 0) case final s when s > 0 && s <= 10)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'باقي ${pieces(s)}',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.sale),
+                ),
               ),
           ],
         ),

@@ -14,6 +14,7 @@ import '../details/details_screen.dart';
 import '../offers/offers_screen.dart';
 import '../search/search_screen.dart';
 import 'components/flash_deals.dart';
+import 'components/home_extras.dart';
 import 'components/home_product_grid.dart';
 import 'components/promo_carousel.dart';
 
@@ -319,7 +320,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
           ),
-          const SliverToBoxAdapter(child: _TrustStrip()),
+          const SliverToBoxAdapter(child: TrustTicker()),
+          SliverToBoxAdapter(child: StoriesRow(key: ValueKey('stories-$_refreshTick'))),
           SliverToBoxAdapter(child: _buildCategories(width)),
           SliverToBoxAdapter(
             child: FlashDealsSection(
@@ -328,6 +330,10 @@ class _HomeScreenState extends State<HomeScreen> {
               onSeeAll: () => _push(const OffersScreen()),
             ),
           ),
+          const SliverToBoxAdapter(child: PriceBuckets()),
+          SliverToBoxAdapter(child: TopProductsSection(key: ValueKey('top-$_refreshTick'))),
+          SliverToBoxAdapter(child: LookOfTheDay(key: ValueKey('look-$_refreshTick'))),
+          const SliverToBoxAdapter(child: RecentlyViewedRow()),
           SliverToBoxAdapter(
             child: KeyedSubtree(
               key: _gridAnchor,
@@ -576,66 +582,6 @@ class _SearchField extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _TrustStrip extends StatelessWidget {
-  const _TrustStrip();
-
-  static const _items = [
-    (Icons.verified_user_outlined, 'ضمان السعر', 'سعرنا مضمون'),
-    (Icons.local_offer_outlined, 'خصومات', 'على منتجات مختارة'),
-    (Icons.assignment_return_outlined, 'إرجاع سهل', 'لأي سبب كان'),
-    (Icons.local_shipping_outlined, 'توصيل سريع', 'خلال 48 ساعة'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    Widget tile((IconData, String, String) item) => Expanded(
-          child: Container(
-            height: 58,
-            padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 10, 0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF0EE),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.$2,
-                        maxLines: 1,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.sale, height: 1.2),
-                      ),
-                      Text(
-                        item.$3,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFB0443B), height: 1.3),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(item.$1, color: AppColors.sale, size: 22),
-              ],
-            ),
-          ),
-        );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: Column(
-        children: [
-          Row(children: [tile(_items[0]), const SizedBox(width: 8), tile(_items[1])]),
-          const SizedBox(height: 8),
-          Row(children: [tile(_items[2]), const SizedBox(width: 8), tile(_items[3])]),
-        ],
       ),
     );
   }
