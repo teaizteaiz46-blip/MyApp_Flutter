@@ -82,7 +82,43 @@ class TrustTicker extends StatelessWidget {
 }
 
 // ============================================================================
-// 2) ستوريات: كل مقطع دائرة، والي انشافت تصير رمادية وتروح للأخير
+// 2) ستوريات: صور (جدول stories) + مقاطع (clips). كل واحد دائرة،
+//    والي انشافت تصير رمادية وتروح للأخير.
+
+/// عنصر ستوري واحد: صورة أو مقطع
+class StoryItem {
+  const StoryItem.image({
+    required this.key,
+    required this.label,
+    required String this.imageUrl,
+    required this.linkType,
+    this.linkValue,
+  })  : videoUrl = null,
+        productId = null,
+        thumbUrl = imageUrl;
+
+  const StoryItem.video({
+    required this.key,
+    required this.label,
+    required String this.videoUrl,
+    required int this.productId,
+    this.thumbUrl,
+  })  : imageUrl = null,
+        linkType = 'product',
+        linkValue = null;
+
+  /// مفتاح "انشاف": img-5 أو clip-12
+  final String key;
+  final String label;
+  final String? imageUrl;
+  final String? videoUrl;
+  final int? productId;
+  final String? thumbUrl;
+  final String linkType;
+  final String? linkValue;
+
+  bool get isVideo => videoUrl != null;
+}
 
 class StoriesBar extends StatefulWidget {
   const StoriesBar({super.key});
@@ -92,8 +128,8 @@ class StoriesBar extends StatefulWidget {
 }
 
 class _StoriesBarState extends State<StoriesBar> {
-  static const String _seenKey = 'stories_seen_v1';
-  _Rows? _clips;
+  static const String _seenKey = 'stories_seen_v2';
+  List<StoryItem>? _items;
   Set<String> _seen = {};
 
   @override
@@ -102,61 +138,107 @@ class _StoriesBarState extends State<StoriesBar> {
     _load();
   }
 
+  static Future<_Rows> _fetchImages() async => await supabase
+      .from('stories')
+      .select('id, title, image_url, link_type, link_value')
+      .order('sort_order', ascending: true)
+      .order('created_at', ascending: false)
+      .limit(20);
+
+  static Future<_Rows> _fetchClips() async => await supabase
+      .from('clips')
+      .select('id, video_url, product_id, products(name, image_url, stock)')
+      .order('created_at', ascending: false)
+      .limit(30);
+
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       _seen = (prefs.getStringList(_seenKey) ?? const []).toSet();
     } catch (_) {}
-    try {
-      final rows = await OfflineCache.fetch(
-        'home_stories',
-        () async => await supabase
-            .from('clips')
-            .select('id, video_url, product_id, products(name, image_url, stock)')
-            .order('created_at', ascending: false)
-            .limit(30),
-        onFresh: (fresh) {
-          if (mounted) setState(() => _clips = _usable(fresh));
-        },
-      );
-      if (mounted) setState(() => _clips = _usable(rows));
-    } catch (e) {
-      debugPrint('Stories error: $e');
-      if (mounted) setState(() => _clips = const []);
+
+    _Rows images = const [];
+    _Rows clips = const [];
+    void apply() {
+      if (mounted) setState(() => _items = [..._imageItems(images), ..._clipItems(clips)]);
     }
+
+    await Future.wait([
+      OfflineCache.fetch('home_story_images', _fetchImages, onFresh: (fresh) {
+        images = fresh;
+        apply();
+      }).then((r) => images = r).catchError((Object e) {
+        debugPrint('Image stories error: $e');
+        return images;
+      }),
+      OfflineCache.fetch('home_stories', _fetchClips, onFresh: (fresh) {
+        clips = fresh;
+        apply();
+      }).then((r) => clips = r).catchError((Object e) {
+        debugPrint('Clip stories error: $e');
+        return clips;
+      }),
+    ]);
+    apply();
   }
+
+  static List<StoryItem> _imageItems(_Rows rows) => [
+        for (final r in rows)
+          if ('${r['image_url'] ?? ''}'.isNotEmpty)
+            StoryItem.image(
+              key: 'img-${r['id']}',
+              label: '${r['title'] ?? ''}'.trim(),
+              imageUrl: '${r['image_url']}',
+              linkType: '${r['link_type'] ?? 'none'}',
+              linkValue: r['link_value']?.toString(),
+            ),
+      ];
 
   /// بس المقاطع الي منتجها متوفر، وما نكرر نفس المنتج
-  static _Rows _usable(_Rows rows) {
+  static List<StoryItem> _clipItems(_Rows rows) {
     final seenProducts = <int>{};
-    return rows.where((c) {
+    final out = <StoryItem>[];
+    for (final c in rows) {
       final p = c['products'];
       final pid = (c['product_id'] as num?)?.toInt();
-      if (p is! Map || pid == null || ((p['stock'] as num?) ?? 0) <= 0) return false;
-      return seenProducts.add(pid);
-    }).toList();
+      if (p is! Map || pid == null || ((p['stock'] as num?) ?? 0) <= 0 || !seenProducts.add(pid)) continue;
+      final images = ((p['image_url'] as List?) ?? const []).map((e) => '$e').where((e) => e.isNotEmpty);
+      out.add(StoryItem.video(
+        key: 'clip-${c['id']}',
+        label: '${p['name'] ?? ''}'.trim(),
+        videoUrl: '${c['video_url']}',
+        productId: pid,
+        thumbUrl: images.isEmpty ? null : images.first,
+      ));
+    }
+    return out;
   }
 
-  bool _isSeen(Map<String, dynamic> c) => _seen.contains('${c['id']}');
-
-  Future<void> _open(_Rows ordered, int index) async {
-    setState(() => _seen.add('${ordered[index]['id']}'));
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_seenKey, _seen.take(300).toList());
-    } catch (_) {}
-    if (!mounted) return;
+  Future<void> _open(List<StoryItem> ordered, int index) async {
     await Navigator.of(context).push(MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => StoryClipsScreen(clips: ordered, initialIndex: index),
+      builder: (_) => StoryViewerScreen(
+        items: ordered,
+        initialIndex: index,
+        onSeen: (item) {
+          if (_seen.add(item.key)) {
+            if (mounted) setState(() {});
+            SharedPreferences.getInstance()
+                .then((prefs) => prefs.setStringList(_seenKey, _seen.take(300).toList()))
+                .catchError((Object _) => false);
+          }
+        },
+      ),
     ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final clips = _clips;
-    if (clips != null && clips.isEmpty) return const SizedBox.shrink();
-    final ordered = clips == null ? const <Map<String, dynamic>>[] : [...clips.where((c) => !_isSeen(c)), ...clips.where(_isSeen)];
+    final items = _items;
+    if (items != null && items.isEmpty) return const SizedBox.shrink();
+    final ordered = items == null
+        ? const <StoryItem>[]
+        : [...items.where((s) => !_seen.contains(s.key)), ...items.where((s) => _seen.contains(s.key))];
 
     return Container(
       color: AppColors.surface,
@@ -164,17 +246,16 @@ class _StoriesBarState extends State<StoriesBar> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
         scrollDirection: Axis.horizontal,
-        itemCount: clips == null ? 5 : ordered.length,
+        itemCount: items == null ? 5 : ordered.length,
         separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, i) {
-          if (clips == null) return const _StoryBubble.loading();
-          final c = ordered[i];
-          final p = c['products'] as Map;
-          final images = ((p['image_url'] as List?) ?? const []).map((e) => '$e').where((e) => e.isNotEmpty);
+          if (items == null) return const _StoryBubble.loading();
+          final s = ordered[i];
           return _StoryBubble(
-            imageUrl: images.isEmpty ? null : images.first,
-            label: (p['name'] ?? '').toString().trim(),
-            seen: _isSeen(c),
+            imageUrl: s.thumbUrl,
+            label: s.label,
+            seen: _seen.contains(s.key),
+            play: s.isVideo,
             onTap: () => _open(ordered, i),
           );
         },
@@ -184,19 +265,26 @@ class _StoriesBarState extends State<StoriesBar> {
 }
 
 class _StoryBubble extends StatelessWidget {
-  const _StoryBubble({required this.imageUrl, required this.label, required this.seen, required VoidCallback this.onTap})
-      : loading = false;
+  const _StoryBubble({
+    required this.imageUrl,
+    required this.label,
+    required this.seen,
+    required this.play,
+    required VoidCallback this.onTap,
+  }) : loading = false;
 
   const _StoryBubble.loading()
       : imageUrl = null,
         label = '',
         seen = true,
+        play = false,
         onTap = null,
         loading = true;
 
   final String? imageUrl;
   final String label;
   final bool seen;
+  final bool play;
   final bool loading;
   final VoidCallback? onTap;
 
@@ -232,9 +320,10 @@ class _StoryBubble extends StatelessWidget {
                           fit: StackFit.expand,
                           children: [
                             ProductImage(url: imageUrl),
-                            const Center(
-                              child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28, shadows: [Shadow(blurRadius: 6)]),
-                            ),
+                            if (play)
+                              const Center(
+                                child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28, shadows: [Shadow(blurRadius: 6)]),
+                              ),
                           ],
                         ),
                 ),
@@ -255,28 +344,85 @@ class _StoryBubble extends StatelessWidget {
   }
 }
 
-/// المقاطع بشاشة كاملة، تبدي من الستوري الي انضغطت
-class StoryClipsScreen extends StatefulWidget {
-  const StoryClipsScreen({super.key, required this.clips, required this.initialIndex});
+/// الستوريات بشاشة كاملة. الصورة تبقى 5 ثواني وتروح للي بعدها، والمقطع يبقى لحد ما تسحبين.
+class StoryViewerScreen extends StatefulWidget {
+  const StoryViewerScreen({super.key, required this.items, required this.initialIndex, required this.onSeen});
 
-  final List<Map<String, dynamic>> clips;
+  final List<StoryItem> items;
   final int initialIndex;
+  final ValueChanged<StoryItem> onSeen;
 
   @override
-  State<StoryClipsScreen> createState() => _StoryClipsScreenState();
+  State<StoryViewerScreen> createState() => _StoryViewerScreenState();
 }
 
-class _StoryClipsScreenState extends State<StoryClipsScreen> {
+class _StoryViewerScreenState extends State<StoryViewerScreen> with SingleTickerProviderStateMixin {
+  static const Duration _imageDuration = Duration(seconds: 5);
+
   late final PageController _page = PageController(initialPage: widget.initialIndex);
+  late final AnimationController _progress = AnimationController(vsync: this, duration: _imageDuration)
+    ..addStatusListener((s) {
+      if (s == AnimationStatus.completed) _next();
+    });
+  late int _index = widget.initialIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _enter(_index);
+  }
 
   @override
   void dispose() {
+    _progress.dispose();
     _page.dispose();
     super.dispose();
   }
 
+  void _enter(int i) {
+    _index = i;
+    widget.onSeen(widget.items[i]);
+    _progress.stop();
+    _progress.value = 0;
+    if (!widget.items[i].isVideo) _progress.forward();
+  }
+
+  void _next() {
+    if (!mounted) return;
+    if (_index + 1 >= widget.items.length) {
+      Navigator.of(context).maybePop();
+    } else {
+      _page.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
+  }
+
+  void _openLink(StoryItem s) {
+    final nav = Navigator.of(context);
+    final v = s.linkValue ?? '';
+    Widget? target = switch (s.linkType) {
+      'product' when int.tryParse(v) != null => DetailsScreen(productId: int.parse(v), source: 'story'),
+      'category' when int.tryParse(v) != null => ProductListScreen(
+          title: s.label.isEmpty ? 'القسم' : s.label,
+          categoryId: int.parse(v),
+          sort: HomeSort.newest,
+        ),
+      'price' when double.tryParse(v) != null =>
+        ProductListScreen(title: 'تحت ${kMoney.format(double.parse(v))} د.ع', maxPrice: double.parse(v)),
+      'bulk' => const ProductListScreen(title: 'عروض الكمية', onlyBulk: true),
+      'offers' => const ProductListScreen(title: 'العروض', sort: HomeSort.bestSelling),
+      _ => null,
+    };
+    if (target == null) return;
+    _progress.stop();
+    nav.pushReplacement(MaterialPageRoute(builder: (_) => target));
+  }
+
+  bool _hasLink(StoryItem s) => !s.isVideo && s.linkType != 'none';
+
   @override
   Widget build(BuildContext context) {
+    final pad = MediaQuery.paddingOf(context);
+    final current = widget.items[_index];
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -284,18 +430,52 @@ class _StoryClipsScreenState extends State<StoryClipsScreen> {
           PageView.builder(
             controller: _page,
             scrollDirection: Axis.vertical,
-            itemCount: widget.clips.length,
+            itemCount: widget.items.length,
+            onPageChanged: (i) => setState(() => _enter(i)),
             itemBuilder: (_, i) {
-              final c = widget.clips[i];
-              return VideoClipPlayer(
-                key: ValueKey(c['video_url']),
-                videoUrl: '${c['video_url']}',
-                productId: (c['product_id'] as num).toInt(),
+              final s = widget.items[i];
+              if (s.isVideo) {
+                return VideoClipPlayer(key: ValueKey(s.videoUrl), videoUrl: s.videoUrl!, productId: s.productId!);
+              }
+              // نضغط مطوّل يوقف، ونرفع يكمل
+              return GestureDetector(
+                onLongPressStart: (_) => _progress.stop(),
+                onLongPressEnd: (_) => _progress.forward(),
+                onTap: _next,
+                child: Center(
+                  child: Image(
+                    image: cachedImage(s.imageUrl!),
+                    fit: BoxFit.fitWidth,
+                    width: double.infinity,
+                    loadingBuilder: (context, child, progress) =>
+                        progress == null ? child : const Center(child: CircularProgressIndicator(color: Colors.white)),
+                    errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48),
+                  ),
+                ),
               );
             },
           ),
+          // شريط الوقت للصور
+          if (!current.isVideo)
+            Positioned(
+              top: pad.top + 8,
+              left: 12,
+              right: 12,
+              child: AnimatedBuilder(
+                animation: _progress,
+                builder: (_, _) => ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: _progress.value,
+                    minHeight: 3,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  ),
+                ),
+              ),
+            ),
           PositionedDirectional(
-            top: MediaQuery.paddingOf(context).top + 8,
+            top: pad.top + 18,
             start: 8,
             child: IconButton.filled(
               style: IconButton.styleFrom(backgroundColor: Colors.black45),
@@ -304,6 +484,24 @@ class _StoryClipsScreenState extends State<StoryClipsScreen> {
               tooltip: 'إغلاق',
             ),
           ),
+          if (_hasLink(current))
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: pad.bottom + 24,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: const StadiumBorder(),
+                  textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                onPressed: () => _openLink(current),
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: const Text('تسوّقي هسه'),
+              ),
+            ),
         ],
       ),
     );
