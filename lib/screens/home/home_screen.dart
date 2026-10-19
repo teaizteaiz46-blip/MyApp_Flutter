@@ -258,17 +258,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHome(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
 
-    // القسم الأكثر مبيعاً ياخذ شارة النار
-    var hotId = -1;
-    num hotSales = 0;
-    for (final c in _categories ?? const <Map<String, dynamic>>[]) {
-      final s = (c['total_sales'] as num?) ?? 0;
-      if (s > hotSales) {
-        hotSales = s;
-        hotId = (c['id'] as num).toInt();
-      }
-    }
-
     return RefreshIndicator(
       onRefresh: _refresh,
       edgeOffset: topPadding + _toolbarHeight,
@@ -299,15 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SliverToBoxAdapter(child: TrustTicker()),
-          SliverToBoxAdapter(
-            child: StoriesBar(
-              key: ValueKey('stories-$_refreshTick'),
-              categories: _categories,
-              selectedCategoryId: _selectedCategoryId,
-              hotCategoryId: hotId < 0 ? null : hotId,
-              onCategoryTap: _selectCategory,
-            ),
-          ),
+          SliverToBoxAdapter(child: StoriesBar(key: ValueKey('stories-$_refreshTick'))),
           if (_slides.isNotEmpty)
             SliverToBoxAdapter(
               child: Container(
