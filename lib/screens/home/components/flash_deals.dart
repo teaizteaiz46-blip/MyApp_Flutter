@@ -58,7 +58,11 @@ class FlashDealsSection extends StatelessWidget {
                 child: Row(
                   children: [
                     Text(
-                      endsAt != null ? 'عرض الساعة' : 'عروض اليوم',
+                      endsAt == null
+                          ? 'عروض اليوم'
+                          : endsAt.difference(DateTime.now()).inHours >= 24
+                              ? 'عرض لفترة محدودة'
+                              : 'عرض الساعة',
                       style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink),
                     ),
                     const SizedBox(width: 4),
@@ -250,7 +254,9 @@ class _CountdownState extends State<_Countdown> {
 
   @override
   Widget build(BuildContext context) {
-    final h = _left.inHours;
+    // أكثر من يوم: نطلّع الأيام بمربع لحاله (مثلاً 3 يوم 18:50:14) بدل 90 ساعة
+    final d = _left.inDays;
+    final h = _left.inHours.remainder(24);
     final m = _left.inMinutes.remainder(60);
     final s = _left.inSeconds.remainder(60);
     String two(int v) => v.toString().padLeft(2, '0');
@@ -274,7 +280,16 @@ class _CountdownState extends State<_Countdown> {
       textDirection: TextDirection.ltr,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [box(two(h > 99 ? 99 : h)), colon, box(two(m)), colon, box(two(s))],
+        children: [
+          if (d > 0) ...[
+            box('$d'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(d == 1 || d > 10 ? 'يوم' : 'أيام', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+          ],
+          box(two(h)), colon, box(two(m)), colon, box(two(s)),
+        ],
       ),
     );
   }
