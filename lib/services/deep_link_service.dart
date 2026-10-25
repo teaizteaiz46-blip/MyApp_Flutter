@@ -17,6 +17,12 @@ class DeepLinkService {
 
   static StreamSubscription<Uri>? _sub;
 
+  /// صار true أول ما ينفتح منتج من رابط أو إشعار.
+  static bool openedFromLink = false;
+
+  /// يتنادى كل ما ينفتح منتج من برا (إعلان الافتتاح يستخدمه حتى يتسكّر).
+  static VoidCallback? onExternalOpen;
+
   /// يرجع رقم المنتج من الرابط، أو null إذا الرابط مو رابط منتج.
   static int? productIdFrom(Uri uri) {
     if (uri.scheme == scheme && uri.host == 'product') {
@@ -66,6 +72,9 @@ class DeepLinkService {
     String? campaign,
     int attempt = 0,
   }) {
+    // إعلان الافتتاح ما يطلع (أو يتسكّر) لما الزبونة جاية من رابط أو إشعار
+    openedFromLink = true;
+    onExternalOpen?.call();
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
       if (attempt < 20) {

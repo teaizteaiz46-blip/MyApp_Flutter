@@ -20,6 +20,7 @@ import 'screens/policy/privacy_policy_screen.dart';
 import 'services/cart_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/push_service.dart';
+import 'services/splash_ad_service.dart';
 import 'services/tiktok_service.dart';
 import '../../core/shop_api.dart';
 import 'theme/app_theme.dart';
@@ -86,6 +87,9 @@ Future<void> main() async {
 
   // روابط المنتجات من إعلانات فيسبوك/انستغرام
   DeepLinkService.init(rootNavigatorKey);
+
+  // إعلان الافتتاح (إذا اكو إعلان فعّال وصورته جاهزة بالجهاز)
+  unawaited(SplashAdService.run(rootNavigatorKey));
 
   // الإشعارات ما توقف فتح التطبيق
   unawaited(_setupTracking());

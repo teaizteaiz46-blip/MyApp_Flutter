@@ -10,6 +10,7 @@ import '../../../widgets/modo_product_card.dart';
 import '../../clips/video_clip_player.dart';
 import '../../details/details_screen.dart';
 import '../product_list_screen.dart';
+import '../promo_link.dart';
 import 'home_product_grid.dart';
 
 // أقسام الواجهة الرئيسية (1.7.7): شريط الثقة، الستوريات، تسوّقي حسب السعر،
@@ -398,20 +399,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> with SingleTicker
 
   void _openLink(StoryItem s) {
     final nav = Navigator.of(context);
-    final v = s.linkValue ?? '';
-    Widget? target = switch (s.linkType) {
-      'product' when int.tryParse(v) != null => DetailsScreen(productId: int.parse(v), source: 'story'),
-      'category' when int.tryParse(v) != null => ProductListScreen(
-          title: s.label.isEmpty ? 'القسم' : s.label,
-          categoryId: int.parse(v),
-          sort: HomeSort.newest,
-        ),
-      'price' when double.tryParse(v) != null =>
-        ProductListScreen(title: 'تحت ${kMoney.format(double.parse(v))} د.ع', maxPrice: double.parse(v)),
-      'bulk' => const ProductListScreen(title: 'عروض الكمية', onlyBulk: true),
-      'offers' => const ProductListScreen(title: 'العروض', sort: HomeSort.bestSelling),
-      _ => null,
-    };
+    final target = promoTarget(s.linkType, s.linkValue, label: s.label, source: 'story');
     if (target == null) return;
     _progress.stop();
     nav.pushReplacement(MaterialPageRoute(builder: (_) => target));

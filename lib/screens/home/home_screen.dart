@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/offline_cache.dart';
 import '../../main.dart';
 import '../../services/cart_service.dart';
+import '../../services/splash_ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/welcome_coupon_dialog.dart';
 import '../auth/profile_screen.dart';
@@ -58,9 +59,26 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSections();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 1200), () {
-        if (mounted && _tab == _homeTab) maybeShowWelcomeCoupon(context);
+        if (mounted && _tab == _homeTab) _showCouponAfterSplash();
       });
     });
+  }
+
+  /// كوبون الترحيب ما يطلع فوق إعلان الافتتاح: ينتظره يتسكّر
+  void _showCouponAfterSplash() {
+    final splash = SplashAdService.showing;
+    if (!splash.value) {
+      maybeShowWelcomeCoupon(context);
+      return;
+    }
+    void listener() {
+      if (splash.value) return;
+      splash.removeListener(listener);
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted && _tab == _homeTab) maybeShowWelcomeCoupon(context);
+      });
+    }
+    splash.addListener(listener);
   }
 
   @override
