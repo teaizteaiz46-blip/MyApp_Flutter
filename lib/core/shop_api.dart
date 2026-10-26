@@ -139,6 +139,7 @@ class ShopApi {
     required String address,
     String? couponCode,
     List<String> options = const [],
+    int? rewardCouponId,
   }) async {
     final code = couponCode?.trim();
     final res = await _db.rpc('place_order', params: {
@@ -152,6 +153,8 @@ class ShopApi {
       'p_address': address.trim(),
       'p_coupon_code': (code == null || code.isEmpty) ? null : code,
       if (options.isNotEmpty) 'p_options': options,
+      // كوبون المكافأة (10% بعد استلام طلب سابق)، يتحسب بالسيرفر
+      if (rewardCouponId != null) 'p_reward_coupon_id': rewardCouponId,
     });
     return OrderResult.fromJson(Map<String, dynamic>.from(res as Map));
   }

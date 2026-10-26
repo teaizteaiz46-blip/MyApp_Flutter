@@ -6,9 +6,11 @@ import '../../core/bulk_pricing.dart';
 import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
+import '../../main.dart' show supabase;
 import '../../services/cart_service.dart';
 import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
 import '../home/home_screen.dart';
+import '../orders/my_orders_screen.dart' show RewardCouponCard;
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -43,6 +45,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double _couponAmount = 0;
   bool _checkingCoupon = false;
   String? _couponError;
+
+  /// كوبون المكافأة المحفوظ بالحساب (خصم % بعد استلام طلب سابق)
+  Map<String, dynamic>? _reward;
+  bool _useReward = false;
 
   /// خيارات الطلب الجاهزة (من قاعدة البيانات) والي اختارها الزبون
   List<String> _orderOptions = const [];
@@ -89,6 +95,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       });
       // كوبون الترحيب المحفوظ ينطبق تلقائياً
       if (pendingCoupon.isNotEmpty) _applyCoupon();
+      _loadReward(autoUse: pendingCoupon.isEmpty);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -96,6 +103,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _loadError = ShopApi.friendlyError(e);
       });
     }
+  }
+
+  Future<void> _loadReward({required bool autoUse}) async {
+    if (supabase.auth.currentUser == null) return;
+    try {
+      final rows = await supabase
+          .from('reward_coupons')
+          .select('id, percent, max_discount, expires_at')
+          .isFilter('used_order_id', null)
+          .gt('expires_at', DateTime.now().toUtc().toIso8601String())
+          .order('expires_at')
+          .limit(1);
+      if (!mounted || rows.isEmpty) return;
+      setState(() {
+        _reward = rows.first;
+        _useReward = autoUse && _appliedCoupon == null;
+      });
+    } catch (_) {}
+  }
+
+  double get _rewardDiscount {
+    final r = _reward;
+    if (r == null) return 0;
+    final pct = (r['percent'] as num?)?.toDouble() ?? 10;
+    final max = (r['max_discount'] as num?)?.toDouble() ?? 5000;
+    final v = (_subtotal * pct / 100).roundToDouble();
+    return [v, max, _subtotal].reduce((a, b) => a < b ? a : b);
   }
 
   Future<void> _saveCustomerInfo(String phone) async {
@@ -119,7 +153,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   double get _delivery => _freeDelivery ? 0 : ShopApi.deliveryFor(_governorate, _deliveryCosts);
 
-  double get _discount => _couponAmount > _subtotal ? _subtotal : _couponAmount;
+  double get _discount => _useReward
+      ? _rewardDiscount
+      : (_couponAmount > _subtotal ? _subtotal : _couponAmount);
 
   double get _total {
     final t = _subtotal + _delivery - _discount;
@@ -196,7 +232,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         customerPhone: phone,
         governorate: _governorate!,
         address: _addressController.text,
-        couponCode: _appliedCoupon,
+        couponCode: _useReward ? null : _appliedCoupon,
+        rewardCouponId: _useReward ? (_reward?['id'] as num?)?.toInt() : null,
         options: [for (final o in _orderOptions) if (_selectedOptions.contains(o)) o],
       );
 
@@ -434,6 +471,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildCoupon() {
+    final reward = _reward;
+    if (reward != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RewardCouponCard(
+            coupon: reward,
+            trailing: Switch(
+              value: _useReward,
+              onChanged: (v) => setState(() {
+                _useReward = v;
+                if (v) _removeCoupon();
+              }),
+            ),
+          ),
+          if (_useReward)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('خصم ${_money.format(_rewardDiscount)} د.ع على هذا الطلب · ما ينجمع ويا كود ثاني',
+                  style: TextStyle(color: Colors.green.shade800, fontSize: 12.5, fontWeight: FontWeight.w600)),
+            )
+          else ...[
+            const SizedBox(height: 10),
+            _buildCodeCoupon(),
+          ],
+        ],
+      );
+    }
+    return _buildCodeCoupon();
+  }
+
+  Widget _buildCodeCoupon() {
     if (_appliedCoupon != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
