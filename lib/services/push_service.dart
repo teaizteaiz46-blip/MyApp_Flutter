@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart';
+import '../screens/orders/my_orders_screen.dart';
 import 'deep_link_service.dart';
 
 /// إشعارات Firebase:
@@ -19,6 +21,7 @@ class PushService {
   static const String adminTopic = 'admins';
 
   static bool _started = false;
+  static const String _userTopicKey = 'push_user_topic_v1';
 
   static Future<void> init({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -57,12 +60,14 @@ class PushService {
                 if ((n.body ?? '').isNotEmpty) Text(n.body!),
               ],
             ),
-            action: productId == null
-                ? null
-                : SnackBarAction(
+            action: productId != null
+                ? SnackBarAction(
                     label: 'عرض',
                     onPressed: () => DeepLinkService.openProduct(navigatorKey, productId, source: 'push'),
-                  ),
+                  )
+                : _isOrders(message)
+                    ? SnackBarAction(label: 'طلباتي', onPressed: () => _openOrders(navigatorKey))
+                    : null,
           ));
       });
 
@@ -76,8 +81,10 @@ class PushService {
   }
 
   /// يشترك جهاز المشرف بقناة التجربة، ويلغيها لأي حساب ثاني أو بعد تسجيل الخروج.
+  /// وكل حساب يشترك بقناته الخاصة (u_ + رقم الحساب) حتى توصله إشعارات طلباته.
   static Future<void> syncAdminTopic({required bool signedIn}) async {
     if (kIsWeb) return;
+    await _syncUserTopic(signedIn ? supabase.auth.currentUser?.id : null);
     try {
       var isAdmin = false;
       if (signedIn) {
@@ -94,11 +101,48 @@ class PushService {
     }
   }
 
+  /// قناة الحساب: u_ + رقم الحساب بدون شخوط (رقم طويل ما ينخمن)
+  static Future<void> _syncUserTopic(String? uid) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final previous = prefs.getString(_userTopicKey);
+      final next = uid == null ? null : 'u_${uid.replaceAll('-', '')}';
+      if (previous == next) return;
+      final messaging = FirebaseMessaging.instance;
+      if (previous != null) await messaging.unsubscribeFromTopic(previous);
+      if (next != null) await messaging.subscribeToTopic(next);
+      if (next == null) {
+        await prefs.remove(_userTopicKey);
+      } else {
+        await prefs.setString(_userTopicKey, next);
+      }
+    } catch (e) {
+      debugPrint('User topic sync failed: $e');
+    }
+  }
+
+  static bool _isOrders(RemoteMessage m) => m.data['type'] == 'orders';
+
+  static void _openOrders(GlobalKey<NavigatorState> navigatorKey, [int attempt = 0]) {
+    final nav = navigatorKey.currentState;
+    if (nav == null) {
+      if (attempt < 20) WidgetsBinding.instance.addPostFrameCallback((_) => _openOrders(navigatorKey, attempt + 1));
+      return;
+    }
+    DeepLinkService.openedFromLink = true; // إعلان الافتتاح ما يطلع فوقها
+    DeepLinkService.onExternalOpen?.call();
+    nav.push(MaterialPageRoute(builder: (_) => const MyOrdersScreen()));
+  }
+
   static int? _productId(RemoteMessage m) =>
       m.data['type'] == 'product' ? int.tryParse('${m.data['product_id'] ?? ''}') : null;
 
   static void _openFrom(RemoteMessage m, GlobalKey<NavigatorState> navigatorKey) {
     final id = _productId(m);
-    if (id != null) DeepLinkService.openProduct(navigatorKey, id, source: 'push');
+    if (id != null) {
+      DeepLinkService.openProduct(navigatorKey, id, source: 'push');
+    } else if (_isOrders(m)) {
+      _openOrders(navigatorKey);
+    }
   }
 }
