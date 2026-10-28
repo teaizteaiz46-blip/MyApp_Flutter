@@ -38,6 +38,9 @@ class PushService {
   static bool _ready = false;
   static bool _preparing = false;
 
+  /// آخر خطأ بالإشعارات (يطلع بفحص المشرف)
+  static String? _lastError;
+
   static bool _allowed(NotificationSettings s) =>
       s.authorizationStatus == AuthorizationStatus.authorized ||
       s.authorizationStatus == AuthorizationStatus.provisional;
@@ -126,12 +129,14 @@ class PushService {
           if (!apns) await Future<void>.delayed(Duration(seconds: i < 30 ? 1 : 5));
         }
         if (!apns) {
+          _lastError = 'رمز APNs ما وصل';
           debugPrint('APNs token not ready, will retry on resume');
           return;
         }
       }
       _ready = true;
     } catch (e) {
+      _lastError = 'prepare: $e';
       debugPrint('Push prepare failed: $e');
     } finally {
       _preparing = false;
@@ -146,6 +151,7 @@ class PushService {
       await messaging.subscribeToTopic(allTopic);
       if (kDebugMode) debugPrint('FCM Token: ${await messaging.getToken()}');
     } catch (e) {
+      _lastError = 'subscribe all: $e';
       debugPrint('Subscribe "all" failed: $e');
     }
     await _syncAccountTopics(signedIn: supabase.auth.currentUser != null, force: force);
@@ -242,8 +248,41 @@ class PushService {
       });
       await prefs.remove(_pendingOrderKey);
     } catch (e) {
+      _lastError = 'attach: $e';
       debugPrint('Attach order device failed: $e');
     }
+  }
+
+  /// للمشرف: حالة الإشعارات بهذا الجهاز، حتى نعرف وين توگف بدون سجلات الجهاز
+  static Future<String> diagnose() async {
+    if (kIsWeb) return 'الويب ما بيه إشعارات';
+    final messaging = FirebaseMessaging.instance;
+    final lines = <String>[];
+    try {
+      lines.add('الإذن: ${(await messaging.getNotificationSettings()).authorizationStatus.name}');
+    } catch (e) {
+      lines.add('الإذن: خطأ $e');
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        final apns = await messaging.getAPNSToken();
+        lines.add('رمز APNs: ${apns == null ? '❌ ما وصل' : '✅'}');
+      } catch (e) {
+        lines.add('رمز APNs: ❌ $e');
+      }
+    }
+    try {
+      final token = await messaging.getToken();
+      lines.add('رمز FCM: ${token == null ? '❌' : '✅ …${token.substring(token.length - 6)}'}');
+    } catch (e) {
+      lines.add('رمز FCM: ❌ $e');
+    }
+    final prefs = await SharedPreferences.getInstance();
+    lines.add('جاهز: ${_ready ? '✅' : '❌'}');
+    lines.add('قناة الحساب: ${prefs.getString(_userTopicKey) ?? '—'}');
+    lines.add('طلب ينتظر الربط: ${prefs.getString(_pendingOrderKey) == null ? 'لا' : 'نعم'}');
+    lines.add('آخر خطأ: ${_lastError ?? 'ماكو'}');
+    return lines.join('\n');
   }
 
   /// الإشعارات مطفية؟ نطلع كارت صغير بعد الطلب (مرة كل 3 أيام بالكثير)

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart'; // لاستخدام supabase
+import '../../services/push_service.dart';
 import '../orders/my_orders_screen.dart';
 import '../../widgets/contact_us.dart';
 import '../points/points_screen.dart';
@@ -15,6 +16,21 @@ class AccountView extends StatefulWidget {
 }
 
 class _AccountViewState extends State<AccountView> {
+  // زر فحص الإشعارات يطلع للمشرف بس
+  late final Future<dynamic> _adminCheck = supabase.rpc('is_modo_admin').catchError((_) => false);
+
+  Future<void> _showPushDiagnostics() async {
+    final report = await PushService.diagnose();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('فحص الإشعارات'),
+        content: SelectableText(report, style: const TextStyle(height: 1.6)),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('تمام'))],
+      ),
+    );
+  }
 
   // دالة تسجيل الخروج
   Future<void> _signOut() async {
@@ -130,6 +146,16 @@ class _AccountViewState extends State<AccountView> {
           ),
           const SizedBox(height: 20),
           const ContactUsSection(),
+          FutureBuilder<dynamic>(
+            future: _adminCheck,
+            builder: (context, snap) => snap.data == true
+                ? TextButton.icon(
+                    onPressed: _showPushDiagnostics,
+                    icon: const Icon(Icons.notifications_active_outlined),
+                    label: const Text('فحص الإشعارات (للمشرف)'),
+                  )
+                : const SizedBox.shrink(),
+          ),
           const SizedBox(height: 30),
 
           ElevatedButton(
