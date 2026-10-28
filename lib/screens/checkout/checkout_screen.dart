@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +11,7 @@ import '../../facebook_service.dart';
 import '../../main.dart' show supabase;
 import '../../services/points_service.dart';
 import '../../services/cart_service.dart';
+import '../../services/push_service.dart';
 import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
 import '../home/home_screen.dart';
 import '../orders/my_orders_screen.dart' show RewardCouponCard;
@@ -284,6 +287,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 5),
       ));
+      // نربط الطلب بهذا الجهاز حتى توصل إشعارات حالته حتى بدون حساب
+      unawaited(PushService.afterOrder(orderId: result.orderId, phone: phone));
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);

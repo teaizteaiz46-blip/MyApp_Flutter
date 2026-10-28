@@ -1,20 +1,24 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../screens/orders/my_orders_screen.dart';
 import '../screens/points/points_screen.dart';
+import '../theme/app_theme.dart';
 import 'deep_link_service.dart';
 
 /// إشعارات Firebase:
 /// - كل الأجهزة الي وافقت تشترك بقناة `all` (إشعارات الزبائن).
 /// - أجهزة المشرفين (المسجلين دخول وحسابهم مشرف) تشترك بـ `admins` حتى "إرسال تجربة" يوصلهم بس.
+/// - كل حساب يشترك بقناته (u_ + رقم الحساب)، وكل طلب ينربط بجهازه حتى إشعارات الحالة توصل حتى للزائرة.
 /// - الإشعار يطلع حتى والتطبيق مفتوح، والضغط عليه يفتح المنتج إذا بي منتج.
-/// ترسلها صفحة الإدارة عن طريق دالة send-push.
+/// ترسلها صفحة الإدارة عن طريق دالة send-push، وإشعارات الطلبات دالة order-push.
 class PushService {
   PushService._();
 
@@ -23,22 +27,20 @@ class PushService {
 
   static bool _started = false;
   static const String _userTopicKey = 'push_user_topic_v1';
+  static const String _pendingOrderKey = 'push_pending_order_v1';
+  static const String _askedKey = 'push_asked_after_order_v1';
 
-  /// يكتمل لما الجهاز يصير جاهز للاشتراك بالقنوات: الإذن موجود، وبالآيفون رمز APNs جاهز.
-  /// بدون هذا، الاشتراك بالآيفون يفشل بصمت ("APNS token has not been set yet").
-  static final Completer<bool> _ready = Completer<bool>();
+  static GlobalKey<NavigatorState>? _navigatorKey;
+  static AppLifecycleListener? _lifecycle;
 
-  /// بالآيفون رمز APNs يوصل بعد الإذن بثواني، فننتظره (لحد 30 ثانية)
-  static Future<bool> _waitForApns(FirebaseMessaging messaging) async {
-    if (defaultTargetPlatform != TargetPlatform.iOS) return true;
-    for (var i = 0; i < 30; i++) {
-      try {
-        if (await messaging.getAPNSToken() != null) return true;
-      } catch (_) {}
-      await Future<void>.delayed(const Duration(seconds: 1));
-    }
-    return false;
-  }
+  /// الجهاز جاهز للاشتراك: الإذن موجود، وبالآيفون رمز APNs وصل.
+  /// بدونه الاشتراك بالآيفون يفشل بصمت ("APNS token has not been set yet").
+  static bool _ready = false;
+  static bool _preparing = false;
+
+  static bool _allowed(NotificationSettings s) =>
+      s.authorizationStatus == AuthorizationStatus.authorized ||
+      s.authorizationStatus == AuthorizationStatus.provisional;
 
   static Future<void> init({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -46,23 +48,9 @@ class PushService {
   }) async {
     if (kIsWeb || _started) return;
     _started = true;
+    _navigatorKey = navigatorKey;
     try {
       final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
-      final allowed = settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
-      final ready = allowed && await _waitForApns(messaging);
-      if (!_ready.isCompleted) _ready.complete(ready);
-      if (ready) {
-        try {
-          await messaging.subscribeToTopic(allTopic);
-          if (kDebugMode) debugPrint('FCM Token: ${await messaging.getToken()}');
-        } catch (e) {
-          debugPrint('Subscribe "all" failed: $e');
-        }
-      } else {
-        debugPrint('Push not ready (allowed=$allowed), topics skipped until next launch');
-      }
 
       // آيفون: النظام يعرض الإشعار حتى والتطبيق مفتوح
       await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
@@ -100,26 +88,84 @@ class PushService {
       FirebaseMessaging.onMessageOpenedApp.listen((m) => _openFrom(m, navigatorKey));
       final initial = await messaging.getInitialMessage();
       if (initial != null) _openFrom(initial, navigatorKey);
+
+      // الرمز تغيّر: نعيد الاشتراكات حتى ما تضيع
+      messaging.onTokenRefresh.listen((_) {
+        if (_ready) unawaited(_onReady(force: true));
+      });
+
+      // رجعت من الإعدادات (يمكن فعّلت الإشعارات) أو الجهاز بعده ما جاهز: نحاول مرة ثانية
+      _lifecycle ??= AppLifecycleListener(onResume: () {
+        if (!_ready) unawaited(_prepare());
+      });
+
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      await _prepare();
     } catch (e) {
       debugPrint('Push init failed: $e');
-      if (!_ready.isCompleted) _ready.complete(false);
     }
   }
 
-  /// ينتظر الجاهزية (تسجيل الدخول ممكن يصير قبل ما يجهز رمز الإشعارات)
-  static Future<bool> _whenReady() =>
-      _ready.future.timeout(const Duration(seconds: 90), onTimeout: () => false);
+  /// ينتظر الجاهزية بنفس الجلسة (مو "الفتحة الجاية"): أغلب الزبائن يفتحون التطبيق مرة وحدة،
+  /// فبالآيفون نضل نتأكد من رمز APNs طول ما التطبيق مفتوح (لحد ~8 دقايق).
+  static Future<void> _prepare() async {
+    if (kIsWeb || _ready || _preparing) return;
+    _preparing = true;
+    try {
+      final messaging = FirebaseMessaging.instance;
+      if (!_allowed(await messaging.getNotificationSettings())) {
+        debugPrint('Push not allowed, topics skipped');
+        return;
+      }
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        var apns = false;
+        for (var i = 0; i < 120 && !apns; i++) {
+          try {
+            apns = await messaging.getAPNSToken() != null;
+          } catch (_) {}
+          if (!apns) await Future<void>.delayed(Duration(seconds: i < 30 ? 1 : 5));
+        }
+        if (!apns) {
+          debugPrint('APNs token not ready, will retry on resume');
+          return;
+        }
+      }
+      _ready = true;
+    } catch (e) {
+      debugPrint('Push prepare failed: $e');
+    } finally {
+      _preparing = false;
+    }
+    if (_ready) await _onReady();
+  }
+
+  /// أول ما يجهز الجهاز: قناة الكل، قنوات الحساب، وربط آخر طلب بالجهاز
+  static Future<void> _onReady({bool force = false}) async {
+    final messaging = FirebaseMessaging.instance;
+    try {
+      await messaging.subscribeToTopic(allTopic);
+      if (kDebugMode) debugPrint('FCM Token: ${await messaging.getToken()}');
+    } catch (e) {
+      debugPrint('Subscribe "all" failed: $e');
+    }
+    await _syncAccountTopics(signedIn: supabase.auth.currentUser != null, force: force);
+    await _flushPendingOrder();
+  }
 
   /// يشترك جهاز المشرف بقناة التجربة، ويلغيها لأي حساب ثاني أو بعد تسجيل الخروج.
   /// وكل حساب يشترك بقناته الخاصة (u_ + رقم الحساب) حتى توصله إشعارات طلباته.
+  /// إذا الجهاز بعده ما جاهز، تنعاد لما يجهز (_onReady).
   static Future<void> syncAdminTopic({required bool signedIn}) async {
-    if (kIsWeb) return;
-    // إذا الإشعارات مو جاهزة (رفض الإذن أو ما وصل رمز APNs) نتركها، وتنعاد بالفتحة الجاية
-    if (!await _whenReady()) return;
-    await _syncUserTopic(signedIn ? supabase.auth.currentUser?.id : null);
+    if (kIsWeb || !_ready) return;
+    await _syncAccountTopics(signedIn: signedIn);
+  }
+
+  static Future<void> _syncAccountTopics({required bool signedIn, bool force = false}) async {
+    final uid = signedIn ? supabase.auth.currentUser?.id : null;
+    await _syncUserTopic(uid, force: force);
     try {
       var isAdmin = false;
-      if (signedIn) {
+      if (uid != null) {
         isAdmin = await supabase.rpc('is_modo_admin') == true;
       }
       final messaging = FirebaseMessaging.instance;
@@ -134,14 +180,14 @@ class PushService {
   }
 
   /// قناة الحساب: u_ + رقم الحساب بدون شخوط (رقم طويل ما ينخمن)
-  static Future<void> _syncUserTopic(String? uid) async {
+  static Future<void> _syncUserTopic(String? uid, {bool force = false}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final previous = prefs.getString(_userTopicKey);
       final next = uid == null ? null : 'u_${uid.replaceAll('-', '')}';
-      if (previous == next) return;
+      if (previous == next && !force) return;
       final messaging = FirebaseMessaging.instance;
-      if (previous != null) await messaging.unsubscribeFromTopic(previous);
+      if (previous != null && previous != next) await messaging.unsubscribeFromTopic(previous);
       if (next != null) await messaging.subscribeToTopic(next);
       if (next == null) {
         await prefs.remove(_userTopicKey);
@@ -150,6 +196,132 @@ class PushService {
       }
     } catch (e) {
       debugPrint('User topic sync failed: $e');
+    }
+  }
+
+  /// بعد نجاح الطلب: نربط الطلب بهذا الجهاز (حتى توصل إشعارات حالته حتى بدون حساب)،
+  /// وإذا الإشعارات مطفية نذكّرها تفعّلها.
+  static Future<void> afterOrder({required int orderId, required String phone}) async {
+    if (kIsWeb) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _pendingOrderKey,
+        jsonEncode({'id': orderId, 'phone': phone, 'at': DateTime.now().toIso8601String()}),
+      );
+      if (_ready) {
+        await _flushPendingOrder();
+      } else {
+        unawaited(_prepare());
+      }
+      await _askToEnableIfOff();
+    } catch (e) {
+      debugPrint('afterOrder push failed: $e');
+    }
+  }
+
+  /// يدز رمز الجهاز ويه آخر طلب (السيرفر يقبل خلال 24 ساعة من الطلب وبنفس رقم الهاتف)
+  static Future<void> _flushPendingOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_pendingOrderKey);
+      if (raw == null) return;
+      final m = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final at = DateTime.tryParse('${m['at']}');
+      if (at == null || DateTime.now().difference(at) > const Duration(hours: 24)) {
+        await prefs.remove(_pendingOrderKey);
+        return;
+      }
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
+      await supabase.rpc('attach_order_device', params: {
+        'p_order_id': m['id'],
+        'p_phone': m['phone'],
+        'p_token': token,
+        'p_platform': defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+      });
+      await prefs.remove(_pendingOrderKey);
+    } catch (e) {
+      debugPrint('Attach order device failed: $e');
+    }
+  }
+
+  /// الإشعارات مطفية؟ نطلع كارت صغير بعد الطلب (مرة كل 3 أيام بالكثير)
+  static Future<void> _askToEnableIfOff() async {
+    final messaging = FirebaseMessaging.instance;
+    if (_allowed(await messaging.getNotificationSettings())) return;
+    final prefs = await SharedPreferences.getInstance();
+    final last = prefs.getInt(_askedKey) ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - last < const Duration(days: 3).inMilliseconds) return;
+
+    // نخلي رسالة "تم إرسال طلبك" تبين أول
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    final context = _navigatorKey?.currentContext;
+    if (context == null || !context.mounted) return;
+    await prefs.setInt(_askedKey, DateTime.now().millisecondsSinceEpoch);
+
+    final enable = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🔔', style: TextStyle(fontSize: 44)),
+              const SizedBox(height: 8),
+              const Text(
+                'تريدين نبلغج وين وصل طلبج؟',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'فعّلي الإشعارات ويوصلج إشعار لما نثبت طلبج ولما يطلع للتوصيل 🚚',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.5),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('فعّلي الإشعارات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('مو هسه', style: TextStyle(color: Colors.black54)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (enable != true) return;
+
+    // أندرويد 13+ يطلع نافذة الإذن مرة ثانية، والآيفون لازم من الإعدادات
+    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+    if (_allowed(settings)) {
+      unawaited(_prepare());
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await launchUrl(Uri.parse('app-settings:'));
+    } else {
+      final ctx = _navigatorKey?.currentContext;
+      if (ctx != null && ctx.mounted) {
+        ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(const SnackBar(
+          duration: Duration(seconds: 6),
+          content: Text('فعّليها من إعدادات الجهاز ← التطبيقات ← MODO ← الإشعارات'),
+        ));
+      }
     }
   }
 
