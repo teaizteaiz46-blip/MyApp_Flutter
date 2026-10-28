@@ -23,6 +23,22 @@ class PushService {
   static bool _started = false;
   static const String _userTopicKey = 'push_user_topic_v1';
 
+  /// يكتمل لما الجهاز يصير جاهز للاشتراك بالقنوات: الإذن موجود، وبالآيفون رمز APNs جاهز.
+  /// بدون هذا، الاشتراك بالآيفون يفشل بصمت ("APNS token has not been set yet").
+  static final Completer<bool> _ready = Completer<bool>();
+
+  /// بالآيفون رمز APNs يوصل بعد الإذن بثواني، فننتظره (لحد 30 ثانية)
+  static Future<bool> _waitForApns(FirebaseMessaging messaging) async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return true;
+    for (var i = 0; i < 30; i++) {
+      try {
+        if (await messaging.getAPNSToken() != null) return true;
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    return false;
+  }
+
   static Future<void> init({
     required GlobalKey<NavigatorState> navigatorKey,
     required GlobalKey<ScaffoldMessengerState> messengerKey,
@@ -34,9 +50,17 @@ class PushService {
       final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
       final allowed = settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
-      if (allowed) {
-        await messaging.subscribeToTopic(allTopic);
-        if (kDebugMode) debugPrint('FCM Token: ${await messaging.getToken()}');
+      final ready = allowed && await _waitForApns(messaging);
+      if (!_ready.isCompleted) _ready.complete(ready);
+      if (ready) {
+        try {
+          await messaging.subscribeToTopic(allTopic);
+          if (kDebugMode) debugPrint('FCM Token: ${await messaging.getToken()}');
+        } catch (e) {
+          debugPrint('Subscribe "all" failed: $e');
+        }
+      } else {
+        debugPrint('Push not ready (allowed=$allowed), topics skipped until next launch');
       }
 
       // آيفون: النظام يعرض الإشعار حتى والتطبيق مفتوح
@@ -77,13 +101,20 @@ class PushService {
       if (initial != null) _openFrom(initial, navigatorKey);
     } catch (e) {
       debugPrint('Push init failed: $e');
+      if (!_ready.isCompleted) _ready.complete(false);
     }
   }
+
+  /// ينتظر الجاهزية (تسجيل الدخول ممكن يصير قبل ما يجهز رمز الإشعارات)
+  static Future<bool> _whenReady() =>
+      _ready.future.timeout(const Duration(seconds: 90), onTimeout: () => false);
 
   /// يشترك جهاز المشرف بقناة التجربة، ويلغيها لأي حساب ثاني أو بعد تسجيل الخروج.
   /// وكل حساب يشترك بقناته الخاصة (u_ + رقم الحساب) حتى توصله إشعارات طلباته.
   static Future<void> syncAdminTopic({required bool signedIn}) async {
     if (kIsWeb) return;
+    // إذا الإشعارات مو جاهزة (رفض الإذن أو ما وصل رمز APNs) نتركها، وتنعاد بالفتحة الجاية
+    if (!await _whenReady()) return;
     await _syncUserTopic(signedIn ? supabase.auth.currentUser?.id : null);
     try {
       var isAdmin = false;
