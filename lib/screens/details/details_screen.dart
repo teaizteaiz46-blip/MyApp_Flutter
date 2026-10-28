@@ -9,6 +9,8 @@ import '../../facebook_service.dart';
 import '../../main.dart';
 import '../../services/cart_service.dart';
 import '../../services/recently_viewed.dart';
+import '../../services/wishlist_service.dart';
+import '../auth/profile_screen.dart';
 import '../../services/visit_logger.dart';
 import '../cart/cart_screen.dart';
 
@@ -381,7 +383,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
         return Scaffold(
           backgroundColor: Colors.white,
-          appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            actions: [_WishButton(productId: widget.productId)],
+          ),
           bottomNavigationBar: SafeArea(
             child: Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -857,6 +863,53 @@ class _MiniStepButton extends StatelessWidget {
         onPressed: onTap,
         icon: Icon(icon),
       ),
+    );
+  }
+}
+
+/// قلب المفضلة: إذا نزل سعر القطعة أو رجعت متوفرة يوصل إشعار
+class _WishButton extends StatelessWidget {
+  const _WishButton({required this.productId});
+
+  final int productId;
+
+  @override
+  Widget build(BuildContext context) {
+    final wish = WishlistService.instance;
+    return ValueListenableBuilder<Set<int>>(
+      valueListenable: wish.ids,
+      builder: (context, ids, _) {
+        final on = ids.contains(productId);
+        return IconButton(
+          tooltip: on ? 'شيليها من المفضلة' : 'أضيفي للمفضلة',
+          icon: Icon(on ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: on ? Colors.deepOrange : Colors.black87),
+          onPressed: () async {
+            final messenger = ScaffoldMessenger.of(context);
+            final navigator = Navigator.of(context);
+            if (!wish.signedIn) {
+              messenger.showSnackBar(SnackBar(
+                content: const Text('سجّلي دخول حتى تحفظين القطعة ونبلغج إذا نزل سعرها'),
+                action: SnackBarAction(
+                  label: 'دخول',
+                  onPressed: () => navigator.push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                ),
+              ));
+              return;
+            }
+            try {
+              final added = await wish.toggle(productId);
+              messenger
+                ..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(
+                  content: Text(added ? 'انحفظت بالمفضلة ♡ نبلغج إذا نزل سعرها أو رجعت متوفرة' : 'انشالت من المفضلة'),
+                  duration: const Duration(seconds: 2),
+                ));
+            } catch (_) {
+              messenger.showSnackBar(const SnackBar(content: Text('تعذر الحفظ، حاولي مرة ثانية')));
+            }
+          },
+        );
+      },
     );
   }
 }

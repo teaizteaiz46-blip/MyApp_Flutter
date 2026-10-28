@@ -16,6 +16,7 @@ import '../offers/offers_screen.dart';
 import '../search/search_screen.dart';
 import 'components/flash_deals.dart';
 import 'components/home_extras.dart';
+import '../points/points_widgets.dart';
 import 'components/home_product_grid.dart';
 import 'components/promo_carousel.dart';
 
@@ -302,11 +303,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: _SearchField(onTap: () => _push(const SearchScreen()))),
+                const SizedBox(width: 8),
+                const PointsChip(),
               ],
             ),
           ),
           const SliverToBoxAdapter(child: TrustTicker()),
           SliverToBoxAdapter(child: StoriesBar(key: ValueKey('stories-$_refreshTick'))),
+          const SliverToBoxAdapter(child: DailyGiftBanner()),
           if (_slides.isNotEmpty)
             SliverToBoxAdapter(
               child: Container(

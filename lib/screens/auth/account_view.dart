@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart'; // لاستخدام supabase
 import '../orders/my_orders_screen.dart';
 import '../../widgets/contact_us.dart';
+import '../points/points_screen.dart';
+import '../wishlist/wishlist_screen.dart';
 
 class AccountView extends StatefulWidget {
   final User user;
@@ -104,6 +106,28 @@ class _AccountViewState extends State<AccountView> {
             child: const Text('طلباتي السابقة'),
           ),
 
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PointsScreen())),
+                  icon: const Text('🪙'),
+                  label: const Text('نقاطي'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WishlistScreen())),
+                  icon: const Icon(Icons.favorite_border_rounded),
+                  label: const Text('مفضلتي'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
           const ContactUsSection(),
           const SizedBox(height: 30),

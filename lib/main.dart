@@ -19,7 +19,9 @@ import 'screens/orders/my_orders_screen.dart';
 import 'screens/policy/privacy_policy_screen.dart';
 import 'services/cart_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/points_service.dart';
 import 'services/push_service.dart';
+import 'services/wishlist_service.dart';
 import 'services/splash_ad_service.dart';
 import 'services/tiktok_service.dart';
 import '../../core/shop_api.dart';
@@ -78,6 +80,14 @@ Future<void> main() async {
       // أجهزة المشرفين تستلم "إرسال تجربة" من صفحة الإدارة
       if (signedIn || data.event == AuthChangeEvent.signedOut) {
         unawaited(PushService.syncAdminTopic(signedIn: data.session != null));
+        // نقاطي والمفضلة تتبع الحساب
+        if (data.session != null) {
+          unawaited(PointsService.instance.refresh());
+          unawaited(WishlistService.instance.refresh());
+        } else {
+          PointsService.instance.clear();
+          WishlistService.instance.clear();
+        }
       }
     });
   }

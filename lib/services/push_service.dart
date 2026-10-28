@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart';
 import '../screens/orders/my_orders_screen.dart';
+import '../screens/points/points_screen.dart';
 import 'deep_link_service.dart';
 
 /// إشعارات Firebase:
@@ -174,6 +175,10 @@ class PushService {
       DeepLinkService.openProduct(navigatorKey, id, source: 'push');
     } else if (_isOrders(m)) {
       _openOrders(navigatorKey);
+    } else if (m.data['type'] == 'points') {
+      DeepLinkService.openedFromLink = true;
+      DeepLinkService.onExternalOpen?.call();
+      navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const PointsScreen()));
     }
   }
 }

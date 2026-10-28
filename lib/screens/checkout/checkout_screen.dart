@@ -7,6 +7,7 @@ import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart' show supabase;
+import '../../services/points_service.dart';
 import '../../services/cart_service.dart';
 import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
 import '../home/home_screen.dart';
@@ -50,6 +51,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map<String, dynamic>? _reward;
   bool _useReward = false;
 
+  /// نقاط MODO: النقطة = 10 د.ع، لحد 20% من المجموع
+  bool _usePoints = false;
+
+  /// كود دعوة صديقة (الطلب الأول بس)
+  final _referralController = TextEditingController();
+  String? _referralCode;
+  String? _referralMsg;
+  bool _referralOk = false;
+  bool _checkingReferral = false;
+
   /// خيارات الطلب الجاهزة (من قاعدة البيانات) والي اختارها الزبون
   List<String> _orderOptions = const [];
   final Set<String> _selectedOptions = {};
@@ -66,6 +77,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _phoneController.dispose();
     _addressController.dispose();
     _couponController.dispose();
+    _referralController.dispose();
     super.dispose();
   }
 
@@ -96,6 +108,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // كوبون الترحيب المحفوظ ينطبق تلقائياً
       if (pendingCoupon.isNotEmpty) _applyCoupon();
       _loadReward(autoUse: pendingCoupon.isEmpty);
+      PointsService.instance.refresh();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -153,9 +166,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   double get _delivery => _freeDelivery ? 0 : ShopApi.deliveryFor(_governorate, _deliveryCosts);
 
-  double get _discount => _useReward
+  double get _couponDiscount => _useReward
       ? _rewardDiscount
       : (_couponAmount > _subtotal ? _subtotal : _couponAmount);
+
+  /// كم نقطة تنصرف بهذا الطلب (نفس حساب السيرفر)
+  int get _usablePoints {
+    final s = PointsService.instance.state.value;
+    if (s == null || s.balance <= 0) return 0;
+    final byCap = (_subtotal * 0.20 / PointsState.iqdPerPoint).floor();
+    final byLeft = ((_subtotal - _couponDiscount).clamp(0, double.infinity) / PointsState.iqdPerPoint).floor();
+    return [s.balance, byCap, byLeft].reduce((a, b) => a < b ? a : b);
+  }
+
+  int get _pointsUsed => _usePoints ? _usablePoints : 0;
+
+  double get _discount => _couponDiscount + _pointsUsed * PointsState.iqdPerPoint;
 
   double get _total {
     final t = _subtotal + _delivery - _discount;
@@ -234,6 +260,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         address: _addressController.text,
         couponCode: _useReward ? null : _appliedCoupon,
         rewardCouponId: _useReward ? (_reward?['id'] as num?)?.toInt() : null,
+        points: _pointsUsed,
+        referralCode: _referralOk ? _referralCode : null,
         options: [for (final o in _orderOptions) if (_selectedOptions.contains(o)) o],
       );
 
@@ -377,6 +405,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ],
             const _SectionTitle('كود الخصم'),
             _buildCoupon(),
+            _buildPoints(),
+            _buildReferral(),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -465,6 +495,119 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 }
               }),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPoints() {
+    return ValueListenableBuilder<PointsState?>(
+      valueListenable: PointsService.instance.state,
+      builder: (context, s, _) {
+        final usable = _usablePoints;
+        if (s == null || s.balance <= 0) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF4D9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFF5DFA8)),
+          ),
+          child: Row(
+            children: [
+              const Text('🪙', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('استخدمي نقاطج', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF8A5A00))),
+                    Text(
+                      usable > 0
+                          ? 'عندج ${_money.format(s.balance)} نقطة · ينصرف منها $usable = خصم ${_money.format(usable * PointsState.iqdPerPoint)} د.ع'
+                          : 'عندج ${_money.format(s.balance)} نقطة · زيدي طلبج حتى تكدرين تستخدمينها',
+                      style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(value: _usePoints && usable > 0, onChanged: usable > 0 ? (v) => setState(() => _usePoints = v) : null),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _checkReferral() async {
+    FocusScope.of(context).unfocus();
+    final code = _referralController.text.trim();
+    if (code.isEmpty) return;
+    setState(() => _checkingReferral = true);
+    try {
+      final r = await ShopApi.checkReferral(code, phone: ShopApi.normalizePhone(_phoneController.text));
+      if (!mounted) return;
+      setState(() {
+        _referralOk = r.valid;
+        _referralCode = r.valid ? code.toUpperCase() : null;
+        _referralMsg = r.message;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _referralMsg = ShopApi.friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _checkingReferral = false);
+    }
+  }
+
+  Widget _buildReferral() {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text('عندج كود دعوة من صديقة؟ 👭', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _referralController,
+                  textCapitalization: TextCapitalization.characters,
+                  enabled: !_referralOk,
+                  decoration: InputDecoration(
+                    hintText: 'مثلاً M6719D',
+                    border: const OutlineInputBorder(),
+                    helperText: _referralOk ? _referralMsg : null,
+                    helperStyle: TextStyle(color: Colors.green.shade700),
+                    errorText: !_referralOk ? _referralMsg : null,
+                  ),
+                  onChanged: (_) {
+                    if (_referralMsg != null) setState(() => _referralMsg = null);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 56,
+                child: _referralOk
+                    ? TextButton(
+                        onPressed: () => setState(() {
+                          _referralOk = false;
+                          _referralCode = null;
+                          _referralMsg = null;
+                          _referralController.clear();
+                        }),
+                        child: const Text('إزالة'),
+                      )
+                    : ElevatedButton(
+                        onPressed: _checkingReferral ? null : _checkReferral,
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, foregroundColor: Colors.white),
+                        child: const Text('تحقق'),
+                      ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -597,8 +740,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 'التوصيل',
                 _governorate == null ? 'حسب المحافظة' : '${_money.format(_delivery)} د.ع',
               ),
-            if (_discount > 0)
-              row('الخصم', '-${_money.format(_discount)} د.ع', color: Colors.green.shade700),
+            if (_couponDiscount > 0)
+              row('الخصم', '-${_money.format(_couponDiscount)} د.ع', color: Colors.green.shade700),
+            if (_pointsUsed > 0)
+              row('خصم النقاط ($_pointsUsed نقطة)', '-${_money.format(_pointsUsed * PointsState.iqdPerPoint)} د.ع', color: Colors.green.shade700),
             const Divider(height: 16),
             row('الإجمالي', '${_money.format(_total)} د.ع', bold: true),
             const SizedBox(height: 10),

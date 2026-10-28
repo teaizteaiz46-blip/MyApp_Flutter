@@ -140,6 +140,8 @@ class ShopApi {
     String? couponCode,
     List<String> options = const [],
     int? rewardCouponId,
+    int points = 0,
+    String? referralCode,
   }) async {
     final code = couponCode?.trim();
     final res = await _db.rpc('place_order', params: {
@@ -155,6 +157,9 @@ class ShopApi {
       if (options.isNotEmpty) 'p_options': options,
       // كوبون المكافأة (10% بعد استلام طلب سابق)، يتحسب بالسيرفر
       if (rewardCouponId != null) 'p_reward_coupon_id': rewardCouponId,
+      // نقاط MODO (النقطة = 10 د.ع) وكود دعوة صديقة، يتحسبون بالسيرفر
+      if (points > 0) 'p_points': points,
+      if (referralCode != null && referralCode.trim().isNotEmpty) 'p_referral_code': referralCode.trim().toUpperCase(),
     });
     return OrderResult.fromJson(Map<String, dynamic>.from(res as Map));
   }
@@ -172,6 +177,15 @@ class ShopApi {
       debugPrint('fetchOrderOptions: $e');
       return const [];
     }
+  }
+
+  /// كود دعوة صديقة: صحيح، مو كودج، والطلب الأول بس
+  static Future<({bool valid, String message})> checkReferral(String code, {String? phone}) async {
+    final res = Map<String, dynamic>.from(await _db.rpc('check_referral_code', params: {
+      'p_code': code.trim().toUpperCase(),
+      'p_phone': phone,
+    }) as Map);
+    return (valid: res['valid'] == true, message: (res['message'] ?? '').toString());
   }
 
   /// يحوّل أي خطأ لرسالة عربية مفهومة للزبون.
