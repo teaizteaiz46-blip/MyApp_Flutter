@@ -101,9 +101,8 @@ Future<void> main() async {
   // إعلان الافتتاح (إذا اكو إعلان فعّال وصورته جاهزة بالجهاز)
   unawaited(SplashAdService.run(rootNavigatorKey));
 
-  // الإشعارات ما توقف فتح التطبيق
+  // التتبع ثم الإشعارات (ما توقف فتح التطبيق)
   unawaited(_setupTracking());
-  unawaited(PushService.init(navigatorKey: rootNavigatorKey, messengerKey: rootMessengerKey));
 }
 
 /// آيفون: نطلب إذن التتبع (ATT) مرة وحدة بعد ما تظهر الواجهة.
@@ -122,6 +121,8 @@ Future<void> _setupTracking() async {
       debugPrint('Tracking permission failed: $e');
     }
   }
+  // إذن الإشعارات بعد نافذة التتبع: نافذتين بنفس الوقت وحدة منهن ما تطلع
+  unawaited(PushService.init(navigatorKey: rootNavigatorKey, messengerKey: rootMessengerKey));
   await TikTokAnalyticsService.init();
 }
 

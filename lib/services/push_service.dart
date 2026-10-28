@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -55,6 +56,9 @@ class PushService {
     try {
       final messaging = FirebaseMessaging.instance;
 
+      // الإذن أول شي: أي انتظار قبله (مثل getInitialMessage) ممكن يعلّق فما تطلع النافذة
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+
       // آيفون: النظام يعرض الإشعار حتى والتطبيق مفتوح
       await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
 
@@ -89,8 +93,13 @@ class PushService {
 
       // الضغط على الإشعار والتطبيق بالخلفية، أو التطبيق انفتح من الإشعار
       FirebaseMessaging.onMessageOpenedApp.listen((m) => _openFrom(m, navigatorKey));
-      final initial = await messaging.getInitialMessage();
-      if (initial != null) _openFrom(initial, navigatorKey);
+      // بالآيفون وFlutter الجديد هذي ممكن ما ترجع أبد، فما ننتظرها
+      unawaited(messaging
+          .getInitialMessage()
+          .timeout(const Duration(seconds: 5))
+          .then((initial) {
+        if (initial != null) _openFrom(initial, navigatorKey);
+      }).catchError((Object _) {}));
 
       // الرمز تغيّر: نعيد الاشتراكات حتى ما تضيع
       messaging.onTokenRefresh.listen((_) {
@@ -102,7 +111,6 @@ class PushService {
         if (!_ready) unawaited(_prepare());
       });
 
-      await messaging.requestPermission(alert: true, badge: true, sound: true);
       await _prepare();
     } catch (e) {
       debugPrint('Push init failed: $e');
@@ -121,6 +129,7 @@ class PushService {
         return;
       }
       if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _registerWithApple();
         var apns = false;
         for (var i = 0; i < 120 && !apns; i++) {
           try {
@@ -142,6 +151,21 @@ class PushService {
       _preparing = false;
     }
     if (_ready) await _onReady();
+  }
+
+  static const MethodChannel _native = MethodChannel('modo/push');
+  static String _appleRegistration = 'ما انطلب';
+
+  /// بالآيفون: نطلب رمز APNs من Apple بأنفسنا (ios/Runner/AppDelegate.swift).
+  /// firebase_messaging يطلبه لحاله عند بدء التطبيق، بس بنسخ Flutter الجديدة إشعار البدء
+  /// ما يوصله، فالرمز ما كان يجي أبد. وFirebase يلزم الرمز لما يوصل (swizzling).
+  static Future<void> _registerWithApple() async {
+    try {
+      await _native.invokeMethod<bool>('registerForRemoteNotifications');
+      _appleRegistration = '✅';
+    } catch (e) {
+      _appleRegistration = '❌ $e';
+    }
   }
 
   /// أول ما يجهز الجهاز: قناة الكل، قنوات الحساب، وربط آخر طلب بالجهاز
@@ -264,6 +288,7 @@ class PushService {
       lines.add('الإذن: خطأ $e');
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
+      lines.add('طلب التسجيل من Apple: $_appleRegistration');
       try {
         final apns = await messaging.getAPNSToken();
         lines.add('رمز APNs: ${apns == null ? '❌ ما وصل' : '✅'}');
