@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart'; // لاستخدام supabase
 import '../orders/my_orders_screen.dart';
+import '../../widgets/contact_us.dart';
 
 class AccountView extends StatefulWidget {
   final User user;
@@ -103,6 +104,8 @@ class _AccountViewState extends State<AccountView> {
             child: const Text('طلباتي السابقة'),
           ),
 
+          const SizedBox(height: 20),
+          const ContactUsSection(),
           const SizedBox(height: 30),
 
           ElevatedButton(

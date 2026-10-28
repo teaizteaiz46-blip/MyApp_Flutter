@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/shop_api.dart';
 import '../../main.dart';
+import '../../widgets/contact_us.dart';
 
 /// سلة الزائر تبقى بالجهاز بعد تسجيل الدخول تلقائياً،
 /// وأي سلة قديمة بالحساب تنسحب من main.dart عند تسجيل الدخول.
@@ -159,6 +160,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 style: TextStyle(color: Colors.grey, decoration: TextDecoration.underline, fontSize: 13),
               ),
             ),
+            const SizedBox(height: 20),
+            const ContactUsSection(),
           ],
         ),
       ),
