@@ -337,14 +337,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           if (!_mix) _buildColorPicker(product, colors, dist),
                         ],
                         if (stock > 0) _buildTotal(product, qty, quote),
-                        if (hint != null)
+                        if (hint != null && _hintText(product, hint, tiers, qty, quote).isNotEmpty)
                           Container(
                             width: double.infinity,
                             margin: const EdgeInsets.only(top: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(color: _kHintBg, borderRadius: BorderRadius.circular(12)),
                             child: Text(
-                              _hintText(hint, tiers, price, isWholesale(product)),
+                              _hintText(product, hint, tiers, qty, quote),
                               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _kHintText),
                             ),
                           ),
@@ -400,14 +400,18 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   Widget _stat(String t) => Text(t, style: const TextStyle(fontSize: 12, color: Color(0xFF666666)));
 
-  String _hintText(BulkHint hint, List<BulkTier> tiers, double unitPrice, bool wholesale) {
-    final per = (hint.tier.price / hint.tier.qty).ceilToDouble();
+  /// التلميح يطلع بس إذا متوسط سعر القطعة بعد الإضافة أرخص من الحالي، أو ينفتح توصيل مجاني
+  String _hintText(Map<String, dynamic> product, BulkHint hint, List<BulkTier> tiers, int qty, BulkQuote current) {
+    final target = qty + hint.missing;
+    final next = quoteProduct(product, target);
+    final per = (next.total / target).ceilToDouble();
     final add = 'ضيفي ${pieces(hint.missing)}';
-    if (per < unitPrice) {
-      final isLast = identical(hint.tier, tiers.last) || hint.tier.qty == tiers.last.qty;
-      return '✨ $add وينزل سعر القطعة لـ ${_money.format(per)}${isLast && wholesale ? ' (سعر الجملة)' : ''}';
+    if (qty > 0 && per < current.total / qty) {
+      final isLast = hint.tier.qty == tiers.last.qty;
+      return '✨ $add وينزل سعر القطعة لـ ${_money.format(per)}${isLast && isWholesale(product) ? ' (سعر الجملة)' : ''}';
     }
-    return '✨ $add وتاخذين توصيل مجاني';
+    if (next.freeDelivery && !current.freeDelivery) return '✨ $add وتاخذين توصيل مجاني';
+    return '';
   }
 
   Widget _buildModeToggle(Map<String, dynamic> product) {
