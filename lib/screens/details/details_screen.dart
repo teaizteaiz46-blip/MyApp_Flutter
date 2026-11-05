@@ -222,7 +222,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     ));
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('انخسخ رابط المنتج، تگدرين تدزينه لأي أحد')));
+      ..showSnackBar(const SnackBar(content: Text('تم نسخ رابط المنتج، تگدرين تدزينه لأي أحد')));
   }
 
   @override
