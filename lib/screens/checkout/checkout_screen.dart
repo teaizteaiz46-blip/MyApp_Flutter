@@ -11,6 +11,7 @@ import '../../facebook_service.dart';
 import '../../main.dart' show supabase;
 import '../../services/points_service.dart';
 import '../../services/cart_service.dart';
+import '../../services/order_confirm_service.dart';
 import '../../services/push_service.dart';
 import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
 import '../home/home_screen.dart';
@@ -287,8 +288,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 5),
       ));
-      // نربط الطلب بهذا الجهاز حتى توصل إشعارات حالته حتى بدون حساب
-      unawaited(PushService.afterOrder(orderId: result.orderId, phone: phone));
+      // نربط الطلب بهذا الجهاز حتى توصل إشعارات حالته حتى بدون حساب،
+      // ونطلب تأكيده بالتطبيق، وبعدها (إذا الإشعارات مطفية) نذكّر بتفعيلها
+      unawaited(PushService.afterOrder(orderId: result.orderId, phone: phone, askToEnable: false));
+      unawaited(OrderConfirmService.afterOrder(orderId: result.orderId, phone: phone)
+          .then((_) => PushService.askToEnableIfOff()));
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);

@@ -5,6 +5,7 @@ import '../../core/offline_cache.dart';
 import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../main.dart';
+import '../../services/order_confirm_service.dart';
 import '../../theme/app_theme.dart';
 
 final NumberFormat _money = NumberFormat('#,###');
@@ -47,7 +48,8 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
       final rows = await supabase
           .from('orders')
           .select('id, created_at, status, price, delivery_cost, discount_amount, total_amount, governorate, '
-              'received_at, received_rating, order_items(product_id, product_name, product_image, color, quantity, unit_price)')
+              'received_at, received_rating, customer_confirmed_at, customer_change_at, '
+              'order_items(product_id, product_name, product_image, color, quantity, unit_price)')
           .eq('user_id', uid)
           .order('created_at', ascending: false)
           .limit(50);
@@ -70,6 +72,12 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
+  }
+
+  /// تأكيد الطلب قبل التجهيز (نفس نافذة ما بعد الطلب والإشعار)
+  Future<void> _confirmOrder(Map<String, dynamic> order) async {
+    await OrderConfirmService.open((order['id'] as num).toInt(), explicit: true);
+    await _load();
   }
 
   Future<void> _confirmReceived(Map<String, dynamic> order) async {
@@ -144,7 +152,11 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                         coupons: _coupons,
                         onRefresh: _load,
                         empty: 'ماكو طلبات حالية',
-                        builder: (o) => _CurrentOrder(order: o, onReceived: () => _confirmReceived(o)),
+                        builder: (o) => _CurrentOrder(
+                          order: o,
+                          onReceived: () => _confirmReceived(o),
+                          onConfirm: () => _confirmOrder(o),
+                        ),
                       ),
                       _OrdersList(
                         orders: past,
@@ -265,11 +277,22 @@ int _pieces(Map<String, dynamic> o) => _items(o).fold(0, (s, i) => s + ((i['quan
 bool _canConfirm(Map<String, dynamic> o) =>
     o['received_at'] == null && ((o['status'] ?? '') == 'مجهز' || (o['status'] ?? '') == 'مكتمل');
 
+/// الطلب بعده بأول مرحلة والزبون ما رد (السيرفر يقبل التأكيد خلال 3 أيام)
+bool _awaitsConfirm(Map<String, dynamic> o) {
+  final at = DateTime.tryParse('${o['created_at'] ?? ''}');
+  return orderStep(o['status']?.toString()) == 0 &&
+      o['customer_confirmed_at'] == null &&
+      o['customer_change_at'] == null &&
+      at != null &&
+      DateTime.now().difference(at.toLocal()) < const Duration(days: 3);
+}
+
 class _CurrentOrder extends StatelessWidget {
-  const _CurrentOrder({required this.order, required this.onReceived});
+  const _CurrentOrder({required this.order, required this.onReceived, required this.onConfirm});
 
   final Map<String, dynamic> order;
   final VoidCallback onReceived;
+  final VoidCallback onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -335,6 +358,26 @@ class _CurrentOrder extends StatelessWidget {
             ],
           ),
         ),
+        if (_awaitsConfirm(order)) ...[
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            onPressed: onConfirm,
+            icon: const Icon(Icons.check_circle_outline_rounded),
+            label: const Text('أكّدوا الطلب ونبدي بالتجهيز'),
+          ),
+        ] else if (orderStep(order['status']?.toString()) == 0 && order['customer_change_at'] != null) ...[
+          const SizedBox(height: 10),
+          const _Card(
+            child: Text('وصلنا طلب التعديل، راح نتصل بيكم قريباً 📞',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink)),
+          ),
+        ],
         const SizedBox(height: 10),
         _Card(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),

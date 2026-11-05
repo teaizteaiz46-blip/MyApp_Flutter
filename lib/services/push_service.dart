@@ -13,6 +13,7 @@ import '../screens/orders/my_orders_screen.dart';
 import '../screens/points/points_screen.dart';
 import '../theme/app_theme.dart';
 import 'deep_link_service.dart';
+import 'order_confirm_service.dart';
 
 /// إشعارات Firebase:
 /// - كل الأجهزة الي وافقت تشترك بقناة `all` (إشعارات الزبائن).
@@ -85,9 +86,14 @@ class PushService {
                     label: 'عرض',
                     onPressed: () => DeepLinkService.openProduct(navigatorKey, productId, source: 'push'),
                   )
-                : _isOrders(message)
-                    ? SnackBarAction(label: 'طلباتي', onPressed: () => _openOrders(navigatorKey))
-                    : null,
+                : _confirmOrderId(message) != null
+                    ? SnackBarAction(
+                        label: 'تأكيد',
+                        onPressed: () => OrderConfirmService.open(_confirmOrderId(message)!, explicit: true),
+                      )
+                    : _isOrders(message)
+                        ? SnackBarAction(label: 'طلباتي', onPressed: () => _openOrders(navigatorKey))
+                        : null,
           ));
       });
 
@@ -230,8 +236,8 @@ class PushService {
   }
 
   /// بعد نجاح الطلب: نربط الطلب بهذا الجهاز (حتى توصل إشعارات حالته حتى بدون حساب)،
-  /// وإذا الإشعارات مطفية نذكّرها تفعّلها.
-  static Future<void> afterOrder({required int orderId, required String phone}) async {
+  /// وإذا الإشعارات مطفية نذكّرها تفعّلها ([askToEnable]، أو بعدين من [askToEnableIfOff]).
+  static Future<void> afterOrder({required int orderId, required String phone, bool askToEnable = true}) async {
     if (kIsWeb) return;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -244,9 +250,18 @@ class PushService {
       } else {
         unawaited(_prepare());
       }
-      await _askToEnableIfOff();
+      if (askToEnable) await _askToEnableIfOff();
     } catch (e) {
       debugPrint('afterOrder push failed: $e');
+    }
+  }
+
+  static Future<void> askToEnableIfOff() async {
+    if (kIsWeb) return;
+    try {
+      await _askToEnableIfOff();
+    } catch (e) {
+      debugPrint('Ask to enable push failed: $e');
     }
   }
 
@@ -269,6 +284,8 @@ class PushService {
         'p_phone': m['phone'],
         'p_token': token,
         'p_platform': defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+        // هالنسخة تفتح تذكير التأكيد (السيرفر ما يرسله للنسخ القديمة)
+        'p_can_confirm': true,
       });
       await prefs.remove(_pendingOrderKey);
     } catch (e) {
@@ -405,10 +422,19 @@ class PushService {
   static int? _productId(RemoteMessage m) =>
       m.data['type'] == 'product' ? int.tryParse('${m.data['product_id'] ?? ''}') : null;
 
+  /// تذكير تأكيد الطلب (order-push بنوع confirm)
+  static int? _confirmOrderId(RemoteMessage m) =>
+      m.data['type'] == 'order_confirm' ? int.tryParse('${m.data['order_id'] ?? ''}') : null;
+
   static void _openFrom(RemoteMessage m, GlobalKey<NavigatorState> navigatorKey) {
     final id = _productId(m);
+    final confirmId = _confirmOrderId(m);
     if (id != null) {
       DeepLinkService.openProduct(navigatorKey, id, source: 'push');
+    } else if (confirmId != null) {
+      DeepLinkService.openedFromLink = true; // إعلان الافتتاح ما يطلع فوقها
+      DeepLinkService.onExternalOpen?.call();
+      unawaited(OrderConfirmService.open(confirmId, explicit: true));
     } else if (_isOrders(m)) {
       _openOrders(navigatorKey);
     } else if (m.data['type'] == 'points') {

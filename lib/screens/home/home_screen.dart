@@ -350,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 key: ValueKey('home-grid-$_refreshTick'),
                 categoryId: _selectedCategoryId,
                 sort: _sort,
+                pinnedExtent: topPadding + _toolbarHeight + _FiltersDelegate._height,
               ),
             ),
           ],

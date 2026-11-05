@@ -19,6 +19,7 @@ import 'screens/orders/my_orders_screen.dart';
 import 'screens/policy/privacy_policy_screen.dart';
 import 'services/cart_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/order_confirm_service.dart';
 import 'services/points_service.dart';
 import 'services/push_service.dart';
 import 'services/wishlist_service.dart';
@@ -123,6 +124,8 @@ Future<void> _setupTracking() async {
   }
   // إذن الإشعارات بعد نافذة التتبع: نافذتين بنفس الوقت وحدة منهن ما تطلع
   unawaited(PushService.init(navigatorKey: rootNavigatorKey, messengerKey: rootMessengerKey));
+  // طلب بعده ينتظر تأكيد الزبون؟ نطلع نافذته
+  OrderConfirmService.init(navigatorKey: rootNavigatorKey, messengerKey: rootMessengerKey);
   await TikTokAnalyticsService.init();
 }
 

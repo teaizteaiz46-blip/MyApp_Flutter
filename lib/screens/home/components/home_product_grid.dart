@@ -28,6 +28,10 @@ class HomeProductGrid extends StatefulWidget {
   /// بس المنتجات الي بيها عروض كمية (قطعتين بسعر أقل)
   final bool onlyBulk;
 
+  /// ارتفاع الأشياء الثابتة فوق الشبكة (الشريط العلوي والفلاتر). إذا انطى، التحميل و"لا توجد منتجات"
+  /// ياخذن باقي الشاشة، حتى الصفحة تبقى على الشبكة لما تتغير الفئة أو الترتيب بدل ما ترجع لفوق.
+  final double? pinnedExtent;
+
   const HomeProductGrid({
     super.key,
     required this.categoryId,
@@ -37,6 +41,7 @@ class HomeProductGrid extends StatefulWidget {
     this.sort = HomeSort.newest,
     this.maxPrice,
     this.onlyBulk = false,
+    this.pinnedExtent,
   });
 
   HomeSort get effectiveSort => isMix ? HomeSort.mix : sort;
@@ -182,19 +187,36 @@ class _HomeProductGridState extends State<HomeProductGrid> {
     }
   }
 
+  /// التحميل والحالة الفاضية: إذا اكو pinnedExtent ياخذن باقي الشاشة تحت الفلاتر، وإلا ارتفاعهن الطبيعي
+  /// (لو صار المحتوى قصير، مكان التمرير ينقص وتقفز الصفحة لأعلى شي).
+  Widget _stateSliver(Widget child) {
+    final pinned = widget.pinnedExtent;
+    if (pinned == null) return SliverToBoxAdapter(child: child);
+    return SliverLayoutBuilder(
+      builder: (context, constraints) => SliverToBoxAdapter(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (constraints.viewportMainAxisExtent - pinned).clamp(0.0, double.infinity),
+          ),
+          child: Align(alignment: Alignment.topCenter, child: child),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isInitialLoad) {
-      return const SliverToBoxAdapter(
-        child: Padding(
+      return _stateSliver(
+        const Padding(
           padding: EdgeInsets.symmetric(vertical: 48),
           child: Center(child: CircularProgressIndicator()),
         ),
       );
     }
     if (_didError || _products.isEmpty) {
-      return SliverToBoxAdapter(
-        child: Padding(
+      return _stateSliver(
+        Padding(
           padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
           child: Column(
             children: [
