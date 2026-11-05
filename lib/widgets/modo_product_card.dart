@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
+import '../core/bulk_pricing.dart';
 import '../core/offline_cache.dart';
 import '../core/product_options.dart';
-import '../facebook_service.dart';
-import '../services/cart_service.dart';
+import '../services/wishlist_service.dart';
 import '../theme/app_theme.dart';
 
 final NumberFormat kMoney = NumberFormat('#,###');
@@ -161,6 +161,42 @@ class StarRating extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// كارت المنتج بالشبكة (تصميم الواجهة الجديدة)
+
+const Color _kOfferGreen = Color(0xFF2E7D32);
+
+/// أرخص سعر للقطعة الوحدة (من عروض الكمية) — "يبدأ من".
+double fromPriceOf(Map<String, dynamic> p) {
+  var best = priceOf(p);
+  for (final t in BulkTier.ofProduct(p)) {
+    final per = (t.price / t.qty).ceilToDouble();
+    if (per > 0 && per < best) best = per;
+  }
+  return best;
+}
+
+/// السعر المشطوب جنب "يبدأ من": السعر القديم، أو سعر القطعة إذا العرض أرخص.
+double strikePriceOf(Map<String, dynamic> p) {
+  final shown = fromPriceOf(p);
+  final old = oldPriceOf(p);
+  if (old > shown) return old;
+  final price = priceOf(p);
+  return price > shown ? price : 0;
+}
+
+/// "10 موديلات" / "15 لون" / "5 قياسات"
+String optionsCountLabel(List<String> options) {
+  final n = options.length;
+  if (n < 2) return '';
+  if (options.every((o) => o.startsWith('موديل'))) return '$n موديلات';
+  return switch (optionKindOf(options)) {
+    OptionKind.color => '$n لون',
+    OptionKind.size => '$n قياسات',
+    _ => '$n خيار',
+  };
+}
+
 class ModoProductCard extends StatefulWidget {
   const ModoProductCard({super.key, required this.product, required this.onTap});
 
@@ -172,72 +208,46 @@ class ModoProductCard extends StatefulWidget {
 }
 
 class _ModoProductCardState extends State<ModoProductCard> {
-  int _page = 0;
-  bool _adding = false;
-
-  Future<void> _addToCart() async {
-    final product = widget.product;
-    final productId = (product['id'] as num?)?.toInt();
-    if (productId == null || _adding) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final colors = (product['colors'] as List?) ?? const [];
-
-    if (colors.isNotEmpty) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-          content: Text('اختر ${optionTitle(optionsOf(product))} من صفحة المنتج'),
-          duration: const Duration(seconds: 2),
-        ));
-      widget.onTap();
-      return;
-    }
-
-    setState(() => _adding = true);
-    try {
-      await CartService.instance.add(productId);
-      FacebookAnalyticsService.logAddToCart(id: '$productId', price: priceOf(product));
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('تمت الإضافة للسلة'),
-          duration: Duration(milliseconds: 1200),
-        ));
-    } catch (_) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('تعذر حفظ السلة، حاول مرة ثانية'),
-        backgroundColor: AppColors.sale,
-      ));
-    } finally {
-      if (mounted) setState(() => _adding = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
     final images = imagesOf(p);
     final name = (p['name'] ?? '').toString().trim();
-    final rating = (p['rating'] as num?)?.toDouble() ?? 0;
-    final stock = (p['stock'] as num?)?.toInt() ?? 0;
-    final rank = (p['category_rank'] as num?)?.toInt();
-    final categoryName = (p['category_name'] ?? '').toString().trim();
-    final showRank = rank != null && rank <= 10 && categoryName.isNotEmpty;
+    final tiers = BulkTier.ofProduct(p);
+    final price = priceOf(p);
+    final from = fromPriceOf(p);
+    final strike = strikePriceOf(p);
+    final discount = strike > from ? ((strike - from) / strike * 100).round() : 0;
     final created = DateTime.tryParse('${p['created_at'] ?? ''}');
     final isNew = created != null && DateTime.now().difference(created).inDays < 7;
-    final lowStock = stock > 0 && stock <= 3;
+    final minQty = minQtyOf(p);
 
-    return Material(
-      color: AppColors.surface,
-      clipBehavior: Clip.antiAlias,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: widget.onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
+    final badges = <(String, Color, Color)>[
+      if (isNew) ('جديد ✨', const Color(0xFFFFF3E0), const Color(0xFFE65100)),
+      if (discount > 0) ('-$discount%', const Color(0xFFD93A2B), Colors.white),
+      if (isWholesale(p))
+        (minQty != null ? 'جملة من ${pieces(minQty)}' : 'جملة', const Color(0xFFFDE7EF), const Color(0xFFC2185B))
+      else if (tiers.isNotEmpty)
+        ('عرض ${pieces(tiers.first.qty)}', const Color(0xFFE8F5E9), _kOfferGreen),
+    ].take(2).toList();
+
+    final String extra;
+    if (tiers.isNotEmpty) {
+      final best = tiers.last;
+      extra = '${pieces(best.qty)} بـ ${kMoney.format(best.price)}${best.freeDelivery ? ' + توصيل مجاني' : ''}';
+    } else {
+      extra = optionsCountLabel(optionsOf(p));
+    }
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: AspectRatio(
               aspectRatio: 4 / 5,
               child: Stack(
                 fit: StackFit.expand,
@@ -247,141 +257,143 @@ class _ModoProductCardState extends State<ModoProductCard> {
                   else
                     PageView.builder(
                       itemCount: images.length,
-                      onPageChanged: (i) => setState(() => _page = i),
                       itemBuilder: (_, i) => ProductImage(url: images[i]),
                     ),
-                  if (lowStock || isNew)
-                    PositionedDirectional(
-                      top: 8,
-                      start: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: lowStock ? AppColors.sale : const Color(0xFF2F5BD3),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          lowStock ? 'آخر ${pieces(stock)}' : 'جديد',
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                        ),
-                      ),
+                  PositionedDirectional(
+                    top: 8,
+                    start: 8,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final b in badges)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: _Pill(text: b.$1, bg: b.$2, fg: b.$3),
+                          ),
+                      ],
                     ),
-                  if (images.length > 1)
-                    Positioned(
-                      bottom: 10,
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (var i = 0; i < images.length && i < 6; i++)
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: i == _page ? 12 : 5,
-                              height: 5,
-                              margin: const EdgeInsets.symmetric(horizontal: 2),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(3),
-                                color: i == _page ? Colors.white : Colors.white.withValues(alpha: 0.6),
-                              ),
-                            ),
-                        ],
-                      ),
+                  ),
+                  if (images.isNotEmpty)
+                    PositionedDirectional(
+                      bottom: 8,
+                      end: 8,
+                      child: _Pill(text: '📷 ${images.length}', bg: Colors.black.withValues(alpha: 0.55), fg: Colors.white),
                     ),
                   PositionedDirectional(
                     bottom: 8,
-                    end: 8,
-                    child: _CartButton(busy: _adding, onPressed: _addToCart),
+                    start: 8,
+                    child: WishHeart(productId: (p['id'] as num?)?.toInt() ?? 0),
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  PriceLine(product: p),
-                  const SizedBox(height: 4),
-                  Text(
-                    name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.ink),
-                  ),
-                  if (showRank) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF4EC),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.workspace_premium_rounded, size: 14, color: AppColors.brand),
-                          const SizedBox(width: 3),
-                          Flexible(
-                            child: Text.rich(
-                              TextSpan(children: [
-                                const TextSpan(text: 'الأكثر مبيعاً '),
-                                TextSpan(text: '#$rank', style: const TextStyle(fontWeight: FontWeight.w800)),
-                                TextSpan(text: ' $categoryName', style: const TextStyle(fontWeight: FontWeight.w500)),
-                              ]),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11, color: AppColors.brandDark, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  if (rating > 0) ...[
-                    const SizedBox(height: 6),
-                    StarRating(rating: rating),
-                  ],
-                ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink, height: 1.3),
+          ),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            children: [
+              if (from < price)
+                const Text('يبدأ من', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+              Text(
+                kMoney.format(from),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.brand),
               ),
+              if (strike > from)
+                Text(
+                  kMoney.format(strike),
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFAAAAAA), decoration: TextDecoration.lineThrough),
+                ),
+            ],
+          ),
+          if (extra.isNotEmpty)
+            Text(
+              extra,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _kOfferGreen),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _CartButton extends StatelessWidget {
-  const _CartButton({required this.busy, required this.onPressed});
+class _Pill extends StatelessWidget {
+  const _Pill({required this.text, required this.bg, required this.fg});
 
-  final bool busy;
-  final VoidCallback onPressed;
+  final String text;
+  final Color bg;
+  final Color fg;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'أضف للسلة',
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.95),
-        shape: const CircleBorder(),
-        elevation: 1,
-        shadowColor: Colors.black26,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: busy ? null : onPressed,
-          child: SizedBox(
-            width: 36,
-            height: 36,
-            child: busy
-                ? const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.add_shopping_cart_rounded, color: AppColors.ink, size: 19),
-          ),
-        ),
-      ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(text, style: TextStyle(color: fg, fontSize: 10.5, fontWeight: FontWeight.w800)),
     );
+  }
+}
+
+/// قلب المفضلة الأبيض فوق صورة الكارت
+class WishHeart extends StatelessWidget {
+  const WishHeart({super.key, required this.productId, this.size = 30});
+
+  final int productId;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final wish = WishlistService.instance;
+    return ValueListenableBuilder<Set<int>>(
+      valueListenable: wish.ids,
+      builder: (context, ids, _) {
+        final on = ids.contains(productId);
+        return GestureDetector(
+          onTap: () => toggleWish(context, productId),
+          child: Container(
+            width: size,
+            height: size,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Color(0x26000000), blurRadius: 6, offset: Offset(0, 2))],
+            ),
+            child: Text(on ? '❤️' : '🤍', style: TextStyle(fontSize: size * 0.5)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// يضيف/يشيل من المفضلة، ويطلب تسجيل الدخول إذا ماكو حساب.
+Future<void> toggleWish(BuildContext context, int productId) async {
+  final wish = WishlistService.instance;
+  final messenger = ScaffoldMessenger.of(context);
+  if (!wish.signedIn) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('سجّلي دخول من "حسابي" حتى تحفظين القطعة ونبلغج إذا نزل سعرها')));
+    return;
+  }
+  try {
+    final added = await wish.toggle(productId);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(added ? 'انحفظت بالمفضلة ♡ نبلغج إذا نزل سعرها أو رجعت متوفرة' : 'انشالت من المفضلة'),
+        duration: const Duration(seconds: 2),
+      ));
+  } catch (_) {
+    messenger.showSnackBar(const SnackBar(content: Text('تعذر الحفظ، حاولي مرة ثانية')));
   }
 }

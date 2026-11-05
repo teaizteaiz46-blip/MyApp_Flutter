@@ -14,9 +14,6 @@ import '../clips/clips_screen.dart';
 import '../details/details_screen.dart';
 import '../offers/offers_screen.dart';
 import '../search/search_screen.dart';
-import 'components/flash_deals.dart';
-import 'components/home_extras.dart';
-import '../points/points_widgets.dart';
 import 'components/home_product_grid.dart';
 import 'components/promo_carousel.dart';
 
@@ -43,11 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = _homeTab;
   int _selectedCategoryId = 0;
   String _selectedCategoryName = '';
-  HomeSort _sort = HomeSort.mix;
+  HomeSort _sort = HomeSort.bestSelling;
   int _refreshTick = 0;
 
   late Future<_Rows> _categoriesFuture;
-  late Future<_Rows> _dealsFuture;
   _Rows? _categories;
   List<BannerSlide> _slides = const [];
 
@@ -102,10 +98,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     _categoriesFuture = _fetch(() => OfflineCache.fetch(
-          'home_categories',
+          'home_categories_v2',
           () async => await supabase
               .from('categories_home')
-              .select('id, name, image_url, total_sales, sort_order')
+              .select('id, name, image_url, products_in_stock, total_sales, sort_order')
               // الترتيب يتحكم بي المشرف (sort_order)، والأقسام بدون رقم تجي بالأخير حسب id
               .order('sort_order', ascending: true, nullsFirst: false)
               .order('id', ascending: true),
@@ -114,21 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _categoriesFuture.then((rows) {
       if (mounted) setState(() => _categories = rows);
     });
-
-    _dealsFuture = _fetch(() => OfflineCache.fetch(
-          'home_deals',
-          () async => await supabase
-              .from('products_ranked')
-              .select(kRankedColumns)
-              .eq('is_offer', true)
-              .gt('stock', 0)
-              .order('offer_ends_at', ascending: true, nullsFirst: false)
-              .order('sales_count', ascending: false, nullsFirst: false)
-              .limit(12),
-          onFresh: (rows) {
-            if (mounted) setState(() => _dealsFuture = Future.value(rows));
-          },
-        ));
 
     void setSlides(_Rows rows) {
       if (!mounted) return;
@@ -161,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadSections();
       _refreshTick++;
     });
-    await Future.wait([_categoriesFuture, _dealsFuture]);
+    await _categoriesFuture;
   }
 
   // --------------------------------------------------------------------------
@@ -179,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final box = ctx.findRenderObject() as RenderBox?;
       if (box == null) return;
       final y = box.localToGlobal(Offset.zero).dy;
-      final pinned = MediaQuery.paddingOf(context).top + _toolbarHeight;
+      final pinned = MediaQuery.paddingOf(context).top + _toolbarHeight + _FiltersDelegate._height;
       final target = (_scroll.offset + y - pinned).clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
       if ((target - _scroll.offset).abs() < 4) return;
       _scroll.animateTo(target, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
@@ -222,9 +203,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-
-  void _openProduct(Map<String, dynamic> product) =>
-      _push(DetailsScreen(productId: (product['id'] as num).toInt()));
 
   void _onBannerTap(BannerSlide slide) {
     final id = int.tryParse(slide.linkValue ?? '');
@@ -276,103 +254,106 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHome(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
+    final cats = (_categories ?? const <Map<String, dynamic>>[])
+        .where((c) => ((c['products_in_stock'] as num?)?.toInt() ?? 0) > 0)
+        .toList();
+    final total = cats.fold<int>(0, (s, c) => s + ((c['products_in_stock'] as num?)?.toInt() ?? 0));
+    final shownCount = _selectedCategoryId == 0
+        ? total
+        : cats
+            .where((c) => (c['id'] as num).toInt() == _selectedCategoryId)
+            .fold<int>(0, (s, c) => s + ((c['products_in_stock'] as num?)?.toInt() ?? 0));
 
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      edgeOffset: topPadding + _toolbarHeight,
-      child: CustomScrollView(
-        controller: _scroll,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            automaticallyImplyLeading: false,
-            toolbarHeight: _toolbarHeight,
-            titleSpacing: 14,
-            backgroundColor: AppColors.surface,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0.5,
-            systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
-            title: Row(
-              children: [
-                const Text(
-                  'MODO',
-                  textDirection: TextDirection.ltr,
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.brand, letterSpacing: 1.5),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: _SearchField(onTap: () => _push(const SearchScreen()))),
-                const SizedBox(width: 8),
-                const PointsChip(),
-              ],
+    return ColoredBox(
+      color: Colors.white,
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        edgeOffset: topPadding + _toolbarHeight,
+        child: CustomScrollView(
+          controller: _scroll,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              automaticallyImplyLeading: false,
+              toolbarHeight: _toolbarHeight,
+              titleSpacing: 14,
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+              title: Row(
+                children: [
+                  const Text(
+                    'MODO',
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.brand, letterSpacing: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: _SearchField(onTap: () => _push(const SearchScreen()))),
+                  const SizedBox(width: 10),
+                  _CartIcon(onTap: () => _onTabSelected(_cartTab)),
+                ],
+              ),
             ),
-          ),
-          const SliverToBoxAdapter(child: TrustTicker()),
-          SliverToBoxAdapter(child: StoriesBar(key: ValueKey('stories-$_refreshTick'))),
-          const SliverToBoxAdapter(child: DailyGiftBanner()),
-          if (_slides.isNotEmpty)
+            const SliverToBoxAdapter(child: _TrustRow()),
+            if (_slides.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: PromoCarousel(slides: _slides, onSlideTap: _onBannerTap, onColorChanged: (_) {}),
+                  ),
+                ),
+              ),
+            const SliverToBoxAdapter(child: _WholesaleNotice()),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _FiltersDelegate(
+                categories: cats,
+                total: total,
+                selectedId: _selectedCategoryId,
+                sort: _sort,
+                onCategory: _selectCategory,
+                onSort: _setSort,
+              ),
+            ),
             SliverToBoxAdapter(
-              child: Container(
-                color: AppColors.surface,
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: PromoCarousel(slides: _slides, onSlideTap: _onBannerTap, onColorChanged: (_) {}),
+              child: KeyedSubtree(
+                key: _gridAnchor,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _selectedCategoryId == 0 ? 'كل التشكيلة' : _selectedCategoryName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.ink),
+                        ),
+                      ),
+                      if (shownCount > 0)
+                        Text('$shownCount منتج', style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
+                    ],
+                  ),
                 ),
               ),
             ),
-          SliverToBoxAdapter(
-            child: FlashDealsSection(
-              dealsFuture: _dealsFuture,
-              onProductTap: _openProduct,
-              onSeeAll: () => _push(const OffersScreen()),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+              sliver: HomeProductGrid(
+                key: ValueKey('home-grid-$_refreshTick'),
+                categoryId: _selectedCategoryId,
+                sort: _sort,
+              ),
             ),
-          ),
-          const SliverToBoxAdapter(child: PriceBuckets()),
-          SliverToBoxAdapter(child: TopProductsSection(key: ValueKey('top-$_refreshTick'))),
-          SliverToBoxAdapter(child: LookOfTheDay(key: ValueKey('look-$_refreshTick'))),
-          const SliverToBoxAdapter(child: RecentlyViewedRow()),
-          SliverToBoxAdapter(
-            child: KeyedSubtree(
-              key: _gridAnchor,
-              child: _selectedCategoryId == 0
-                  ? const SizedBox(height: 8)
-                  : Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 8, 0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _selectedCategoryName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink),
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: () => _selectCategory(0, ''),
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            label: const Text('كل الفئات'),
-                          ),
-                        ],
-                      ),
-                    ),
-            ),
-          ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _SortTabsDelegate(sort: _sort, onChanged: _setSort),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(10, 4, 10, 24),
-            sliver: HomeProductGrid(
-              key: ValueKey('home-grid-$_refreshTick'),
-              categoryId: _selectedCategoryId,
-              sort: _sort,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -493,18 +474,156 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-class _SortTabsDelegate extends SliverPersistentHeaderDelegate {
-  _SortTabsDelegate({required this.sort, required this.onChanged});
+/// سلة صغيرة بالهيدر وعليها عدد القطع
+class _CartIcon extends StatelessWidget {
+  const _CartIcon({required this.onTap});
 
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: ValueListenableBuilder<List<CartLine>>(
+        valueListenable: CartService.instance.lines,
+        builder: (context, lines, _) {
+          final count = lines.fold<int>(0, (sum, l) => sum + l.quantity);
+          return SizedBox(
+            width: 34,
+            height: 34,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                const Text('🛍️', style: TextStyle(fontSize: 20)),
+                if (count > 0)
+                  Positioned(
+                    top: -2,
+                    left: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(color: AppColors.brand, borderRadius: BorderRadius.circular(9)),
+                      child: Text(
+                        count > 99 ? '99+' : '$count',
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// سطر الثقة تحت الهيدر
+class _TrustRow extends StatelessWidget {
+  const _TrustRow();
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF666666));
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(8, 2, 8, 10),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('🚚 توصيل لكل العراق', style: style),
+            SizedBox(width: 14),
+            Text('💵 الدفع عند الاستلام', style: style),
+            SizedBox(width: 14),
+            Text('↩️ إرجاع سهل', style: style),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// شريط أسعار الجملة (إطار متقطع)
+class _WholesaleNotice extends StatelessWidget {
+  const _WholesaleNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: CustomPaint(
+        painter: const DashedRRectPainter(color: Color(0xFFF5B183), radius: 12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(color: const Color(0xFFFFF4EC), borderRadius: BorderRadius.circular(12)),
+          child: const Text(
+            '✨ أسعار جملة من 6 قطع – كل ما تزيدين ينزل سعر القطعة تلقائياً',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFB4501A), height: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// إطار متقطع بزوايا دائرية
+class DashedRRectPainter extends CustomPainter {
+  const DashedRRectPainter({required this.color, this.radius = 12, this.dash = 5, this.gap = 4});
+
+  final Color color;
+  final double radius;
+  final double dash;
+  final double gap;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)).deflate(0.5));
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + dash), paint);
+        d += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(DashedRRectPainter oldDelegate) => oldDelegate.color != color;
+}
+
+/// الفئات (مع العدد) + الترتيب — تبقى ثابتة فوق وية التمرير
+class _FiltersDelegate extends SliverPersistentHeaderDelegate {
+  _FiltersDelegate({
+    required this.categories,
+    required this.total,
+    required this.selectedId,
+    required this.sort,
+    required this.onCategory,
+    required this.onSort,
+  });
+
+  final List<Map<String, dynamic>> categories;
+  final int total;
+  final int selectedId;
   final HomeSort sort;
-  final ValueChanged<HomeSort> onChanged;
+  final void Function(int id, String name) onCategory;
+  final ValueChanged<HomeSort> onSort;
 
-  static const double _height = 54;
+  static const double _height = 98;
 
-  static const _tabs = [
-    (HomeSort.mix, 'قطع قد تعجبك', Icons.auto_awesome_rounded, Color(0xFFF2A91D)),
-    (HomeSort.bestSelling, 'الأكثر مبيعاً', Icons.emoji_events_rounded, Color(0xFFF2A91D)),
-    (HomeSort.newest, 'وصل حديثاً', Icons.fiber_new_rounded, AppColors.brand),
+  static const _sorts = [
+    (HomeSort.bestSelling, '🔥 الأكثر طلباً'),
+    (HomeSort.newest, 'الأحدث'),
+    (HomeSort.cheapest, 'الأرخص'),
+    (HomeSort.bulkOffers, 'عروض الكمية'),
   ];
 
   @override
@@ -513,54 +632,103 @@ class _SortTabsDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent => _height;
 
+  Widget _catChip(String name, int? count, bool on, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
+        decoration: BoxDecoration(
+          color: on ? AppColors.brand : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: on ? AppColors.brand : const Color(0xFFEEEEEE)),
+        ),
+        child: Text.rich(
+          TextSpan(children: [
+            TextSpan(text: name),
+            if (count != null)
+              TextSpan(
+                text: ' $count',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: on ? Colors.white.withValues(alpha: 0.75) : const Color(0xFF555555).withValues(alpha: 0.75),
+                ),
+              ),
+          ]),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : const Color(0xFF555555)),
+        ),
+      ),
+    );
+  }
+
+  Widget _sortChip(String label, bool on, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: on ? const Color(0xFFFFF0F3) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: on ? const Color(0xFFF8C8D6) : const Color(0xFFEEEEEE)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? const Color(0xFFC2185B) : const Color(0xFF555555)),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       height: _height,
-      color: const Color(0xFFFFF6F0),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFF2F2F2))),
+      ),
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      child: Column(
         children: [
-          for (final t in _tabs)
-            Expanded(
-              child: GestureDetector(
-                onTap: () => onChanged(t.$1),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    color: t.$1 == sort ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: t.$1 == sort ? AppColors.line : Colors.transparent),
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              children: [
+                _catChip('الكل', total > 0 ? total : null, selectedId == 0, () => onCategory(0, '')),
+                for (final c in categories) ...[
+                  const SizedBox(width: 8),
+                  _catChip(
+                    (c['name'] ?? '').toString(),
+                    (c['products_in_stock'] as num?)?.toInt(),
+                    (c['id'] as num).toInt() == selectedId,
+                    () => onCategory((c['id'] as num).toInt(), (c['name'] ?? '').toString()),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(t.$3, size: 17, color: t.$4),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          t.$2,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: t.$1 == sort ? FontWeight.w800 : FontWeight.w500,
-                            color: t.$1 == sort ? AppColors.ink : AppColors.muted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                ],
+              ],
             ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 28,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              children: [
+                const Center(child: Text('ترتيب: ', style: TextStyle(fontSize: 12, color: Color(0xFF888888)))),
+                for (final t in _sorts) ...[
+                  const SizedBox(width: 8),
+                  Center(child: _sortChip(t.$2, t.$1 == sort, () => onSort(t.$1))),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   @override
-  bool shouldRebuild(_SortTabsDelegate oldDelegate) => oldDelegate.sort != sort;
+  bool shouldRebuild(_FiltersDelegate old) =>
+      old.sort != sort || old.selectedId != selectedId || old.categories != categories || old.total != total;
 }

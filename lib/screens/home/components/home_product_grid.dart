@@ -9,12 +9,11 @@ import '../../../widgets/modo_product_card.dart';
 import '../../details/details_screen.dart';
 
 /// ترتيب المنتجات بالتبويبات.
-enum HomeSort { mix, bestSelling, newest }
+enum HomeSort { mix, bestSelling, newest, cheapest, bulkOffers }
 
 /// الأعمدة من عرض products_ranked (نفس أعمدة المنتج + الترتيب داخل الفئة).
-/// العرض ما بيه bulk_tiers بعد، فنستخدم الأعمدة الأساسية حتى ما يفشل الاستعلام.
-/// لما ينضاف العمود للعرض بالسيرفر بدّلها لـ kProductColumns.
-const String kRankedColumns = '$kProductBaseColumns, offer_ends_at, category_name, category_rank';
+/// (بيها bulk_tiers و is_wholesale حتى الكارت يعرض "يبدأ من" وشارات العروض)
+const String kRankedColumns = '$kProductColumns, offer_ends_at, category_name, category_rank';
 
 class HomeProductGrid extends StatefulWidget {
   final int categoryId;
@@ -130,13 +129,14 @@ class _HomeProductGridState extends State<HomeProductGrid> {
       if (widget.maxPrice != null) {
         query = query.lte('price', widget.maxPrice!);
       }
-      if (widget.onlyBulk) {
+      if (widget.onlyBulk || widget.effectiveSort == HomeSort.bulkOffers) {
         query = query.eq('has_bulk', true);
       }
 
       Future<List<Map<String, dynamic>>> load() async => switch (widget.effectiveSort) {
             HomeSort.mix => await query.order('random_id', ascending: true).order('id').range(from, to),
-            HomeSort.bestSelling => await query
+            HomeSort.cheapest => await query.order('price', ascending: true).order('id').range(from, to),
+            HomeSort.bestSelling || HomeSort.bulkOffers => await query
                 .order('sales_count', ascending: false, nullsFirst: false)
                 .order('id')
                 .range(from, to),
@@ -217,8 +217,8 @@ class _HomeProductGridState extends State<HomeProductGrid> {
 
     return SliverMasonryGrid(
       gridDelegate: const SliverSimpleGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
+      mainAxisSpacing: 14,
+      crossAxisSpacing: 10,
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           if (index >= _products.length) {
