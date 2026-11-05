@@ -60,6 +60,103 @@ String piecesLabel(int n) => switch (n) {
       _ => '$n قطعة',
     };
 
+// ============================================================================
+// أسعار القطعة حسب العدد (unit_tiers): إذا مجموع القطع وصل min، كل القطع بسعر الدرجة.
+// نسخة للعرض من private.unit_for_qty بالسيرفر. المنتج الي بيه باقات (bulk_tiers) يبقى على الباقات.
+
+/// لون سطر "مكس ألوان": الموظفة تختار الألوان، والسيرفر يقبله لكل منتج بيه ألوان.
+const String kMixColor = 'مكس ألوان';
+
+class UnitTier {
+  const UnitTier({required this.min, this.pct, this.price, this.mix = false});
+
+  final int min;
+  final double? pct;
+  final double? price;
+
+  /// درجة "مكس ألوان" (تنطبق على قطع المكس بس)
+  final bool mix;
+
+  static final RegExp _intRe = RegExp(r'^[0-9]+$');
+  static final RegExp _numRe = RegExp(r'^[0-9]+(\.[0-9]+)?$');
+
+  static UnitTier? tryParse(dynamic raw) {
+    if (raw is! Map) return null;
+    final minText = '${raw['min'] ?? ''}';
+    if (!_intRe.hasMatch(minText)) return null;
+    final min = int.parse(minText);
+    if (min <= 1) return null;
+    final priceText = '${raw['price'] ?? ''}';
+    final pctText = '${raw['pct'] ?? ''}';
+    final price = _numRe.hasMatch(priceText) ? double.parse(priceText) : null;
+    final pct = _numRe.hasMatch(pctText) ? double.parse(pctText) : null;
+    if (price == null && pct == null) return null;
+    final mx = raw['mix'];
+    return UnitTier(min: min, pct: pct, price: price, mix: mx == true || mx == 'true');
+  }
+
+  static List<UnitTier> parseList(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = raw.map(tryParse).whereType<UnitTier>().toList()..sort((a, b) => a.min.compareTo(b.min));
+    return List.unmodifiable(out);
+  }
+
+  static List<UnitTier> ofProduct(Map<String, dynamic>? product) => parseList(product?['unit_tiers']);
+
+  /// سعر القطعة بهاي الدرجة (الخصم يتقرّب لأقرب 250 مثل السيرفر)
+  double unitPrice(double base) {
+    if (price != null) return price!;
+    return ((base * (100 - pct!) / 100) / 250).round() * 250.0;
+  }
+}
+
+/// المنتج يتحسب بأسعار القطعة حسب العدد (مو باقات)
+bool usesUnitTiers(Map<String, dynamic>? product) =>
+    BulkTier.ofProduct(product).isEmpty && UnitTier.ofProduct(product).any((t) => !t.mix);
+
+/// سعر القطعة لعدد [qty]: أعلى درجة وصلها العدد، أو السعر العادي.
+double unitForQty(double base, List<UnitTier> tiers, int qty, {bool mix = false}) {
+  UnitTier? best;
+  double? bestPrice;
+  for (final t in tiers) {
+    if (t.mix != mix || t.min > qty) continue;
+    final u = t.unitPrice(base);
+    if (u <= 0 || u >= base) continue;
+    if (best == null || t.min > best.min || (t.min == best.min && u < bestPrice!)) {
+      best = t;
+      bestPrice = u;
+    }
+  }
+  return bestPrice ?? base;
+}
+
+/// درجات العرض بالترتيب: (من، إلى أو null، سعر القطعة). أول خانة السعر العادي.
+List<(int, int?, double)> unitTierCells(double base, List<UnitTier> tiers) {
+  final steps = <int, double>{};
+  for (final t in tiers.where((t) => !t.mix)) {
+    final u = t.unitPrice(base);
+    if (u <= 0 || u >= base) continue;
+    steps[t.min] = steps.containsKey(t.min) ? (u < steps[t.min]! ? u : steps[t.min]!) : u;
+  }
+  final mins = steps.keys.toList()..sort();
+  final cells = <(int, int?, double)>[(1, mins.isEmpty ? null : mins.first - 1, base)];
+  for (var i = 0; i < mins.length; i++) {
+    cells.add((mins[i], i + 1 < mins.length ? mins[i + 1] - 1 : null, steps[mins[i]]!));
+  }
+  return cells;
+}
+
+/// درجة المكس: (أقل عدد، سعر القطعة) أو null
+(int, double)? mixTierOf(double base, List<UnitTier> tiers) {
+  (int, double)? best;
+  for (final t in tiers.where((t) => t.mix)) {
+    final u = t.unitPrice(base);
+    if (u <= 0 || u >= base) continue;
+    if (best == null || t.min < best.$1) best = (t.min, u);
+  }
+  return best;
+}
+
 class BulkQuote {
   const BulkQuote({
     required this.qty,
@@ -83,7 +180,7 @@ class BulkQuote {
   final Map<BulkTier, int> packs;
 
   double get saving => regularTotal > total ? regularTotal - total : 0;
-  bool get applied => packs.isNotEmpty;
+  bool get applied => packs.isNotEmpty || total < regularTotal;
 }
 
 /// سعر كمية معينة من منتج واحد (كل الألوان مجموعة).
@@ -115,11 +212,19 @@ BulkQuote quoteBulk({required double unitPrice, required List<BulkTier> tiers, r
   );
 }
 
-BulkQuote quoteProduct(Map<String, dynamic> product, int qty) => quoteBulk(
-      unitPrice: (product['price'] as num?)?.toDouble() ?? 0,
-      tiers: BulkTier.ofProduct(product),
-      qty: qty,
-    );
+BulkQuote quoteProduct(Map<String, dynamic> product, int qty, {int mixQty = 0}) {
+  final unit = (product['price'] as num?)?.toDouble() ?? 0;
+  if (usesUnitTiers(product)) {
+    final tiers = UnitTier.ofProduct(product);
+    final safe = qty < 0 ? 0 : qty;
+    final m = mixQty.clamp(0, safe);
+    final u = unitForQty(unit, tiers, safe);
+    final mu = unitForQty(unit, tiers, m, mix: true);
+    final total = (safe - m) * u + m * (mu < u ? mu : u);
+    return BulkQuote(qty: safe, total: total, regularTotal: unit * safe, freeDelivery: false, packs: const {});
+  }
+  return quoteBulk(unitPrice: unit, tiers: BulkTier.ofProduct(product), qty: qty);
+}
 
 /// مفتاح التجميع لعروض الكمية: منتجات بنفس offer_group تتجمع قطعها سوى، وغيرها كل منتج لحاله.
 /// نفس private.cart_price بالسيرفر.
@@ -176,8 +281,12 @@ class CartQuote {
 /// المنتجات غير الموجودة بـ [products] ما تنحسب (السيرفر يرفض الطلب بكل الأحوال).
 CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> products) {
   final qtyByProduct = <int, int>{};
+  final mixByProduct = <int, int>{};
   for (final line in lines) {
     qtyByProduct[line.productId] = (qtyByProduct[line.productId] ?? 0) + line.quantity;
+    if (line.color == kMixColor) {
+      mixByProduct[line.productId] = (mixByProduct[line.productId] ?? 0) + line.quantity;
+    }
   }
 
   double priceOf(int id) => (products[id]?['price'] as num?)?.toDouble() ?? 0;
@@ -203,6 +312,26 @@ CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> product
     final tiers = BulkTier.ofProduct(products[tiersOwner]);
     final totalQty = ids.fold(0, (s, id) => s + qtyByProduct[id]!);
     qtyByGroup[entry.key] = totalQty;
+
+    // بدون باقات: كل القطع بسعر الدرجة حسب عدد المجموعة، وقطع المكس 12+ بسعر المكس
+    if (tiers.isEmpty) {
+      final groupMix = ids.fold(0, (s, id) => s + (mixByProduct[id] ?? 0).clamp(0, qtyByProduct[id]!));
+      for (final id in ids) {
+        final qty = qtyByProduct[id]!;
+        final m = (mixByProduct[id] ?? 0).clamp(0, qty);
+        final ut = UnitTier.ofProduct(products[id]);
+        final u = unitForQty(priceOf(id), ut, totalQty);
+        final mu = unitForQty(priceOf(id), ut, groupMix, mix: true);
+        byProduct[id] = BulkQuote(
+          qty: qty,
+          total: (qty - m) * u + m * (mu < u ? mu : u),
+          regularTotal: priceOf(id) * qty,
+          freeDelivery: false,
+          packs: const {},
+        );
+      }
+      continue;
+    }
 
     // الباقات على مجموع القطع (بسعر قطعة صفر حتى total = سعر الباقات بس)
     final packsQuote = quoteBulk(unitPrice: 0, tiers: tiers, qty: totalQty);
@@ -297,7 +426,24 @@ BulkHint? nextBulkHint({
   return null;
 }
 
-BulkHint? nextBulkHintForProduct(Map<String, dynamic> product, int qty) => nextBulkHint(
+BulkHint? nextBulkHintForProduct(Map<String, dynamic> product, int qty) {
+  if (usesUnitTiers(product)) {
+    final base = (product['price'] as num?)?.toDouble() ?? 0;
+    final tiers = UnitTier.ofProduct(product);
+    final maxQty = (product['stock'] as num?)?.toInt();
+    final current = unitForQty(base, tiers, qty);
+    final mins = tiers.where((t) => !t.mix && t.min > qty).map((t) => t.min).toSet().toList()..sort();
+    for (final m in mins) {
+      if (maxQty != null && m > maxQty) return null;
+      final u = unitForQty(base, tiers, m);
+      if (u < current) return BulkHint(missing: m - qty, tier: BulkTier(qty: m, price: u * m));
+    }
+    return null;
+  }
+  return _nextPackHint(product, qty);
+}
+
+BulkHint? _nextPackHint(Map<String, dynamic> product, int qty) => nextBulkHint(
       unitPrice: (product['price'] as num?)?.toDouble() ?? 0,
       tiers: BulkTier.ofProduct(product),
       qty: qty,

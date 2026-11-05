@@ -111,7 +111,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   /// أكثر عدد ممكن: المخزون، وكل سطر بالسلة حدّه maxQuantityPerLine
   int _maxQty(Map<String, dynamic> p) {
     final colors = optionsOf(p);
-    final lines = colors.isEmpty ? 1 : (_mix ? colors.length : math.max(_picked.length, 1));
+    final lines = colors.isEmpty || _mix ? 1 : math.max(_picked.length, 1);
     return math.min(_stock(p), CartService.maxQuantityPerLine * lines);
   }
 
@@ -126,12 +126,9 @@ class _DetailsScreenState extends State<DetailsScreen> {
   Map<String, int> _distribution(Map<String, dynamic> p) {
     final colors = optionsOf(p);
     final qty = _qtyOf(p);
-    final List<String> pool;
-    if (_mix) {
-      pool = [...colors]..shuffle(math.Random(widget.productId));
-    } else {
-      pool = _picked;
-    }
+    // مكس: سطر واحد "مكس ألوان" وإنتو تختارون الألوان عند التجهيز
+    if (_mix) return colors.isEmpty || qty <= 0 ? const {} : {kMixColor: qty};
+    final List<String> pool = _picked;
     if (pool.isEmpty || qty <= 0) return const {};
     final out = <String, int>{};
     for (var i = 0; i < qty; i++) {
@@ -182,7 +179,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
           await CartService.instance.add(widget.productId, color: e.key, quantity: e.value);
         }
       }
-      FacebookAnalyticsService.logAddToCart(id: '${widget.productId}', price: quoteProduct(product, qty).total);
+      FacebookAnalyticsService.logAddToCart(id: '${widget.productId}', price: quoteProduct(product, qty, mixQty: _mix ? qty : 0).total);
       return true;
     } catch (e) {
       messenger.showSnackBar(const SnackBar(
@@ -267,8 +264,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final description = (product['description'] ?? '').toString().trim();
         final colors = optionsOf(product);
         final tiers = BulkTier.ofProduct(product);
+        final unitTiers = usesUnitTiers(product) ? UnitTier.ofProduct(product) : const <UnitTier>[];
+        final cells = unitTiers.isNotEmpty ? unitTierCells(price, unitTiers) : packTierCells(price, tiers);
+        final mixCell = unitTiers.isNotEmpty && colors.isNotEmpty ? mixTierOf(price, unitTiers) : null;
         final qty = _qtyOf(product);
-        final quote = quoteProduct(product, qty);
+        final quote = quoteProduct(product, qty, mixQty: _mix ? qty : 0);
         final hint = stock > 0 ? nextBulkHintForProduct(product, qty) : null;
         final sales = (product['sales_count'] as num?)?.toInt() ?? 0;
         final rating = (product['rating'] as num?)?.toDouble() ?? 0;
@@ -305,12 +305,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
                             if (rating > 0) _stat('⭐ ${rating.toStringAsFixed(1)}'),
                           ],
                         ),
-                        if (tiers.isNotEmpty)
+                        if (cells.length > 1)
                           _TierBar(
-                            unitPrice: price,
-                            tiers: tiers,
+                            cells: cells,
+                            mixCell: mixCell,
+                            mixMode: _mix,
                             qty: qty,
-                            wholesale: isWholesale(product),
+                            minQty: _minQty(product),
+                            wholesale: isWholesale(product) || unitTiers.isNotEmpty,
                           )
                         else
                           Padding(
@@ -337,14 +339,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           if (!_mix) _buildColorPicker(product, colors, dist),
                         ],
                         if (stock > 0) _buildTotal(product, qty, quote),
-                        if (hint != null && _hintText(product, hint, tiers, qty, quote).isNotEmpty)
+                        if (_hintText(product, hint, cells, mixCell, qty, quote).isNotEmpty)
                           Container(
                             width: double.infinity,
                             margin: const EdgeInsets.only(top: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(color: _kHintBg, borderRadius: BorderRadius.circular(12)),
                             child: Text(
-                              _hintText(product, hint, tiers, qty, quote),
+                              _hintText(product, hint, cells, mixCell, qty, quote),
                               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _kHintText),
                             ),
                           ),
@@ -401,14 +403,22 @@ class _DetailsScreenState extends State<DetailsScreen> {
   Widget _stat(String t) => Text(t, style: const TextStyle(fontSize: 12, color: Color(0xFF666666)));
 
   /// التلميح يطلع بس إذا متوسط سعر القطعة بعد الإضافة أرخص من الحالي، أو ينفتح توصيل مجاني
-  String _hintText(Map<String, dynamic> product, BulkHint hint, List<BulkTier> tiers, int qty, BulkQuote current) {
+  String _hintText(Map<String, dynamic> product, BulkHint? hint, List<(int, int?, double)> cells,
+      (int, double)? mixCell, int qty, BulkQuote current) {
+    if (_stock(product) <= 0 || qty <= 0) return '';
+    // مكس: كم باقي حتى يوصل سعر المكس
+    if (_mix && mixCell != null && qty < mixCell.$1 && mixCell.$1 <= _stock(product)) {
+      return '✨ ضيفي ${pieces(mixCell.$1 - qty)} وينزل سعر القطعة لـ ${_money.format(mixCell.$2)} (سعر المكس)';
+    }
+    if (hint == null) return '';
     final target = qty + hint.missing;
-    final next = quoteProduct(product, target);
+    final next = quoteProduct(product, target, mixQty: _mix ? target : 0);
     final per = (next.total / target).ceilToDouble();
     final add = 'ضيفي ${pieces(hint.missing)}';
-    if (qty > 0 && per < current.total / qty) {
-      final isLast = hint.tier.qty == tiers.last.qty;
-      return '✨ $add وينزل سعر القطعة لـ ${_money.format(per)}${isLast && isWholesale(product) ? ' (سعر الجملة)' : ''}';
+    if (per < current.total / qty) {
+      final isLast = cells.isNotEmpty && target >= cells.last.$1;
+      final wholesale = isWholesale(product) || usesUnitTiers(product);
+      return '✨ $add وينزل سعر القطعة لـ ${_money.format(per)}${isLast && wholesale ? ' (سعر الجملة)' : ''}';
     }
     if (next.freeDelivery && !current.freeDelivery) return '✨ $add وتاخذين توصيل مجاني';
     return '';
@@ -711,12 +721,34 @@ class ProductThumb extends StatelessWidget {
 }
 
 /// شريط أسعار الكمية: سعر القطعة حسب العدد، والخانة الحالية بيضة
-class _TierBar extends StatelessWidget {
-  const _TierBar({required this.unitPrice, required this.tiers, required this.qty, required this.wholesale});
+/// خانات عروض الباقات: (من، إلى، سعر القطعة)
+List<(int, int?, double)> packTierCells(double unitPrice, List<BulkTier> tiers) {
+  final usable = tiers.where((t) => (t.price / t.qty).ceilToDouble() < unitPrice || t.freeDelivery).toList();
+  if (usable.isEmpty) return const [];
+  final cells = <(int, int?, double)>[(1, usable.first.qty - 1, unitPrice)];
+  for (var i = 0; i < usable.length; i++) {
+    final t = usable[i];
+    cells.add((t.qty, i + 1 < usable.length ? usable[i + 1].qty - 1 : null, (t.price / t.qty).ceilToDouble()));
+  }
+  return cells;
+}
 
-  final double unitPrice;
-  final List<BulkTier> tiers;
+/// شريط أسعار الكمية: سعر القطعة حسب العدد، والخانة الحالية بيضة
+class _TierBar extends StatelessWidget {
+  const _TierBar({
+    required this.cells,
+    required this.mixCell,
+    required this.mixMode,
+    required this.qty,
+    required this.minQty,
+    required this.wholesale,
+  });
+
+  final List<(int, int?, double)> cells;
+  final (int, double)? mixCell;
+  final bool mixMode;
   final int qty;
+  final int minQty;
   final bool wholesale;
 
   static final NumberFormat _money = NumberFormat('#,###');
@@ -729,16 +761,15 @@ class _TierBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // (من، إلى، سعر القطعة) — آخر خانة مفتوحة
-    final cells = <(int, int?, double)>[];
-    final usable = tiers.where((t) => (t.price / t.qty).ceilToDouble() < unitPrice || t.freeDelivery).toList();
-    final firstQty = usable.isEmpty ? 2 : usable.first.qty;
-    cells.add((1, firstQty - 1, unitPrice));
-    for (var i = 0; i < usable.length; i++) {
-      final t = usable[i];
-      final next = i + 1 < usable.length ? usable[i + 1].qty - 1 : null;
-      cells.add((t.qty, next, (t.price / t.qty).ceilToDouble()));
+    // منتجات بحد أدنى: الخانات الأقل منه ما تنعرض
+    final shown = <(int, int?, double, String)>[];
+    for (final c in cells) {
+      if (c.$2 != null && c.$2! < minQty) continue;
+      final from = c.$1 < minQty ? minQty : c.$1;
+      shown.add((from, c.$2, c.$3, c.$2 == null ? '$from+ ${wholesale ? 'قطع' : 'قطعة'}' : _range(from, c.$2!)));
     }
+    final mix = mixCell;
+    final mixActive = mixMode && mix != null && qty >= mix.$1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,11 +786,15 @@ class _TierBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              for (final c in cells)
+              for (final c in [
+                ...shown.map((c) => (c.$1, c.$2, c.$3, c.$4, false)),
+                if (mix != null) (mix.$1, null, mix.$2, 'مكس ${mix.$1}+', true),
+              ])
                 Expanded(
                   child: Builder(builder: (context) {
-                    final on = qty >= c.$1 && (c.$2 == null || qty <= c.$2!);
-                    final label = c.$2 == null ? '${c.$1}+ ${wholesale ? 'جملة' : 'قطعة'}' : _range(c.$1, c.$2!);
+                    final isMixCell = c.$5;
+                    final on = isMixCell ? mixActive : !mixActive && qty >= c.$1 && (c.$2 == null || qty <= c.$2!);
+                    final label = c.$4;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.symmetric(horizontal: 2),

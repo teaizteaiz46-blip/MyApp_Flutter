@@ -169,6 +169,12 @@ const Color _kOfferGreen = Color(0xFF2E7D32);
 /// أرخص سعر للقطعة الوحدة (من عروض الكمية) — "يبدأ من".
 double fromPriceOf(Map<String, dynamic> p) {
   var best = priceOf(p);
+  if (usesUnitTiers(p)) {
+    for (final c in unitTierCells(best, UnitTier.ofProduct(p))) {
+      if (c.$3 < best) best = c.$3;
+    }
+    return best;
+  }
   for (final t in BulkTier.ofProduct(p)) {
     final per = (t.price / t.qty).ceilToDouble();
     if (per > 0 && per < best) best = per;
@@ -215,6 +221,7 @@ class _ModoProductCardState extends State<ModoProductCard> {
     final name = (p['name'] ?? '').toString().trim();
     final tiers = BulkTier.ofProduct(p);
     final price = priceOf(p);
+    final unitCells = usesUnitTiers(p) ? unitTierCells(price, UnitTier.ofProduct(p)) : const <(int, int?, double)>[];
     final from = fromPriceOf(p);
     final strike = strikePriceOf(p);
     final discount = strike > from ? ((strike - from) / strike * 100).round() : 0;
@@ -228,11 +235,16 @@ class _ModoProductCardState extends State<ModoProductCard> {
       if (isWholesale(p))
         (minQty != null ? 'جملة من ${pieces(minQty)}' : 'جملة', const Color(0xFFFDE7EF), const Color(0xFFC2185B))
       else if (tiers.isNotEmpty)
-        ('عرض ${pieces(tiers.first.qty)}', const Color(0xFFE8F5E9), _kOfferGreen),
+        ('عرض ${pieces(tiers.first.qty)}', const Color(0xFFE8F5E9), _kOfferGreen)
+      else if (unitCells.length > 1)
+        ('جملة من ${pieces(unitCells[1].$1)}', const Color(0xFFFDE7EF), const Color(0xFFC2185B)),
     ].take(2).toList();
 
     final String extra;
-    if (tiers.isNotEmpty) {
+    if (unitCells.length > 1) {
+      final first = unitCells[1];
+      extra = '${first.$1}+ قطع بـ ${kMoney.format(first.$3)} للقطعة';
+    } else if (tiers.isNotEmpty) {
       final best = tiers.last;
       extra = '${pieces(best.qty)} بـ ${kMoney.format(best.price)}${best.freeDelivery ? ' + توصيل مجاني' : ''}';
     } else {

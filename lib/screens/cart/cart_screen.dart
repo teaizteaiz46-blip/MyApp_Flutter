@@ -86,7 +86,7 @@ class _CartScreenState extends State<CartScreen> {
     final stock = _stock(product);
     if (stock <= 0) return 'نفد من المخزون، احذفه من السلة';
     final colors = _colors(product);
-    if (colors.isNotEmpty && (line.color == null || !colors.contains(line.color))) {
+    if (colors.isNotEmpty && line.color != kMixColor && (line.color == null || !colors.contains(line.color))) {
       final title = optionTitle(colors);
       return line.color == null
           ? '$title غير محدد، اضغط على المنتج واختر $title'

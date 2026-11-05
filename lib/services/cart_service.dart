@@ -45,7 +45,7 @@ class CartService {
 
   /// نفس المفتاح المستخدم بالنسخ القديمة حتى تبقى سلال الزوار الحالية.
   static const String _storageKey = 'cartMap';
-  static const int maxQuantityPerLine = 20;
+  static const int maxQuantityPerLine = 100;
 
   final ValueNotifier<List<CartLine>> lines = ValueNotifier<List<CartLine>>(const []);
 

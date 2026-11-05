@@ -117,4 +117,31 @@ void main() {
     expect(hint?.tier.qty, 2);
     expect(nextBulkHintForProduct(product, 2)?.tier.qty, 3);
   });
+
+  group('أسعار القطعة حسب العدد (unit_tiers)', () {
+    final p = <String, dynamic>{
+      'price': 8000,
+      'stock': 100,
+      'bulk_tiers': [],
+      'unit_tiers': [
+        {'min': 6, 'pct': 27.5},
+        {'min': 12, 'pct': 27.5},
+        {'min': 12, 'pct': 30, 'mix': true},
+      ],
+    };
+
+    test('1-5 بالسعر العادي', () => expect(quoteProduct(p, 5).total, 40000));
+    test('7 قطع كلها بسعر الدرجة (مثل السيرفر: 40,250)', () => expect(quoteProduct(p, 7).total, 7 * 5750));
+    test('مكس 12 + قطعتين عاديات (مثل السيرفر: 77,500)', () => expect(quoteProduct(p, 14, mixQty: 12).total, 77500));
+    test('مكس أقل من 12 بسعر الدرجة العادية', () => expect(quoteProduct(p, 8, mixQty: 8).total, 8 * 5750));
+    test('تلميح: من 4 قطع باقي قطعتين', () {
+      final h = nextBulkHintForProduct(p, 4);
+      expect(h?.missing, 2);
+    });
+    test('منتج بيه باقات يبقى على الباقات', () {
+      final packs = {...p, 'bulk_tiers': [{'qty': 2, 'price': 15000}]};
+      expect(quoteProduct(packs, 7).total, 3 * 15000 + 8000);
+    });
+  });
 }
+
