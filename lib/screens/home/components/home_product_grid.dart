@@ -141,6 +141,12 @@ class _HomeProductGridState extends State<HomeProductGrid> {
       Future<List<Map<String, dynamic>>> load() async => switch (widget.effectiveSort) {
             HomeSort.mix => await query.order('random_id', ascending: true).order('id').range(from, to),
             HomeSort.cheapest => await query.order('price', ascending: true).order('id').range(from, to),
+            // "الكل": الحجابات أول والعطور آخر (home_priority بالعرض)، وداخل كل مجموعة الأكثر طلباً
+            HomeSort.bestSelling || HomeSort.bulkOffers when widget.categoryId == 0 => await query
+                .order('home_priority', ascending: true)
+                .order('sales_count', ascending: false, nullsFirst: false)
+                .order('id')
+                .range(from, to),
             HomeSort.bestSelling || HomeSort.bulkOffers => await query
                 .order('sales_count', ascending: false, nullsFirst: false)
                 .order('id')
@@ -151,7 +157,7 @@ class _HomeProductGridState extends State<HomeProductGrid> {
       // الصفحة الأولى تفتح فوراً من الجهاز وتتحدث بالخلفية؛ الصفحات الباقية من السيرفر مباشرة.
       final data = _currentPage == 0
           ? await OfflineCache.fetch(
-              'grid_${widget.categoryId}_${widget.onlyOffers}_${widget.maxPrice}_${widget.onlyBulk}_${widget.effectiveSort.name}',
+              'grid_v2_${widget.categoryId}_${widget.onlyOffers}_${widget.maxPrice}_${widget.onlyBulk}_${widget.effectiveSort.name}',
               load,
               onFresh: (fresh) {
                 if (!mounted || generation != _generation || _currentPage != 1) return;
