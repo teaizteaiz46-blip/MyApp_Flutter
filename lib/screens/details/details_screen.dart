@@ -49,8 +49,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
   /// "مكس ألوان": إحنا نوزّع القطع على الألوان
   bool _mix = false;
 
-  /// الألوان المختارة بالترتيب
-  final List<String> _picked = [];
+  /// "أختار ألواني": كم قطعة من كل لون (بترتيب الاختيار)
+  final Map<String, int> _counts = {};
   bool _showAllColors = false;
   bool _colorMissing = false;
   bool _adding = false;
@@ -108,44 +108,50 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   int _minQty(Map<String, dynamic> p) => minQtyOf(p) ?? 1;
 
-  /// أكثر عدد ممكن: المخزون، وكل سطر بالسلة حدّه maxQuantityPerLine
-  int _maxQty(Map<String, dynamic> p) {
-    final colors = optionsOf(p);
-    final lines = colors.isEmpty || _mix ? 1 : math.max(_picked.length, 1);
-    return math.min(_stock(p), CartService.maxQuantityPerLine * lines);
+  /// "أختار ألواني": العدد من كل لون، مو من العداد الكلي
+  bool _pickMode(Map<String, dynamic> p) => optionsOf(p).isNotEmpty && !_mix;
+
+  int get _pickedTotal => _counts.values.fold(0, (s, n) => s + n);
+
+  /// أكثر عدد بالعداد الكلي (مكس أو منتج بلا ألوان): المخزون، وسطر السلة حدّه maxQuantityPerLine
+  int _maxQty(Map<String, dynamic> p) => math.min(_stock(p), CartService.maxQuantityPerLine);
+
+  /// "أختار ألواني": مجموع قطع الألوان (وقبل الاختيار أقل كمية، حتى يبين السعر)
+  int _qtyOf(Map<String, dynamic> p) {
+    if (_pickMode(p)) return _pickedTotal > 0 ? _pickedTotal : _minQty(p);
+    return _qty ?? _minQty(p);
   }
 
-  int _qtyOf(Map<String, dynamic> p) => _qty ?? _minQty(p);
-
   void _setQty(Map<String, dynamic> p, int q) {
-    final lo = math.max(_minQty(p), _mix ? 1 : math.max(_picked.length, 1));
+    final lo = _minQty(p);
     setState(() => _qty = q.clamp(math.min(lo, _maxQty(p)), math.max(_maxQty(p), 1)));
   }
 
-  /// توزيع القطع على الألوان: المختارة بالتساوي (الباقي على الأوائل)، أو مكس على كل الألوان
+  /// القطع حسب اللون: مكس = سطر واحد "مكس ألوان"، وإلا كل لون بعدده
   Map<String, int> _distribution(Map<String, dynamic> p) {
-    final colors = optionsOf(p);
-    final qty = _qtyOf(p);
+    if (optionsOf(p).isEmpty) return const {};
     // مكس: سطر واحد "مكس ألوان" وإنتو تختارون الألوان عند التجهيز
-    if (_mix) return colors.isEmpty || qty <= 0 ? const {} : {kMixColor: qty};
-    final List<String> pool = _picked;
-    if (pool.isEmpty || qty <= 0) return const {};
-    final out = <String, int>{};
-    for (var i = 0; i < qty; i++) {
-      final c = pool[i % pool.length];
-      out[c] = (out[c] ?? 0) + 1;
+    if (_mix) {
+      final qty = _qtyOf(p);
+      return qty <= 0 ? const {} : {kMixColor: qty};
     }
-    return out;
+    return Map.of(_counts);
   }
 
-  void _togglePick(Map<String, dynamic> p, String color) {
+  /// يگدر يزيد قطعة من هذا اللون: سطر السلة حدّه maxQuantityPerLine، والمجموع ما يعدّي المخزون
+  bool _canAddPiece(Map<String, dynamic> p, String color) =>
+      (_counts[color] ?? 0) < CartService.maxQuantityPerLine && _pickedTotal < _stock(p);
+
+  /// يزيد أو ينقص قطعة من لون؛ من يوصل صفر ينشال اللون
+  void _changeCount(Map<String, dynamic> p, String color, int delta) {
+    if (delta > 0 && !_canAddPiece(p, color)) return;
     setState(() {
       _colorMissing = false;
-      if (_picked.contains(color)) {
-        _picked.remove(color);
+      final n = (_counts[color] ?? 0) + delta;
+      if (n <= 0) {
+        _counts.remove(color);
       } else {
-        _picked.add(color);
-        if (_qtyOf(p) < _picked.length) _qty = _picked.length;
+        _counts[color] = n;
       }
     });
   }
@@ -159,12 +165,23 @@ class _DetailsScreenState extends State<DetailsScreen> {
     }
     final colors = optionsOf(product);
     final qty = _qtyOf(product);
-    if (colors.isNotEmpty && !_mix && _picked.isEmpty) {
+    if (_pickMode(product) && _counts.isEmpty) {
       setState(() => _colorMissing = true);
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
           content: Text('اختاري ${optionTitle(colors)} أولاً، أو اختاري "مكس ألوان"'),
+          backgroundColor: AppColors.sale,
+        ));
+      return false;
+    }
+    // منتجات بحد أدنى: مجموع قطع الألوان لازم يوصله (السيرفر يتحقق بعد)
+    final minQty = _minQty(product);
+    if (_pickMode(product) && _pickedTotal < minQty) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('أقل طلب لهذا المنتج ${pieces(minQty)}، باقي ${pieces(minQty - _pickedTotal)}'),
           backgroundColor: AppColors.sale,
         ));
       return false;
@@ -273,7 +290,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final sales = (product['sales_count'] as num?)?.toInt() ?? 0;
         final rating = (product['rating'] as num?)?.toDouble() ?? 0;
         final optionsLabel = optionsCountLabel(colors);
-        final dist = _distribution(product);
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -336,7 +352,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         if (colors.isNotEmpty && stock > 0) ...[
                           const SizedBox(height: 12),
                           _buildModeToggle(product),
-                          if (!_mix) _buildColorPicker(product, colors, dist),
+                          if (!_mix) _buildColorPicker(product, colors),
                         ],
                         if (stock > 0) _buildTotal(product, qty, quote),
                         if (_hintText(product, hint, cells, mixCell, qty, quote).isNotEmpty)
@@ -406,6 +422,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
   String _hintText(Map<String, dynamic> product, BulkHint? hint, List<(int, int?, double)> cells,
       (int, double)? mixCell, int qty, BulkQuote current) {
     if (_stock(product) <= 0 || qty <= 0) return '';
+    // "أختار ألواني" بحد أدنى: كم باقي حتى يوصله
+    final minQty = _minQty(product);
+    if (_pickMode(product) && _pickedTotal > 0 && _pickedTotal < minQty) {
+      return '📦 أقل طلب ${pieces(minQty)} – باقي ${pieces(minQty - _pickedTotal)}';
+    }
     // مكس: كم باقي حتى يوصل سعر المكس
     if (_mix && mixCell != null && qty < mixCell.$1 && mixCell.$1 <= _stock(product)) {
       return '✨ ضيفي ${pieces(mixCell.$1 - qty)} وينزل سعر القطعة لـ ${_money.format(mixCell.$2)} (سعر المكس)';
@@ -451,23 +472,30 @@ class _DetailsScreenState extends State<DetailsScreen> {
       decoration: BoxDecoration(color: const Color(0xFFF6F3F1), borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
-          seg('أختار ألواني', 'أكتب أرقام الألوان', !_mix, () {
-            setState(() => _mix = false);
-            _setQty(product, _qtyOf(product));
+          seg('أختار ألواني', 'أكتب أرقام الألوان', !_mix, () => setState(() => _mix = false)),
+          seg('مكس ألوان 🎁', 'تشكيلة منوعة نختارها إلج', _mix, () {
+            // المكس ياخذ نفس عدد القطع اللي اختارتها بالألوان
+            final picked = _pickedTotal;
+            setState(() {
+              _mix = true;
+              _colorMissing = false;
+            });
+            if (picked > 0) _setQty(product, picked);
           }),
-          seg('مكس ألوان 🎁', 'تشكيلة منوعة نختارها إلج', _mix, () => setState(() {
-                _mix = true;
-                _colorMissing = false;
-              })),
         ],
       ),
     );
   }
 
-  Widget _buildColorPicker(Map<String, dynamic> product, List<String> colors, Map<String, int> dist) {
+  Widget _buildColorPicker(Map<String, dynamic> product, List<String> colors) {
     final shown = _showAllColors || colors.length <= _colorsPreview ? colors : colors.take(_colorsPreview).toList();
     final hidden = colors.length - shown.length;
     final title = optionTitle(colors);
+    final each = switch (optionKindOf(colors)) {
+      OptionKind.color => 'لون',
+      OptionKind.size => 'قياس',
+      _ => 'اختيار',
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -477,14 +505,23 @@ class _DetailsScreenState extends State<DetailsScreen> {
             Text('اختاري ${title == 'اللون' ? 'الألوان' : title}',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _colorMissing ? AppColors.sale : AppColors.ink)),
             const Spacer(),
-            const Text('تگدرين تكررين نفس اللون', style: TextStyle(fontSize: 12, color: Color(0xFF888888))),
+            Text('− و + لعدد كل $each',
+                style: const TextStyle(fontSize: 12, color: AppColors.brand, fontWeight: FontWeight.w800)),
           ],
         ),
         const SizedBox(height: 4),
         Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            for (final c in shown) _colorChip(product, c, dist[c] ?? 0),
+            for (final c in shown)
+              ColorCountChip(
+                label: c,
+                count: _counts[c] ?? 0,
+                missing: _colorMissing,
+                canAdd: _canAddPiece(product, c),
+                onAdd: () => _changeCount(product, c, 1),
+                onRemove: () => _changeCount(product, c, -1),
+              ),
             if (hidden > 0)
               GestureDetector(
                 onTap: () => setState(() => _showAllColors = true),
@@ -500,34 +537,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
-  Widget _colorChip(Map<String, dynamic> product, String c, int count) {
-    final on = _picked.contains(c);
-    return GestureDetector(
-      onTap: () => _togglePick(product, c),
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 38),
-        margin: const EdgeInsets.all(3),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: on ? const Color(0xFFFFF1E8) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: on ? AppColors.brand : (_colorMissing ? AppColors.sale : const Color(0xFFEADFD8)),
-            width: 1.5,
-          ),
-        ),
-        child: Text(
-          on && count > 1 ? '$c ×$count' : c,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12.5, fontWeight: on ? FontWeight.w900 : FontWeight.w600, color: AppColors.ink),
-        ),
-      ),
-    );
-  }
-
   Widget _buildTotal(Map<String, dynamic> product, int qty, BulkQuote quote) {
     final max = _maxQty(product);
-    final lo = math.max(_minQty(product), _mix ? 1 : math.max(_picked.length, 1));
+    final lo = _minQty(product);
+    final pick = _pickMode(product);
     Widget step(String t, bool enabled, Color color, VoidCallback onTap) => GestureDetector(
           onTap: enabled ? onTap : null,
           child: Padding(
@@ -562,25 +575,34 @@ class _DetailsScreenState extends State<DetailsScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: const Color(0xFFEEEEEE)),
-              borderRadius: BorderRadius.circular(12),
+          // "أختار ألواني": العدد من كل لون فوك، وهنا بس المجموع
+          if (pick && _pickedTotal > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: const Color(0xFFFFF1E8), borderRadius: BorderRadius.circular(10)),
+              child: Text(pieces(_pickedTotal),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.brand)),
+            )
+          else if (!pick)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFEEEEEE)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  step('−', qty > lo, AppColors.ink, () => _setQty(product, qty - 1)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('$qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  ),
+                  step('+', qty < max, AppColors.brand, () => _setQty(product, qty + 1)),
+                ],
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                step('−', qty > lo, AppColors.ink, () => _setQty(product, qty - 1)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('$qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                ),
-                step('+', qty < max, AppColors.brand, () => _setQty(product, qty + 1)),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -833,6 +855,126 @@ class _TierBar extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
         ),
       ],
+    );
+  }
+}
+
+/// خانة لون بصفحة المنتج: دوسة = قطعة وحدة، وبعدها − و + جنب اللون.
+/// بالعدد 1 الـ − يصير سلة مهملات ويشيل اللون.
+class ColorCountChip extends StatelessWidget {
+  const ColorCountChip({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.canAdd,
+    required this.onAdd,
+    required this.onRemove,
+    this.missing = false,
+  });
+
+  final String label;
+  final int count;
+
+  /// يگدر يزيد قطعة (حد السطر 100 والمخزون)
+  final bool canAdd;
+
+  /// ضغطت السلة بدون ما تختار: الحدود تصير حمرة
+  final bool missing;
+  final VoidCallback onAdd;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = count > 0;
+    final text = Text(
+      label,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 12.5, fontWeight: on ? FontWeight.w900 : FontWeight.w600, color: AppColors.ink),
+    );
+    final box = BoxDecoration(
+      color: on ? const Color(0xFFFFF1E8) : Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: on ? AppColors.brand : (missing ? AppColors.sale : const Color(0xFFEADFD8)),
+        width: 1.5,
+      ),
+    );
+    if (!on) {
+      return GestureDetector(
+        onTap: canAdd ? onAdd : null,
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 38),
+          margin: const EdgeInsets.all(3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: box,
+          child: text,
+        ),
+      );
+    }
+
+    Widget button({required String tip, required Widget child, VoidCallback? onTap, bool filled = false}) => Semantics(
+          button: true,
+          label: tip,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Container(
+              width: 28,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: filled
+                  ? BoxDecoration(
+                      color: onTap == null ? const Color(0xFFDDDDDD) : AppColors.brand,
+                      borderRadius: BorderRadius.circular(7),
+                    )
+                  : null,
+              child: child,
+            ),
+          ),
+        );
+
+    return Container(
+      margin: const EdgeInsets.all(3),
+      padding: const EdgeInsetsDirectional.fromSTEB(8, 2, 3, 2),
+      decoration: box,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: text),
+          const SizedBox(width: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFF3D9C9)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                button(
+                  tip: count == 1 ? 'شيل $label' : 'نقّص $label',
+                  onTap: onRemove,
+                  child: count == 1
+                      ? const Icon(Icons.delete_outline, size: 17, color: AppColors.sale)
+                      : const Text('−', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.ink)),
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 22),
+                  child: Text('$count',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppColors.brand)),
+                ),
+                button(
+                  tip: 'زيد $label',
+                  onTap: canAdd ? onAdd : null,
+                  filled: true,
+                  child: const Text('+', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
