@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/bulk_pricing.dart';
+import '../../core/offline_cache.dart' show cachedImage, decodeWidthFor;
 import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
@@ -69,6 +70,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   List<String> _orderOptions = const [];
   final Set<String> _selectedOptions = {};
 
+  /// الهدايا المجانية الفعّالة (ويه أي طلب) والهدية اللي اختارها الزبون
+  List<Map<String, dynamic>> _gifts = const [];
+  int? _giftId;
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +98,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ShopApi.fetchProductsByIds(_cart.lines.value.map((l) => l.productId)),
         ShopApi.fetchDeliveryCosts(),
         ShopApi.fetchOrderOptions(),
+        ShopApi.fetchActiveGifts(),
       ]);
       if (!mounted) return;
 
@@ -102,6 +108,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _products = results[0] as Map<int, Map<String, dynamic>>;
         _deliveryCosts = results[1] as Map<String, double>;
         _orderOptions = results[2] as List<String>;
+        _gifts = results[3] as List<Map<String, dynamic>>;
+        // هدية وحدة بس: نختارها تلقائياً حتى الزبون ما ينساها
+        if (_gifts.length == 1) _giftId = (_gifts.first['id'] as num?)?.toInt();
         _nameController.text = prefs.getString(_kName) ?? '';
         _phoneController.text = prefs.getString(_kPhone) ?? '';
         _addressController.text = prefs.getString(_kAddress) ?? '';
@@ -192,6 +201,99 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return t < 0 ? 0 : t;
   }
 
+  bool _giftEligible(Map<String, dynamic> g) => _subtotal >= ((g['min_order'] as num?)?.toDouble() ?? 0);
+
+  /// الهدية المختارة إذا الطلب واصل لحدها (وإلا ما تنرسل)
+  Map<String, dynamic>? get _selectedGift {
+    if (_giftId == null) return null;
+    for (final g in _gifts) {
+      if ((g['id'] as num?)?.toInt() == _giftId) return _giftEligible(g) ? g : null;
+    }
+    return null;
+  }
+
+  Widget _buildGifts() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final g in _gifts) _giftTile(g),
+        Text('الهدية مجانية وتوصلكم ويه نفس الطلب.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      ],
+    );
+  }
+
+  Widget _giftTile(Map<String, dynamic> g) {
+    final id = (g['id'] as num?)?.toInt();
+    final ok = _giftEligible(g);
+    final selected = ok && id == _giftId;
+    final min = (g['min_order'] as num?)?.toDouble() ?? 0;
+    final price = (g['price'] as num?)?.toDouble() ?? 0;
+    final img = '${g['image'] ?? ''}';
+    final title = '${g['title'] ?? ''}'.trim();
+    return Opacity(
+      opacity: ok ? 1 : 0.55,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFFFF1E8) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? Colors.deepOrange : Colors.grey.shade300, width: selected ? 1.6 : 1),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: ok ? () => setState(() => _giftId = selected ? null : id) : null,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: img.isEmpty
+                        ? ColoredBox(color: Colors.grey.shade200)
+                        : Image(
+                            image: cachedImage(img, decodeWidth: decodeWidthFor(context, 56, 56)),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => ColoredBox(color: Colors.grey.shade200),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (title.isNotEmpty)
+                        Text(title, style: const TextStyle(fontSize: 11.5, color: Colors.deepOrange, fontWeight: FontWeight.w700)),
+                      Text('${g['name'] ?? ''}',
+                          maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Row(
+                        children: [
+                          Text('مجاناً', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w800)),
+                          const SizedBox(width: 6),
+                          if (price > 0)
+                            Text('${_money.format(price)} د.ع',
+                                style: TextStyle(color: Colors.grey[500], fontSize: 12, decoration: TextDecoration.lineThrough)),
+                        ],
+                      ),
+                      if (!ok)
+                        Text('للطلبات من ${_money.format(min)} د.ع',
+                            style: TextStyle(fontSize: 12, color: Colors.red.shade400, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                Icon(selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: selected ? Colors.deepOrange : Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // --------------------------------------------------------------------------
 
   Future<void> _applyCoupon() async {
@@ -267,6 +369,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         points: _pointsUsed,
         referralCode: _referralOk ? _referralCode : null,
         options: [for (final o in _orderOptions) if (_selectedOptions.contains(o)) o],
+        giftOfferId: _selectedGift == null ? null : (_selectedGift!['id'] as num?)?.toInt(),
       );
 
       await _saveCustomerInfo(phone);
@@ -407,6 +510,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const _SectionTitle('طلبك'),
             _buildItemsSummary(),
             const SizedBox(height: 24),
+            if (_gifts.isNotEmpty) ...[
+              const _SectionTitle('🎁 اختاروا هديتكم المجانية'),
+              _buildGifts(),
+              const SizedBox(height: 24),
+            ],
             if (_orderOptions.isNotEmpty) ...[
               const _SectionTitle('خيارات الطلب (اختياري)'),
               _buildOrderOptions(),
@@ -753,6 +861,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               row('الخصم', '-${_money.format(_couponDiscount)} د.ع', color: Colors.green.shade700),
             if (_pointsUsed > 0)
               row('خصم النقاط ($_pointsUsed نقطة)', '-${_money.format(_pointsUsed * PointsState.iqdPerPoint)} د.ع', color: Colors.green.shade700),
+            if (_selectedGift != null)
+              row('🎁 هدية مجانية', 'مجاناً', color: Colors.green.shade700),
             const Divider(height: 16),
             row('الإجمالي', '${_money.format(_total)} د.ع', bold: true),
             const SizedBox(height: 10),

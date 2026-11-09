@@ -142,6 +142,7 @@ class ShopApi {
     int? rewardCouponId,
     int points = 0,
     String? referralCode,
+    int? giftOfferId,
   }) async {
     final code = couponCode?.trim();
     final res = await _db.rpc('place_order', params: {
@@ -160,8 +161,20 @@ class ShopApi {
       // نقاط MODO (النقطة = 10 د.ع) وكود دعوة صديقة، يتحسبون بالسيرفر
       if (points > 0) 'p_points': points,
       if (referralCode != null && referralCode.trim().isNotEmpty) 'p_referral_code': referralCode.trim().toUpperCase(),
+      // الهدية المجانية اللي اختارها الزبون (السيرفر يتحقق منها ويضيفها بسعر 0)
+      if (giftOfferId != null) 'p_gift_offer_id': giftOfferId,
     });
     return OrderResult.fromJson(Map<String, dynamic>.from(res as Map));
+  }
+
+  /// الهدايا المجانية الفعّالة هسه (ويه أي طلب). إذا صار خطأ نرجع قائمة فارغة حتى ما يتعطل الطلب.
+  static Future<List<Map<String, dynamic>>> fetchActiveGifts() async {
+    try {
+      final res = await _db.rpc('active_gifts');
+      return ((res as List?) ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// خيارات الطلب الجاهزة (مثل "التوصيل مساءً")، يحددها المشرف من قاعدة البيانات.

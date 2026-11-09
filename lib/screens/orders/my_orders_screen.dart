@@ -568,7 +568,8 @@ class _ItemLine extends StatelessWidget {
               ],
             ),
           ),
-          Text(_money.format(unit * qty), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+          Text(unit == 0 ? 'مجاناً 🎁' : _money.format(unit * qty),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: unit == 0 ? AppColors.success : null)),
         ],
       ),
     );
