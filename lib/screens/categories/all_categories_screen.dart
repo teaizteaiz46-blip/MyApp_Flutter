@@ -12,10 +12,11 @@ class AllCategoriesScreen extends StatelessWidget {
   // دالة جلب الفئات
   // من الجهاز فوراً، والنسخة الجديدة تنحفظ بالخلفية وتبين بالفتحة الجاية.
   Future<List<Map<String, dynamic>>> _fetchCategories() => OfflineCache.fetch(
-        'all_categories',
+        'all_categories_v2',
+        // categories_home: الأقسام الي بيها منتجات متوفرة بس (القسم الفارغ ما يطلع)
         () async => await supabase
-            .from('categories')
-            .select()
+            .from('categories_home')
+            .select('id, name, image_url, sort_order')
             .order('sort_order', ascending: true, nullsFirst: false)
             .order('id', ascending: true),
       );
