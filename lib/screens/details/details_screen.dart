@@ -16,6 +16,7 @@ import '../../services/visit_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/modo_product_card.dart' show WishHeart, optionsCountLabel;
 import '../cart/cart_screen.dart';
+import '../chat/chat_screen.dart';
 
 const Color _kPink = Color(0xFFC2185B);
 const Color _kGreen = Color(0xFF2E7D32);
@@ -387,8 +388,18 @@ class _DetailsScreenState extends State<DetailsScreen> {
                             ),
                           ],
                         ),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton.icon(
+                            onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => ChatScreen(productId: widget.productId))),
+                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                            label: const Text('عندكم سؤال أو طلب كبير؟ راسلونا',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                        ),
                         const Padding(
-                          padding: EdgeInsets.fromLTRB(0, 14, 0, 22),
+                          padding: EdgeInsets.fromLTRB(0, 4, 0, 22),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [

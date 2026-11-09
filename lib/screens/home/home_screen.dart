@@ -6,6 +6,7 @@ import '../../main.dart';
 import '../../services/cart_service.dart';
 import '../../services/splash_ad_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/chat_fab.dart';
 import '../../widgets/welcome_coupon_dialog.dart';
 import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
@@ -236,16 +237,26 @@ class _HomeScreenState extends State<HomeScreen> {
         _cartTab => const CartScreen(),
         _ => const ProfileScreen(),
       },
-      floatingActionButton: _tab == _homeTab && _showTop
-          ? FloatingActionButton.small(
-              heroTag: 'home-top',
-              tooltip: 'للأعلى',
-              backgroundColor: AppColors.ink.withValues(alpha: 0.88),
-              foregroundColor: Colors.white,
-              elevation: 2,
-              shape: const CircleBorder(),
-              onPressed: _scrollToTop,
-              child: const Icon(Icons.arrow_upward_rounded),
+      floatingActionButton: _tab == _homeTab
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (_showTop) ...[
+                  FloatingActionButton.small(
+                    heroTag: 'home-top',
+                    tooltip: 'للأعلى',
+                    backgroundColor: AppColors.ink.withValues(alpha: 0.88),
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    shape: const CircleBorder(),
+                    onPressed: _scrollToTop,
+                    child: const Icon(Icons.arrow_upward_rounded),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                const ChatFab(),
+              ],
             )
           : null,
       bottomNavigationBar: _BottomNav(selected: _tab, onSelected: _onTabSelected),

@@ -9,9 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
+import '../screens/chat/chat_screen.dart';
 import '../screens/orders/my_orders_screen.dart';
 import '../screens/points/points_screen.dart';
 import '../theme/app_theme.dart';
+import 'chat_service.dart';
 import 'deep_link_service.dart';
 import 'order_confirm_service.dart';
 
@@ -65,6 +67,12 @@ class PushService {
 
       // أندرويد والتطبيق مفتوح: النظام ما يعرضه، فنطلعه شريط داخل التطبيق
       FirebaseMessaging.onMessage.listen((message) {
+        // رد من فريق الدردشة: الشاشة المفتوحة تتحدث، وإلا يزيد العداد على زر "راسلونا"
+        final isChat = _isChat(message);
+        if (isChat) {
+          ChatService.onPush();
+          if (ChatService.screenOpen) return;
+        }
         if (defaultTargetPlatform != TargetPlatform.android) return;
         final n = message.notification;
         if (n == null) return;
@@ -81,7 +89,9 @@ class PushService {
                 if ((n.body ?? '').isNotEmpty) Text(n.body!),
               ],
             ),
-            action: productId != null
+            action: isChat
+                ? SnackBarAction(label: 'فتح', onPressed: () => _openChat(navigatorKey))
+                : productId != null
                 ? SnackBarAction(
                     label: 'عرض',
                     onPressed: () => DeepLinkService.openProduct(navigatorKey, productId, source: 'push'),
@@ -408,6 +418,20 @@ class PushService {
 
   static bool _isOrders(RemoteMessage m) => m.data['type'] == 'orders';
 
+  static bool _isChat(RemoteMessage m) => m.data['type'] == 'chat';
+
+  static void _openChat(GlobalKey<NavigatorState> navigatorKey, [int attempt = 0]) {
+    final nav = navigatorKey.currentState;
+    if (nav == null) {
+      if (attempt < 20) WidgetsBinding.instance.addPostFrameCallback((_) => _openChat(navigatorKey, attempt + 1));
+      return;
+    }
+    if (ChatService.screenOpen) return;
+    DeepLinkService.openedFromLink = true; // إعلان الافتتاح ما يطلع فوقها
+    DeepLinkService.onExternalOpen?.call();
+    nav.push(MaterialPageRoute(builder: (_) => const ChatScreen()));
+  }
+
   static void _openOrders(GlobalKey<NavigatorState> navigatorKey, [int attempt = 0]) {
     final nav = navigatorKey.currentState;
     if (nav == null) {
@@ -437,6 +461,8 @@ class PushService {
       unawaited(OrderConfirmService.open(confirmId, explicit: true));
     } else if (_isOrders(m)) {
       _openOrders(navigatorKey);
+    } else if (_isChat(m)) {
+      _openChat(navigatorKey);
     } else if (m.data['type'] == 'points') {
       DeepLinkService.openedFromLink = true;
       DeepLinkService.onExternalOpen?.call();

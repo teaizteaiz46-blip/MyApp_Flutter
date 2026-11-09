@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../screens/chat/chat_screen.dart';
 import '../theme/app_theme.dart';
 
 /// تواصلي ويانا: حسابات MODO (تنفتح بتطبيق المنصة إذا منصّب، وإلا بالمتصفح)
@@ -89,6 +90,21 @@ class ContactUsSection extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatScreen())),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.brand,
+                side: const BorderSide(color: AppColors.brand),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+              label: const Text('راسلونا داخل التطبيق', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
           ),
         ],
       ),
