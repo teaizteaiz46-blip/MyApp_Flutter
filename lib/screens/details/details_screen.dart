@@ -220,6 +220,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
       ..showSnackBar(SnackBar(
         content: Text('انضافت ${pieces(qty)} إلى السلة'),
         backgroundColor: _kGreen,
+        persist: false,
         action: SnackBarAction(
           label: 'عرض السلة',
           textColor: Colors.white,

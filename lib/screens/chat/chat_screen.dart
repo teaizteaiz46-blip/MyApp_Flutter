@@ -39,6 +39,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _contextProduct = widget.productId;
     if (_contextProduct != null) unawaited(_loadProducts([_contextProduct!]));
     ChatService.screenOpen = true;
+    // إشعار "رد من MODO" اللي فتح المحادثة ما يبقى فوقها
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+    });
     WidgetsBinding.instance.addObserver(this);
     _pushSub = ChatService.refreshes.listen((_) => _fetch());
     _fetch(first: true);

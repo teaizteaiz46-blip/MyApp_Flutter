@@ -81,6 +81,8 @@ class PushService {
           ?..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(
             duration: const Duration(seconds: 6),
+            // Flutter الجديد يخلي الشريط اللي بيه زر ثابت لحد ما ينضغط؛ نريده يختفي وحده
+            persist: false,
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
