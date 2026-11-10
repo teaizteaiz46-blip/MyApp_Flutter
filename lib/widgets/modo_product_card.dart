@@ -243,7 +243,8 @@ class _ModoProductCardState extends State<ModoProductCard> {
     final String extra;
     if (unitCells.length > 1) {
       final first = unitCells[1];
-      extra = '${first.$1}+ قطع بـ ${kMoney.format(first.$3)} للقطعة';
+      final fd = UnitTier.ofProduct(p).any((t) => !t.mix && t.freeDelivery && t.min == first.$1);
+      extra = '${first.$1}+ قطع بـ ${kMoney.format(first.$3)} للقطعة${fd ? ' + توصيل مجاني' : ''}';
     } else if (tiers.isNotEmpty) {
       final best = tiers.last;
       extra = '${pieces(best.qty)} بـ ${kMoney.format(best.price)}${best.freeDelivery ? ' + توصيل مجاني' : ''}';
