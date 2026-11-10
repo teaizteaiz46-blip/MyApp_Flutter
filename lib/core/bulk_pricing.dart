@@ -68,7 +68,7 @@ String piecesLabel(int n) => switch (n) {
 const String kMixColor = 'مكس ألوان';
 
 class UnitTier {
-  const UnitTier({required this.min, this.pct, this.price, this.mix = false});
+  const UnitTier({required this.min, this.pct, this.price, this.mix = false, this.freeDelivery = false});
 
   final int min;
   final double? pct;
@@ -76,6 +76,9 @@ class UnitTier {
 
   /// درجة "مكس ألوان" (تنطبق على قطع المكس بس)
   final bool mix;
+
+  /// إذا العدد وصل هاي الدرجة، التوصيل مجاني
+  final bool freeDelivery;
 
   static final RegExp _intRe = RegExp(r'^[0-9]+$');
   static final RegExp _numRe = RegExp(r'^[0-9]+(\.[0-9]+)?$');
@@ -92,7 +95,14 @@ class UnitTier {
     final pct = _numRe.hasMatch(pctText) ? double.parse(pctText) : null;
     if (price == null && pct == null) return null;
     final mx = raw['mix'];
-    return UnitTier(min: min, pct: pct, price: price, mix: mx == true || mx == 'true');
+    final fd = raw['free_delivery'];
+    return UnitTier(
+      min: min,
+      pct: pct,
+      price: price,
+      mix: mx == true || mx == 'true',
+      freeDelivery: fd == true || fd == 'true',
+    );
   }
 
   static List<UnitTier> parseList(dynamic raw) {
@@ -129,6 +139,10 @@ double unitForQty(double base, List<UnitTier> tiers, int qty, {bool mix = false}
   }
   return bestPrice ?? base;
 }
+
+/// التوصيل مجاني إذا العدد (أو عدد المكس) وصل درجة عليها free_delivery
+bool unitFreeDelivery(List<UnitTier> tiers, int qty, int mixQty) =>
+    tiers.any((t) => t.freeDelivery && t.min <= (t.mix ? mixQty : qty));
 
 /// درجات العرض بالترتيب: (من، إلى أو null، سعر القطعة). أول خانة السعر العادي.
 List<(int, int?, double)> unitTierCells(double base, List<UnitTier> tiers) {
@@ -221,7 +235,13 @@ BulkQuote quoteProduct(Map<String, dynamic> product, int qty, {int mixQty = 0}) 
     final u = unitForQty(unit, tiers, safe);
     final mu = unitForQty(unit, tiers, m, mix: true);
     final total = (safe - m) * u + m * (mu < u ? mu : u);
-    return BulkQuote(qty: safe, total: total, regularTotal: unit * safe, freeDelivery: false, packs: const {});
+    return BulkQuote(
+      qty: safe,
+      total: total,
+      regularTotal: unit * safe,
+      freeDelivery: unitFreeDelivery(tiers, safe, m),
+      packs: const {},
+    );
   }
   return quoteBulk(unitPrice: unit, tiers: BulkTier.ofProduct(product), qty: qty);
 }
@@ -326,7 +346,7 @@ CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> product
           qty: qty,
           total: (qty - m) * u + m * (mu < u ? mu : u),
           regularTotal: priceOf(id) * qty,
-          freeDelivery: false,
+          freeDelivery: unitFreeDelivery(ut, totalQty, groupMix),
           packs: const {},
         );
       }
