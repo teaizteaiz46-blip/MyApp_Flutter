@@ -228,11 +228,15 @@ class _ModoProductCardState extends State<ModoProductCard> {
     final created = DateTime.tryParse('${p['created_at'] ?? ''}');
     final isNew = created != null && DateTime.now().difference(created).inDays < 7;
     final minQty = minQtyOf(p);
+    // عرض على مجموعة منتجات (OffersService.apply)
+    final offerShort = p['_offer_short'] is String ? p['_offer_short'] as String : null;
 
     final badges = <(String, Color, Color)>[
       if (isNew) ('جديد ✨', const Color(0xFFFFF3E0), const Color(0xFFE65100)),
       if (discount > 0) ('-$discount%', const Color(0xFFD93A2B), Colors.white),
-      if (isWholesale(p))
+      if (offerShort != null)
+        ('🎁 عرض', const Color(0xFFE8F5E9), _kOfferGreen)
+      else if (isWholesale(p))
         (minQty != null ? 'جملة من ${pieces(minQty)}' : 'جملة', const Color(0xFFFDE7EF), const Color(0xFFC2185B))
       else if (tiers.isNotEmpty)
         ('عرض ${pieces(tiers.first.qty)}', const Color(0xFFE8F5E9), _kOfferGreen)
@@ -241,7 +245,9 @@ class _ModoProductCardState extends State<ModoProductCard> {
     ].take(2).toList();
 
     final String extra;
-    if (unitCells.length > 1) {
+    if (offerShort != null) {
+      extra = offerShort;
+    } else if (unitCells.length > 1) {
       final first = unitCells[1];
       final fd = UnitTier.ofProduct(p).any((t) => !t.mix && t.freeDelivery && t.min == first.$1);
       extra = '${first.$1}+ قطع بـ ${kMoney.format(first.$3)} للقطعة${fd ? ' + توصيل مجاني' : ''}';

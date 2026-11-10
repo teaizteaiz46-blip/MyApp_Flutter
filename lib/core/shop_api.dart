@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/cart_service.dart';
+import '../services/offers_service.dart';
 
 /// الأعمدة المسموح للتطبيق يقراها من جدول المنتجات.
 /// لا تستخدم `.select()` بدون أعمدة، حتى ما تنسحب كلفة المنتج (product_cost).
@@ -94,8 +95,11 @@ class ShopApi {
   static Future<Map<int, Map<String, dynamic>>> fetchProductsByIds(Iterable<int> ids) async {
     final list = ids.toSet().toList();
     if (list.isEmpty) return {};
+    final offers = OffersService.load(); // بالتوازي ويه المنتجات
     final rows = await _db.from('products').select(kProductColumns).inFilter('id', list);
-    return {for (final row in rows) (row['id'] as num).toInt(): row};
+    await offers;
+    // العروض الشغّالة (باقة/توصيل مجاني) تنطبق على بيانات المنتج حتى السعر يطابق السيرفر
+    return OffersService.applyAll({for (final row in rows) (row['id'] as num).toInt(): row});
   }
 
   static Future<Map<String, double>> fetchDeliveryCosts() async {

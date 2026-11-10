@@ -395,6 +395,33 @@ CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> product
     }
   }
 
+  // عروض "توصيل مجاني": إذا مجموع قطع منتجات العرض وصل العدد، كلهم توصيلهم مجاني (نفس private.cart_price)
+  final fdQty = <int, int>{};
+  final fdNeed = <int, int>{};
+  for (final id in qtyByProduct.keys) {
+    final fd = products[id]?['_fd_offer'];
+    if (fd is Map) {
+      final oid = (fd['id'] as num).toInt();
+      fdQty[oid] = (fdQty[oid] ?? 0) + qtyByProduct[id]!;
+      fdNeed[oid] = (fd['qty'] as num).toInt();
+    }
+  }
+  for (final id in qtyByProduct.keys) {
+    final fd = products[id]?['_fd_offer'];
+    final q = byProduct[id];
+    if (fd is! Map || q == null || q.freeDelivery) continue;
+    final oid = (fd['id'] as num).toInt();
+    if ((fdQty[oid] ?? 0) >= (fdNeed[oid] ?? 1 << 30)) {
+      byProduct[id] = BulkQuote(
+        qty: q.qty,
+        total: q.total,
+        regularTotal: q.regularTotal,
+        freeDelivery: true,
+        packs: q.packs,
+      );
+    }
+  }
+
   return CartQuote(
     byProduct: byProduct,
     qtyByProduct: qtyByProduct,

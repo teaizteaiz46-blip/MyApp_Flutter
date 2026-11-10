@@ -344,11 +344,26 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  /// عرض "توصيل مجاني" على مجموعة منتجات: كم قطعة باقية (يطلع تحت آخر منتج من العرض بالسلة)
+  String? _fdOfferHint(CartLine line, CartQuote quote) {
+    int? offerOf(int productId) => ((_products[productId]?['_fd_offer'] as Map?)?['id'] as num?)?.toInt();
+    final fd = _products[line.productId]?['_fd_offer'];
+    final oid = offerOf(line.productId);
+    if (fd is! Map || oid == null || quote.freeDelivery) return null;
+    final lines = _cart.lines.value.where((l) => offerOf(l.productId) == oid).toList();
+    if (lines.isEmpty || lines.last.productId != line.productId) return null;
+    final have = lines.fold(0, (s, l) => s + l.quantity);
+    final missing = ((fd['qty'] as num?)?.toInt() ?? 0) - have;
+    if (missing <= 0) return null;
+    return 'زيدوا ${piecesLabel(missing)} من منتجات العرض ويصير التوصيل مجاني';
+  }
+
   Widget? _buildHint(CartLine line, CartQuote quote) {
     final product = _products[line.productId];
     if (product == null || _problemFor(line) != null) return null;
-    final hint = nextBulkHintForProduct(product, quote.groupQtyFor(line.productId));
-    if (hint == null || hint.missing > kBulkHintMaxMissing) return null;
+    final fdText = _fdOfferHint(line, quote);
+    final hint = fdText != null ? null : nextBulkHintForProduct(product, quote.groupQtyFor(line.productId));
+    if (fdText == null && (hint == null || hint.missing > kBulkHintMaxMissing)) return null;
     return Container(
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -363,8 +378,13 @@ class _CartScreenState extends State<CartScreen> {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              'زيد ${piecesLabel(hint.missing)} وتاخذ '
-              '${hint.tier.label(withFreeDelivery: !quote.freeDelivery)}',
+              fdText ??
+                  (product['_offer_id'] != null
+                      // عرض على مجموعة منتجات: القطع تنجمع من أي منتج بالعرض
+                      ? 'زيدوا ${piecesLabel(hint!.missing)} من منتجات العرض وتاخذون '
+                          '${hint.tier.label(withFreeDelivery: !quote.freeDelivery)}'
+                      : 'زيد ${piecesLabel(hint!.missing)} وتاخذ '
+                          '${hint.tier.label(withFreeDelivery: !quote.freeDelivery)}'),
               style: TextStyle(color: Colors.deepOrange.shade800, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),

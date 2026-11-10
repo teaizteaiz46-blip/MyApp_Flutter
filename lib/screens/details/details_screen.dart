@@ -11,12 +11,14 @@ import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../main.dart';
 import '../../services/cart_service.dart';
+import '../../services/offers_service.dart';
 import '../../services/recently_viewed.dart';
 import '../../services/visit_logger.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/modo_product_card.dart' show WishHeart, optionsCountLabel;
 import '../cart/cart_screen.dart';
 import '../chat/chat_screen.dart';
+import '../offers/offer_products_screen.dart';
 
 const Color _kPink = Color(0xFFC2185B);
 const Color _kGreen = Color(0xFF2E7D32);
@@ -80,10 +82,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
         await supabase.from('products').select(kProductColumns).eq('id', widget.productId).single(),
       ],
       onFresh: (fresh) {
-        if (mounted) setState(() => _productFuture = Future.value(fresh.first));
+        if (mounted) setState(() => _productFuture = Future.value(OffersService.apply(fresh.first)));
       },
     );
-    final data = rows.first;
+    // العرض الشغّال على المنتج (باقة أو توصيل مجاني) ينطبق على الأسعار ويطلع بالصفحة
+    await OffersService.load();
+    final data = OffersService.apply(rows.first);
     _loadCategoryName((data['category_id'] as num?)?.toInt());
     FacebookAnalyticsService.logViewContent(id: '${widget.productId}', price: _price(data));
     return data;
@@ -292,6 +296,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final sales = (product['sales_count'] as num?)?.toInt() ?? 0;
         final rating = (product['rating'] as num?)?.toDouble() ?? 0;
         final optionsLabel = optionsCountLabel(colors);
+        final offer = product['_offer_id'] != null ? OffersService.offerFor(widget.productId) : null;
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -351,6 +356,16 @@ class _DetailsScreenState extends State<DetailsScreen> {
                               ],
                             ),
                           ),
+                        if (offer != null) ...[
+                          const SizedBox(height: 12),
+                          OfferBanner(
+                            offer: offer,
+                            onShowProducts: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => OfferProductsScreen(offer: offer)),
+                            ),
+                          ),
+                        ],
                         if (colors.isNotEmpty && stock > 0) ...[
                           const SizedBox(height: 12),
                           _buildModeToggle(product),

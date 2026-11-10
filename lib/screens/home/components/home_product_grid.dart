@@ -4,6 +4,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../../core/offline_cache.dart';
 import '../../../core/shop_api.dart';
 import '../../../main.dart';
+import '../../../services/offers_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/modo_product_card.dart';
 import '../../details/details_screen.dart';
@@ -68,6 +69,10 @@ class _HomeProductGridState extends State<HomeProductGrid> {
   @override
   void initState() {
     super.initState();
+    // العروض الشغّالة تطلع على الكارت ("🎁 عرض")؛ محفوظة 3 دقايق فما تنطلب كل مرة
+    OffersService.load().then((offers) {
+      if (mounted && offers.isNotEmpty) setState(() {});
+    });
     if (_isExternal) {
       _hasMore = false;
       _loadExternalFuture();
@@ -261,7 +266,7 @@ class _HomeProductGridState extends State<HomeProductGrid> {
             );
           }
 
-          final product = _products[index];
+          final product = OffersService.apply(_products[index]);
           return ModoProductCard(
             key: ValueKey(product['id']),
             product: product,
