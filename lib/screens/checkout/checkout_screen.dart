@@ -74,6 +74,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   List<Map<String, dynamic>> _gifts = const [];
   int? _giftId;
 
+  /// لون/قياس الهدية (إذا منتج الهدية بيه ألوان، لازم يختار)
+  String? _giftColor;
+
+  static List<String> _giftColors(Map<String, dynamic> g) =>
+      ((g['colors'] as List?) ?? const []).map((e) => '$e').where((e) => e.trim().isNotEmpty).toList();
+
+  /// "لون" أو "قياس" أو "اختيار" حسب نوع خيارات منتج الهدية
+  static String _giftOptionWord(List<String> colors) => switch (optionKindOf(colors)) {
+        OptionKind.color => 'لون',
+        OptionKind.size => 'قياس',
+        _ => 'اختيار',
+      };
+
   @override
   void initState() {
     super.initState();
@@ -216,9 +229,53 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final g in _gifts) _giftTile(g),
+        for (final g in _gifts) ...[
+          _giftTile(g),
+          if (identical(g, _selectedGift) && _giftColors(g).isNotEmpty) _giftColorPicker(_giftColors(g)),
+        ],
         Text('الهدية مجانية وتوصلكم ويه نفس الطلب.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
+    );
+  }
+
+  /// ألوان/قياسات الهدية المختارة (ممكن تكون 40+، فتنسحب بداخل مربع)
+  Widget _giftColorPicker(List<String> colors) {
+    final title = _giftOptionWord(colors);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8F3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _giftColor == null ? Colors.deepOrange.shade200 : Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_giftColor == null ? 'اختاروا $title الهدية' : '$title الهدية: $_giftColor ✓',
+              style: TextStyle(fontWeight: FontWeight.w800, color: _giftColor == null ? Colors.deepOrange : Colors.black87)),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final c in colors)
+                    ChoiceChip(
+                      label: Text(c),
+                      selected: _giftColor == c,
+                      onSelected: (_) => setState(() => _giftColor = c),
+                      selectedColor: const Color(0xFFFFE0CC),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -241,7 +298,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: ok ? () => setState(() => _giftId = selected ? null : id) : null,
+          onTap: ok
+              ? () => setState(() {
+                    _giftId = selected ? null : id;
+                    _giftColor = null;
+                  })
+              : null,
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Row(
@@ -354,6 +416,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    final gift = _selectedGift;
+    if (gift != null && _giftColors(gift).isNotEmpty && _giftColor == null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('اختاروا ${_giftOptionWord(_giftColors(gift))} الهدية أول'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
     final phone = ShopApi.normalizePhone(_phoneController.text)!;
     setState(() => _submitting = true);
 
@@ -369,7 +440,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         points: _pointsUsed,
         referralCode: _referralOk ? _referralCode : null,
         options: [for (final o in _orderOptions) if (_selectedOptions.contains(o)) o],
-        giftOfferId: _selectedGift == null ? null : (_selectedGift!['id'] as num?)?.toInt(),
+        giftOfferId: gift == null ? null : (gift['id'] as num?)?.toInt(),
+        giftColor: gift == null ? null : _giftColor,
       );
 
       await _saveCustomerInfo(phone);

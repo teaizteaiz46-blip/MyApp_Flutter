@@ -143,6 +143,7 @@ class ShopApi {
     int points = 0,
     String? referralCode,
     int? giftOfferId,
+    String? giftColor,
   }) async {
     final code = couponCode?.trim();
     final res = await _db.rpc('place_order', params: {
@@ -163,6 +164,7 @@ class ShopApi {
       if (referralCode != null && referralCode.trim().isNotEmpty) 'p_referral_code': referralCode.trim().toUpperCase(),
       // الهدية المجانية اللي اختارها الزبون (السيرفر يتحقق منها ويضيفها بسعر 0)
       if (giftOfferId != null) 'p_gift_offer_id': giftOfferId,
+      if (giftOfferId != null && giftColor != null) 'p_gift_color': giftColor,
     });
     return OrderResult.fromJson(Map<String, dynamic>.from(res as Map));
   }
