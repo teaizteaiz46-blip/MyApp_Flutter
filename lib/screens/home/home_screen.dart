@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/offline_cache.dart';
+import '../../core/product_options.dart' show pieces;
 import '../../main.dart';
 import '../../services/cart_service.dart';
+import '../../services/offers_service.dart';
 import '../../services/splash_ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/chat_fab.dart';
@@ -538,19 +540,23 @@ class _TrustRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const style = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF666666));
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(8, 2, 8, 10),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('🚚 توصيل لكل العراق', style: style),
-            SizedBox(width: 14),
-            Text('💵 الدفع عند الاستلام', style: style),
-            SizedBox(width: 14),
-            Text('↩️ إرجاع سهل', style: style),
-          ],
+    // إذا المتجر مشغّل التوصيل المجاني حسب عدد القطع، يطلع بدل "توصيل لكل العراق"
+    return ValueListenableBuilder<int?>(
+      valueListenable: OffersService.freeDeliveryPieces,
+      builder: (context, freeFrom, _) => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 2, 8, 10),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(freeFrom != null ? '🚚 توصيل مجاني من ${pieces(freeFrom)}' : '🚚 توصيل لكل العراق', style: style),
+              const SizedBox(width: 14),
+              const Text('💵 الدفع عند الاستلام', style: style),
+              const SizedBox(width: 14),
+              const Text('↩️ إرجاع سهل', style: style),
+            ],
+          ),
         ),
       ),
     );

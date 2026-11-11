@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show ValueNotifier, visibleForTesting;
 import 'package:intl/intl.dart' show NumberFormat;
 
 import '../core/product_options.dart' show pieces;
@@ -79,17 +79,22 @@ class OffersService {
 
   static List<Offer> get offers => _offers;
 
-  /// العروض الشغّالة (تتحدث كل 3 دقايق). إذا صار خطأ نبقى على آخر نسخة.
+  /// توصيل مجاني للطلب كله إذا مجموع القطع وصل هذا العدد (من صفحة الأدمن)، أو null إذا مطفي.
+  static final ValueNotifier<int?> freeDeliveryPieces = ValueNotifier<int?>(null);
+
+  /// العروض الشغّالة وإعداد التوصيل المجاني (تتحدث كل 3 دقايق). إذا صار خطأ نبقى على آخر نسخة.
   static Future<List<Offer>> load({bool force = false}) {
     final fresh = _loadedAt != null && DateTime.now().difference(_loadedAt!) < const Duration(minutes: 3);
     if (fresh && !force) return Future.value(_offers);
     return _loading ??= () async {
       try {
+        final settings = _loadSettings();
         final res = await supabase.rpc('active_offers');
         _offers = ((res as List?) ?? const [])
             .map((e) => Offer.fromJson(Map<String, dynamic>.from(e as Map)))
             .where((o) => o.qty > 1 && o.productIds.isNotEmpty)
             .toList();
+        await settings;
         _loadedAt = DateTime.now();
       } catch (_) {
         // نبقى على النسخة القديمة
@@ -98,6 +103,21 @@ class OffersService {
       }
       return _offers;
     }();
+  }
+
+  static Future<void> _loadSettings() async {
+    try {
+      final row = await supabase
+          .from('store_settings')
+          .select('free_delivery_pieces_on, free_delivery_min_pieces')
+          .eq('id', 1)
+          .maybeSingle();
+      final on = row?['free_delivery_pieces_on'] == true;
+      final min = (row?['free_delivery_min_pieces'] as num?)?.toInt();
+      freeDeliveryPieces.value = on && min != null && min > 1 ? min : null;
+    } catch (_) {
+      // نبقى على آخر قيمة
+    }
   }
 
   @visibleForTesting

@@ -7,6 +7,7 @@ import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
+import '../../services/offers_service.dart';
 import '../checkout/checkout_screen.dart';
 import '../details/details_screen.dart';
 
@@ -106,7 +107,8 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   /// للعرض فقط؛ السعر النهائي يتحسب بالسيرفر عند إرسال الطلب.
-  CartQuote get _quote => quoteCart(_cart.lines.value, _products);
+  CartQuote get _quote =>
+      quoteCart(_cart.lines.value, _products, freeDeliveryMinPieces: OffersService.freeDeliveryPieces.value);
 
   double get _total => _quote.subtotal;
 
@@ -189,7 +191,9 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     final quote = _quote;
-    final banner = quote.freeDelivery ? 1 : 0;
+    // توصيل مجاني: مبروك، أو كم قطعة باقية إذا المتجر مشغّل التوصيل المجاني حسب العدد
+    final missing = quote.freeDelivery ? null : quote.piecesToFreeDelivery;
+    final banner = quote.freeDelivery || missing != null ? 1 : 0;
 
     // منتجات الجملة: كل الألوان بكارت واحد (أول مكان يطلع بي المنتج)
     final entries = <Object>[];
@@ -209,7 +213,7 @@ class _CartScreenState extends State<CartScreen> {
       itemCount: entries.length + banner,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        if (index < banner) return const _FreeDeliveryBanner();
+        if (index < banner) return _FreeDeliveryBanner(missing: missing, minPieces: quote.freeDeliveryMinPieces);
         final i = index - banner;
         final entry = entries[i];
         // تلميح العرض يطلع مرة وحدة لكل منتج (أو مجموعة عرض)، تحت آخر عنصر منه
@@ -581,10 +585,38 @@ class _CartScreenState extends State<CartScreen> {
 }
 
 class _FreeDeliveryBanner extends StatelessWidget {
-  const _FreeDeliveryBanner();
+  const _FreeDeliveryBanner({this.missing, this.minPieces});
+
+  /// كم قطعة باقية للتوصيل المجاني (null = التوصيل صار مجاني)
+  final int? missing;
+  final int? minPieces;
 
   @override
   Widget build(BuildContext context) {
+    final left = missing;
+    if (left != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.local_shipping_outlined, color: Colors.deepOrange.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'زيدوا ${piecesLabel(left)} ويصير التوصيل مجاني 🚚'
+                '${minPieces != null ? '\n(التوصيل مجاني لأي طلب من ${pieces(minPieces!)} وفوگ)' : ''}',
+                style: TextStyle(color: Colors.deepOrange.shade800, fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(

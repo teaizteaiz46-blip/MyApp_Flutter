@@ -12,6 +12,7 @@ import '../../facebook_service.dart';
 import '../../main.dart' show supabase;
 import '../../services/points_service.dart';
 import '../../services/cart_service.dart';
+import '../../services/offers_service.dart';
 import '../../services/order_confirm_service.dart';
 import '../../services/push_service.dart';
 import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
@@ -184,7 +185,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   /// نفس حساب place_order: عروض الكمية على مجموع كل منتج، والتوصيل صفر إذا أي منتج وصل درجة توصيل مجاني.
   /// للعرض فقط؛ السيرفر هو المرجع.
-  CartQuote get _quote => quoteCart(_cart.lines.value, _products);
+  CartQuote get _quote =>
+      quoteCart(_cart.lines.value, _products, freeDeliveryMinPieces: OffersService.freeDeliveryPieces.value);
 
   double get _subtotal => _quote.subtotal;
 

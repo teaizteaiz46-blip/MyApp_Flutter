@@ -259,12 +259,26 @@ class CartQuote {
     required this.qtyByProduct,
     this.groupKeyByProduct = const {},
     this.qtyByGroup = const {},
+    this.freeDeliveryMinPieces,
   });
 
   final Map<int, BulkQuote> byProduct;
   final Map<int, int> qtyByProduct;
   final Map<int, String> groupKeyByProduct;
   final Map<String, int> qtyByGroup;
+
+  /// توصيل مجاني للطلب كله من هذا العدد من القطع (إعداد المتجر)، null = مطفي.
+  final int? freeDeliveryMinPieces;
+
+  /// مجموع القطع بالسلة
+  int get pieces => qtyByProduct.values.fold(0, (s, q) => s + q);
+
+  /// كم قطعة باقية حتى يصير التوصيل مجاني حسب العدد (null إذا الإعداد مطفي أو وصلها)
+  int? get piecesToFreeDelivery {
+    final min = freeDeliveryMinPieces;
+    if (min == null || pieces >= min) return null;
+    return min - pieces;
+  }
 
   /// مجموع قطع مجموعة العرض الي بيها المنتج (أو قطع المنتج نفسه إذا بدون مجموعة).
   int groupQtyFor(int productId) =>
@@ -274,8 +288,10 @@ class CartQuote {
   double get regularSubtotal => byProduct.values.fold(0.0, (s, q) => s + q.regularTotal);
   double get saving => byProduct.values.fold(0.0, (s, q) => s + q.saving);
 
-  /// إذا أي منتج وصل درجة عليها توصيل مجاني، التوصيل صفر على الطلب كله.
-  bool get freeDelivery => byProduct.values.any((q) => q.freeDelivery);
+  /// إذا أي منتج وصل درجة عليها توصيل مجاني (أو الطلب وصل عدد قطع التوصيل المجاني)، التوصيل صفر على الطلب كله.
+  bool get freeDelivery =>
+      (freeDeliveryMinPieces != null && pieces > 0 && pieces >= freeDeliveryMinPieces!) ||
+      byProduct.values.any((q) => q.freeDelivery);
 
   /// حصة سطر واحد (لون واحد) من سعر المنتج بعد العرض.
   double lineTotal(CartLine line) {
@@ -299,7 +315,12 @@ class CartQuote {
 /// - القطع الداخلة بالباقات من الأغلى للأرخص، وسعر الباقات يتوزع حسب السعر العادي
 ///   (التقريب لأقرب دينار، والفرق على آخر منتج).
 /// المنتجات غير الموجودة بـ [products] ما تنحسب (السيرفر يرفض الطلب بكل الأحوال).
-CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> products) {
+/// [freeDeliveryMinPieces]: توصيل مجاني للطلب كله من هذا العدد من القطع (store_settings بالسيرفر).
+CartQuote quoteCart(
+  List<CartLine> lines,
+  Map<int, Map<String, dynamic>> products, {
+  int? freeDeliveryMinPieces,
+}) {
   final qtyByProduct = <int, int>{};
   final mixByProduct = <int, int>{};
   for (final line in lines) {
@@ -427,6 +448,7 @@ CartQuote quoteCart(List<CartLine> lines, Map<int, Map<String, dynamic>> product
     qtyByProduct: qtyByProduct,
     groupKeyByProduct: groupKeyByProduct,
     qtyByGroup: qtyByGroup,
+    freeDeliveryMinPieces: freeDeliveryMinPieces,
   );
 }
 

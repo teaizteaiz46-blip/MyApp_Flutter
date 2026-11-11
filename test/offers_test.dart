@@ -77,6 +77,22 @@ void main() {
     expect(full.freeDelivery, isTrue);
   });
 
+  test('توصيل مجاني حسب عدد القطع بالطلب كله (مثل store_settings بالسيرفر)', () {
+    final cat = catalog();
+    final three = quoteCart([line(30, 1), line(11, 1), line(20, 1)], cat, freeDeliveryMinPieces: 4);
+    expect(three.freeDelivery, isFalse);
+    expect(three.piecesToFreeDelivery, 1);
+
+    final four = quoteCart([line(30, 2), line(11, 1), line(20, 1)], cat, freeDeliveryMinPieces: 4);
+    expect(four.freeDelivery, isTrue);
+    expect(four.piecesToFreeDelivery, isNull);
+    expect(four.subtotal, 5000 * 2 + 8000 + 6000); // الأسعار ما تتغير
+
+    final off = quoteCart([line(30, 9)], cat);
+    expect(off.freeDelivery, isFalse);
+    expect(off.piecesToFreeDelivery, isNull);
+  });
+
   test('منتج بدون عرض ما يتغير', () {
     final p = product(30, 5000);
     expect(OffersService.apply(p), same(p));

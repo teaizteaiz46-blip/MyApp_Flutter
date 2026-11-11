@@ -414,14 +414,19 @@ class _DetailsScreenState extends State<DetailsScreen> {
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                         ),
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(0, 4, 0, 22),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 4, 0, 22),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _TrustItem(emoji: '🚚', text: 'توصيل لكل العراق'),
-                              _TrustItem(emoji: '💵', text: 'الدفع عند الاستلام'),
-                              _TrustItem(emoji: '📸', text: 'ألوان حقيقية'),
+                              _TrustItem(
+                                emoji: '🚚',
+                                text: OffersService.freeDeliveryPieces.value != null
+                                    ? 'توصيل مجاني من ${pieces(OffersService.freeDeliveryPieces.value!)}'
+                                    : 'توصيل لكل العراق',
+                              ),
+                              const _TrustItem(emoji: '💵', text: 'الدفع عند الاستلام'),
+                              const _TrustItem(emoji: '📸', text: 'ألوان حقيقية'),
                             ],
                           ),
                         ),
