@@ -482,9 +482,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
     }
     // توصيل مجاني (من المنتج "توصيل مجاني من N"، أو إعداد المتجر حسب مجموع السلة): إذا أقرب من تخفيض السعر
     final fdMissing = _freeDeliveryMissing(product, qty, current);
-    if (fdMissing != null && (hint == null || fdMissing <= hint.missing)) {
-      return '🚚 ضيفوا ${pieces(fdMissing)} ويصير التوصيل مجاني';
-    }
+    final fdText = fdMissing == null ? null : '🚚 ضيفوا ${pieces(fdMissing)} ويصير التوصيل مجاني';
+    if (fdText != null && (hint == null || fdMissing! < hint.missing)) return fdText;
     if (hint == null) return '';
     final target = qty + hint.missing;
     final next = quoteProduct(product, target, mixQty: _mix ? target : 0);
@@ -493,8 +492,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
     if (per < current.total / qty) {
       final isLast = cells.isNotEmpty && target >= cells.last.$1;
       final wholesale = isWholesale(product) || usesUnitTiers(product);
+      // نفس العدد يفتح سعر أرخص وتوصيل مجاني سوى
+      if (fdMissing == hint.missing) {
+        return '✨ ضيفوا ${pieces(hint.missing)} وينزل سعر القطعة لـ ${_money.format(per)} + توصيل مجاني';
+      }
       return '✨ $add وينزل سعر القطعة لـ ${_money.format(per)}${isLast && wholesale ? ' (سعر الجملة)' : ''}';
     }
+    if (fdText != null) return fdText;
     if (next.freeDelivery && !current.freeDelivery) return '✨ $add وتاخذين توصيل مجاني';
     return '';
   }
