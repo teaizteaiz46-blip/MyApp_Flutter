@@ -100,6 +100,22 @@ class _CartScreenState extends State<CartScreen> {
     return null;
   }
 
+  /// أقرب طريق للتوصيل المجاني: كم قطعة باقية، ومن أي منتج (null = أي منتجات، إعداد المتجر)
+  ({int missing, String? product})? _nearestFreeDelivery(CartQuote quote) {
+    ({int missing, String? product})? best;
+    for (final id in quote.qtyByProduct.keys) {
+      final p = _products[id];
+      final min = freeDeliveryMinOf(p);
+      if (p == null || min == null) continue;
+      final m = min - quote.groupQtyFor(id);
+      if (m <= 0 || _qtyForProduct(id) + m > _stock(p)) continue;
+      if (best == null || m < best.missing) best = (missing: m, product: (p['name'] ?? '').toString().trim());
+    }
+    final store = quote.piecesToFreeDelivery;
+    if (store != null && (best == null || store <= best.missing)) best = (missing: store, product: null);
+    return best;
+  }
+
   /// منتج جملة بألوان: يطلع بكارت واحد بالسلة
   bool _isWholesaleGroup(int productId) {
     final p = _products[productId];
@@ -191,9 +207,9 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     final quote = _quote;
-    // توصيل مجاني: مبروك، أو كم قطعة باقية إذا المتجر مشغّل التوصيل المجاني حسب العدد
-    final missing = quote.freeDelivery ? null : quote.piecesToFreeDelivery;
-    final banner = quote.freeDelivery || missing != null ? 1 : 0;
+    // توصيل مجاني: مبروك، أو أقرب طريق له (منتج بيه "توصيل مجاني من N"، أو إعداد المتجر حسب العدد)
+    final path = quote.freeDelivery ? null : _nearestFreeDelivery(quote);
+    final banner = quote.freeDelivery || path != null ? 1 : 0;
 
     // منتجات الجملة: كل الألوان بكارت واحد (أول مكان يطلع بي المنتج)
     final entries = <Object>[];
@@ -213,7 +229,13 @@ class _CartScreenState extends State<CartScreen> {
       itemCount: entries.length + banner,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        if (index < banner) return _FreeDeliveryBanner(missing: missing, minPieces: quote.freeDeliveryMinPieces);
+        if (index < banner) {
+          return _FreeDeliveryBanner(
+            missing: path?.missing,
+            product: path?.product,
+            minPieces: path?.product == null ? quote.freeDeliveryMinPieces : null,
+          );
+        }
         final i = index - banner;
         final entry = entries[i];
         // تلميح العرض يطلع مرة وحدة لكل منتج (أو مجموعة عرض)، تحت آخر عنصر منه
@@ -585,10 +607,13 @@ class _CartScreenState extends State<CartScreen> {
 }
 
 class _FreeDeliveryBanner extends StatelessWidget {
-  const _FreeDeliveryBanner({this.missing, this.minPieces});
+  const _FreeDeliveryBanner({this.missing, this.product, this.minPieces});
 
   /// كم قطعة باقية للتوصيل المجاني (null = التوصيل صار مجاني)
   final int? missing;
+
+  /// إذا الطريق الأقرب من منتج معيّن ("توصيل مجاني من N" على المنتج)
+  final String? product;
   final int? minPieces;
 
   @override
@@ -608,7 +633,7 @@ class _FreeDeliveryBanner extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'زيدوا ${piecesLabel(left)} ويصير التوصيل مجاني 🚚'
+                'زيدوا ${piecesLabel(left)}${product != null && product!.isNotEmpty ? ' من "$product"' : ''} ويصير التوصيل مجاني 🚚'
                 '${minPieces != null ? '\n(التوصيل مجاني لأي طلب من ${pieces(minPieces!)} وفوگ)' : ''}',
                 style: TextStyle(color: Colors.deepOrange.shade800, fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.4),
               ),

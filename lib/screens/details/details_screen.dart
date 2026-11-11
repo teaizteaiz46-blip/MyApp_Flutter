@@ -450,6 +450,23 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   Widget _stat(String t) => Text(t, style: const TextStyle(fontSize: 12, color: Color(0xFF666666)));
 
+  /// كم قطعة باقية حتى يصير التوصيل مجاني: "توصيل مجاني من N" على المنتج، أو إعداد المتجر
+  /// (مجموع السلة + هذا العدد). null إذا ماكو، أو صار مجاني، أو المخزون ما يكفي.
+  int? _freeDeliveryMissing(Map<String, dynamic> product, int qty, BulkQuote current) {
+    if (current.freeDelivery) return null;
+    int? best;
+    final own = freeDeliveryMinOf(product);
+    if (own != null && own > qty && own <= _stock(product)) best = own - qty;
+    final store = OffersService.freeDeliveryPieces.value;
+    if (store != null) {
+      final inCart = CartService.instance.lines.value.fold(0, (s, l) => s + l.quantity);
+      final m = store - inCart - qty;
+      if (m <= 0) return null; // ويه السلة يصير مجاني أصلاً
+      if (best == null || m < best) best = m;
+    }
+    return best;
+  }
+
   /// التلميح يطلع بس إذا متوسط سعر القطعة بعد الإضافة أرخص من الحالي، أو ينفتح توصيل مجاني
   String _hintText(Map<String, dynamic> product, BulkHint? hint, List<(int, int?, double)> cells,
       (int, double)? mixCell, int qty, BulkQuote current) {
@@ -462,6 +479,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
     // مكس: كم باقي حتى يوصل سعر المكس
     if (_mix && mixCell != null && qty < mixCell.$1 && mixCell.$1 <= _stock(product)) {
       return '✨ ضيفي ${pieces(mixCell.$1 - qty)} وينزل سعر القطعة لـ ${_money.format(mixCell.$2)} (سعر المكس)';
+    }
+    // توصيل مجاني (من المنتج "توصيل مجاني من N"، أو إعداد المتجر حسب مجموع السلة): إذا أقرب من تخفيض السعر
+    final fdMissing = _freeDeliveryMissing(product, qty, current);
+    if (fdMissing != null && (hint == null || fdMissing <= hint.missing)) {
+      return '🚚 ضيفوا ${pieces(fdMissing)} ويصير التوصيل مجاني';
     }
     if (hint == null) return '';
     final target = qty + hint.missing;

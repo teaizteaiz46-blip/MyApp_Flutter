@@ -144,6 +144,17 @@ double unitForQty(double base, List<UnitTier> tiers, int qty, {bool mix = false}
 bool unitFreeDelivery(List<UnitTier> tiers, int qty, int mixQty) =>
     tiers.any((t) => t.freeDelivery && t.min <= (t.mix ? mixQty : qty));
 
+/// "توصيل مجاني من N قطع" على المنتج (درجة جملة عليها free_delivery، عادة بدون خصم)، أو null.
+/// الباقات (bulk_tiers) تلغي درجات الجملة مثل السيرفر، فإذا اكو باقات ترجع null.
+int? freeDeliveryMinOf(Map<String, dynamic>? product) {
+  if (BulkTier.ofProduct(product).isNotEmpty) return null;
+  int? best;
+  for (final t in UnitTier.ofProduct(product)) {
+    if (t.freeDelivery && !t.mix && (best == null || t.min < best)) best = t.min;
+  }
+  return best;
+}
+
 /// درجات العرض بالترتيب: (من، إلى أو null، سعر القطعة). أول خانة السعر العادي.
 List<(int, int?, double)> unitTierCells(double base, List<UnitTier> tiers) {
   final steps = <int, double>{};

@@ -93,6 +93,34 @@ void main() {
     expect(off.piecesToFreeDelivery, isNull);
   });
 
+  test('"توصيل مجاني من 2" على المنتج: ما يغيّر الأسعار ولا يخفي أسعار الجملة', () {
+    final p = {
+      'id': 953,
+      'price': 10000,
+      'stock': 100,
+      'bulk_tiers': const [],
+      'unit_tiers': [
+        {'min': 6, 'price': 8000},
+        {'min': 12, 'price': 7500},
+        {'min': 12, 'mix': true, 'price': 7500},
+        {'min': 2, 'pct': 0, 'free_delivery': true},
+      ],
+    };
+    expect(freeDeliveryMinOf(p), 2);
+    // شريط الأسعار نفسه (الدرجة بدون خصم ما تطلع)
+    expect(unitTierCells(10000, UnitTier.ofProduct(p)).map((c) => c.$1), [1, 6, 12]);
+    final one = quoteProduct(p, 1);
+    expect(one.total, 10000);
+    expect(one.freeDelivery, isFalse);
+    final two = quoteProduct(p, 2);
+    expect(two.total, 20000);
+    expect(two.freeDelivery, isTrue);
+    expect(quoteProduct(p, 6).total, 48000); // أسعار الجملة باقية
+    expect(quoteCart([line(953, 2)], {953: p}).freeDelivery, isTrue);
+    // إذا اكو باقات، تلغي درجات الجملة (مثل السيرفر)
+    expect(freeDeliveryMinOf({...p, 'bulk_tiers': [{'qty': 2, 'price': 20000, 'free_delivery': true}]}), isNull);
+  });
+
   test('منتج بدون عرض ما يتغير', () {
     final p = product(30, 5000);
     expect(OffersService.apply(p), same(p));
