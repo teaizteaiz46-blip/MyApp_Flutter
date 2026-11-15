@@ -6,6 +6,7 @@ import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -31,6 +32,7 @@ import 'services/splash_ad_service.dart';
 import 'services/tiktok_service.dart';
 import '../../core/shop_api.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -100,6 +102,9 @@ Future<void> main() async {
   // إعدادات المتجر (الرئيسية الافتراضية، التوصيل المجاني، التحديث الإجباري): آخر نسخة بالجهاز فوراً
   await AppConfig.init();
   OffersService.syncSettings();
+
+  // المظهر المحفوظ (ليلي إذا الزبون بعده ما اختار) قبل أول إطار، حتى ما يطلع وميض
+  await ThemeController.init();
 
   // تشغيل الواجهة فوراً لمنع تعليق الشاشة البيضاء
   runApp(const MyApp());
@@ -180,50 +185,51 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: rootNavigatorKey,
-      scaffoldMessengerKey: rootMessengerKey,
-      title: 'MODO',
-      debugShowCheckedModeBanner: false,
-      locale: const Locale('ar', 'IQ'),
-      supportedLocales: const [Locale('ar', 'IQ')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-        fontFamily: 'Muli',
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          iconTheme: IconThemeData(color: Colors.black),
-          titleTextStyle: TextStyle(color: Colors.black, fontSize: 18),
+    // المظهر (ليلي/فاتح/حسب الموبايل) يتبدل فوراً بدون إعادة تشغيل
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.mode,
+      builder: (context, themeMode, _) => MaterialApp(
+        navigatorKey: rootNavigatorKey,
+        scaffoldMessengerKey: rootMessengerKey,
+        title: 'MODO',
+        debugShowCheckedModeBanner: false,
+        locale: const Locale('ar', 'IQ'),
+        supportedLocales: const [Locale('ar', 'IQ')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeMode,
+        // التحديث الإجباري يغطي كل الشاشات (والتطبيق يبقى تحته بدون ما ينعاد)،
+        // وأيقونات شريط الحالة حسب الوضع (الشاشات الي بيها شريط علوي تحدد لونها بنفسها)
+        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: context.modo.overlay,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: UpdateService.required,
+            builder: (context, mustUpdate, _) => Stack(
+              children: [
+                if (child != null) child,
+                if (mustUpdate) const Positioned.fill(child: ForceUpdateScreen()),
+              ],
+            ),
+          ),
         ),
+        // 🔹 عرض شاشة عدم الاتصال تلقائياً إذا انقطع الإنترنت
+        home: _isConnected
+            ? const HomeScreen()
+            : NoInternetScreen(onRetry: _checkInitialConnection),
+        routes: {
+          '/privacy': (context) => const PrivacyPolicyScreen(),
+          '/orders': (context) => const MyOrdersScreen(),
+          '/clips': (context) => const ClipsScreen(),
+          '/cart': (context) => const CartScreen(),
+        },
+        // حماية الويب من شاشة فارغة إذا انكتب مسار غير معروف
+        onUnknownRoute: (settings) => MaterialPageRoute(builder: (context) => const HomeScreen()),
       ),
-      // التحديث الإجباري يغطي كل الشاشات (والتطبيق يبقى تحته بدون ما ينعاد)
-      builder: (context, child) => ValueListenableBuilder<bool>(
-        valueListenable: UpdateService.required,
-        builder: (context, mustUpdate, _) => Stack(
-          children: [
-            if (child != null) child,
-            if (mustUpdate) const Positioned.fill(child: ForceUpdateScreen()),
-          ],
-        ),
-      ),
-      // 🔹 عرض شاشة عدم الاتصال تلقائياً إذا انقطع الإنترنت
-      home: _isConnected
-          ? const HomeScreen()
-          : NoInternetScreen(onRetry: _checkInitialConnection),
-      routes: {
-        '/privacy': (context) => const PrivacyPolicyScreen(),
-        '/orders': (context) => const MyOrdersScreen(),
-        '/clips': (context) => const ClipsScreen(),
-        '/cart': (context) => const CartScreen(),
-      },
-      // حماية الويب من شاشة فارغة إذا انكتب مسار غير معروف
-      onUnknownRoute: (settings) => MaterialPageRoute(builder: (context) => const HomeScreen()),
     );
   }
 }

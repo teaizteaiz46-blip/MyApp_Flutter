@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/offline_cache.dart';
 import '../../core/product_options.dart' show pieces;
@@ -11,8 +10,10 @@ import '../../services/cart_service.dart';
 import '../../services/offers_service.dart';
 import '../../services/splash_ad_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/theme_controller.dart';
 import '../../widgets/chat_fab.dart';
 import '../../widgets/welcome_coupon_dialog.dart';
+import '../appearance/appearance_screen.dart';
 import '../auth/profile_screen.dart';
 import '../cart/cart_screen.dart';
 import '../categories/all_categories_screen.dart';
@@ -78,17 +79,29 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showCouponAfterSplash() {
     final splash = SplashAdService.showing;
     if (!splash.value) {
-      maybeShowWelcomeCoupon(context);
+      _afterSplash();
       return;
     }
     void listener() {
       if (splash.value) return;
       splash.removeListener(listener);
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted && _tab == _homeTab) maybeShowWelcomeCoupon(context);
+        if (mounted && _tab == _homeTab) _afterSplash();
       });
     }
     splash.addListener(listener);
+  }
+
+  /// أول فتحة: شاشة اختيار المظهر، وبعد ما تتسكّر كوبون الترحيب
+  Future<void> _afterSplash() async {
+    if (!ThemeController.hasChoice) {
+      final keepGoing = await maybeShowThemeChooser(context);
+      if (!keepGoing || !mounted || _tab != _homeTab) return;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted || _tab != _homeTab) return;
+    }
+    if (!mounted) return;
+    maybeShowWelcomeCoupon(context);
   }
 
   @override
@@ -285,8 +298,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: m.background,
       body: switch (_tab) {
         _homeTab => _buildHome(context),
         _categoriesTab => const AllCategoriesScreen(),
@@ -303,8 +317,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   FloatingActionButton.small(
                     heroTag: 'home-top',
                     tooltip: 'للأعلى',
-                    backgroundColor: AppColors.ink.withValues(alpha: 0.88),
-                    foregroundColor: Colors.white,
+                    backgroundColor: m.strong.withValues(alpha: 0.88),
+                    foregroundColor: m.onStrong,
                     elevation: 2,
                     shape: const CircleBorder(),
                     onPressed: _scrollToTop,
@@ -322,6 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHome(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
+    final m = context.modo;
     final cats = (_categories ?? const <Map<String, dynamic>>[])
         .where((c) => ((c['products_in_stock'] as num?)?.toInt() ?? 0) > 0)
         .toList();
@@ -333,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
             .fold<int>(0, (s, c) => s + ((c['products_in_stock'] as num?)?.toInt() ?? 0));
 
     return ColoredBox(
-      color: Colors.white,
+      color: m.page,
       child: RefreshIndicator(
         onRefresh: _refresh,
         edgeOffset: topPadding + _toolbarHeight,
@@ -346,11 +361,11 @@ class _HomeScreenState extends State<HomeScreen> {
               automaticallyImplyLeading: false,
               toolbarHeight: _toolbarHeight,
               titleSpacing: 14,
-              backgroundColor: Colors.white,
+              backgroundColor: m.page,
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
-              systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+              systemOverlayStyle: m.overlay,
               title: Row(
                 children: [
                   const Text(
@@ -402,11 +417,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           _selectedCategoryId == 0 ? 'كل التشكيلة' : _selectedCategoryName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.ink),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: m.ink),
                         ),
                       ),
                       if (shownCount > 0)
-                        Text('$shownCount منتج', style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
+                        Text('$shownCount منتج', style: TextStyle(fontSize: 12, color: m.textHint)),
                     ],
                   ),
                 ),
@@ -439,26 +454,27 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return NavigationBarTheme(
       data: NavigationBarThemeData(
-        backgroundColor: AppColors.surface,
+        backgroundColor: m.surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: AppColors.brandSoft,
+        indicatorColor: m.brandSoft,
         height: 66,
         elevation: 0,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (s) => TextStyle(
             fontSize: 12,
             fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
-            color: s.contains(WidgetState.selected) ? AppColors.brandDark : AppColors.muted,
+            color: s.contains(WidgetState.selected) ? m.brandText : m.muted,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
-          (s) => IconThemeData(color: s.contains(WidgetState.selected) ? AppColors.brandDark : AppColors.muted),
+          (s) => IconThemeData(color: s.contains(WidgetState.selected) ? m.brandText : m.muted),
         ),
       ),
       child: DecoratedBox(
-        decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.line))),
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: m.line))),
         child: ValueListenableBuilder<List<CartLine>>(
           valueListenable: CartService.instance.lines,
           builder: (context, lines, _) {
@@ -514,25 +530,26 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Material(
-      color: AppColors.background,
+      color: m.fill,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
-        child: const SizedBox(
+        child: SizedBox(
           height: 42,
           child: Row(
             children: [
-              SizedBox(width: 14),
-              Icon(Icons.search_rounded, color: AppColors.ink, size: 21),
-              SizedBox(width: 8),
+              const SizedBox(width: 14),
+              Icon(Icons.search_rounded, color: m.ink, size: 21),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'ابحثي عن حجاب، شال، عباية...',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.muted, fontSize: 13.5),
+                  style: TextStyle(color: m.muted, fontSize: 13.5),
                 ),
               ),
             ],
@@ -594,7 +611,7 @@ class _TrustRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const style = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF666666));
+    final style = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.modo.textSoft);
     // إذا المتجر مشغّل التوصيل المجاني حسب عدد القطع، يطلع بدل "توصيل لكل العراق"
     return ValueListenableBuilder<int?>(
       valueListenable: OffersService.freeDeliveryPieces,
@@ -607,9 +624,9 @@ class _TrustRow extends StatelessWidget {
             children: [
               Text(freeFrom != null ? '🚚 توصيل مجاني من ${pieces(freeFrom)}' : '🚚 توصيل لكل العراق', style: style),
               const SizedBox(width: 14),
-              const Text('💵 الدفع عند الاستلام', style: style),
+              Text('💵 الدفع عند الاستلام', style: style),
               const SizedBox(width: 14),
-              const Text('↩️ إرجاع سهل', style: style),
+              Text('↩️ إرجاع سهل', style: style),
             ],
           ),
         ),
@@ -624,17 +641,18 @@ class _WholesaleNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
       child: CustomPaint(
-        painter: const DashedRRectPainter(color: Color(0xFFF5B183), radius: 12),
+        painter: DashedRRectPainter(color: m.hintBorder, radius: 12),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(color: const Color(0xFFFFF4EC), borderRadius: BorderRadius.circular(12)),
-          child: const Text(
+          decoration: BoxDecoration(color: m.hintBg, borderRadius: BorderRadius.circular(12)),
+          child: Text(
             '✨ أسعار جملة من 6 قطع – كل ما تزيدين ينزل سعر القطعة تلقائياً',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFB4501A), height: 1.5),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: m.hintText, height: 1.5),
           ),
         ),
       ),
@@ -705,15 +723,15 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent => _height;
 
-  Widget _catChip(String name, int? count, bool on, VoidCallback onTap) {
+  Widget _catChip(ModoColors m, String name, int? count, bool on, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
         decoration: BoxDecoration(
-          color: on ? AppColors.brand : Colors.white,
+          color: on ? AppColors.brand : m.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: on ? AppColors.brand : const Color(0xFFEEEEEE)),
+          border: Border.all(color: on ? AppColors.brand : m.border),
         ),
         child: Text.rich(
           TextSpan(children: [
@@ -723,29 +741,29 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
                 text: ' $count',
                 style: TextStyle(
                   fontSize: 11,
-                  color: on ? Colors.white.withValues(alpha: 0.75) : const Color(0xFF555555).withValues(alpha: 0.75),
+                  color: on ? Colors.white.withValues(alpha: 0.75) : m.textBody.withValues(alpha: 0.75),
                 ),
               ),
           ]),
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : const Color(0xFF555555)),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : m.textBody),
         ),
       ),
     );
   }
 
-  Widget _sortChip(String label, bool on, VoidCallback onTap) {
+  Widget _sortChip(ModoColors m, String label, bool on, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         decoration: BoxDecoration(
-          color: on ? const Color(0xFFFFF0F3) : Colors.white,
+          color: on ? m.pinkSoft : m.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: on ? const Color(0xFFF8C8D6) : const Color(0xFFEEEEEE)),
+          border: Border.all(color: on ? m.pinkBorder : m.border),
         ),
         child: Text(
           label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? const Color(0xFFC2185B) : const Color(0xFF555555)),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? m.pink : m.textBody),
         ),
       ),
     );
@@ -753,11 +771,12 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final m = context.modo;
     return Container(
       height: _height,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFF2F2F2))),
+      decoration: BoxDecoration(
+        color: m.page,
+        border: Border(bottom: BorderSide(color: m.pick(const Color(0xFFF2F2F2), m.line))),
       ),
       padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: Column(
@@ -768,10 +787,11 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               children: [
-                _catChip('الكل', total > 0 ? total : null, selectedId == 0, () => onCategory(0, '')),
+                _catChip(m, 'الكل', total > 0 ? total : null, selectedId == 0, () => onCategory(0, '')),
                 for (final c in categories) ...[
                   const SizedBox(width: 8),
                   _catChip(
+                    m,
                     (c['name'] ?? '').toString(),
                     (c['products_in_stock'] as num?)?.toInt(),
                     (c['id'] as num).toInt() == selectedId,
@@ -788,10 +808,10 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               children: [
-                const Center(child: Text('ترتيب: ', style: TextStyle(fontSize: 12, color: Color(0xFF888888)))),
+                Center(child: Text('ترتيب: ', style: TextStyle(fontSize: 12, color: m.textHint))),
                 for (final t in _sorts) ...[
                   const SizedBox(width: 8),
-                  Center(child: _sortChip(t.$2, t.$1 == sort, () => onSort(t.$1))),
+                  Center(child: _sortChip(m, t.$2, t.$1 == sort, () => onSort(t.$1))),
                 ],
               ],
             ),
