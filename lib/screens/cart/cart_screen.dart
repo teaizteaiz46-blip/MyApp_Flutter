@@ -8,6 +8,7 @@ import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
 import '../../services/cart_service.dart';
 import '../../services/offers_service.dart';
+import '../../theme/app_theme.dart';
 import '../checkout/checkout_screen.dart';
 import '../details/details_screen.dart';
 
@@ -173,6 +174,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildBody(List<CartLine> lines) {
+    final m = context.modo;
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null && _products.isEmpty && lines.isNotEmpty) {
@@ -188,18 +190,18 @@ class _CartScreenState extends State<CartScreen> {
 
     if (lines.isEmpty) {
       return ListView(
-        children: const [
-          SizedBox(height: 120),
-          Icon(Icons.shopping_cart_outlined, size: 72, color: Colors.grey),
-          SizedBox(height: 16),
-          Center(
+        children: [
+          const SizedBox(height: 120),
+          Icon(Icons.shopping_cart_outlined, size: 72, color: m.grey),
+          const SizedBox(height: 16),
+          const Center(
             child: Text('سلتك فارغة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Center(
             child: Text(
               'أضف منتجات من الصفحة الرئيسية وراح تظهر هنا.',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: m.grey),
             ),
           ),
         ],
@@ -249,6 +251,7 @@ class _CartScreenState extends State<CartScreen> {
 
   /// كارت منتج الجملة: الصورة والاسم، وتحته كل لون بعدده (− / +)، والمجموع والتنبيه
   Widget _buildWholesaleGroup(int productId, CartQuote quote, {required bool showHint}) {
+    final m = context.modo;
     final product = _products[productId]!;
     final lines = _cart.lines.value.where((l) => l.productId == productId).toList();
     final problems = lines.map(_problemFor).whereType<String>().toSet();
@@ -264,9 +267,9 @@ class _CartScreenState extends State<CartScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: m.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: problems.isNotEmpty ? Colors.red.shade200 : Colors.grey.shade200),
+        border: Border.all(color: problems.isNotEmpty ? m.pick(Colors.red.shade200, const Color(0xFF6B2A25)) : m.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,13 +283,13 @@ class _CartScreenState extends State<CartScreen> {
                   child: Container(
                     width: 56,
                     height: 56,
-                    color: Colors.grey[200],
+                    color: m.imageBg,
                     child: imageUrl.isEmpty
-                        ? const Icon(Icons.image_not_supported_outlined, color: Colors.grey)
+                        ? Icon(Icons.image_not_supported_outlined, color: m.grey)
                         : Image(
                             image: cachedImage(imageUrl, decodeWidth: decodeWidthFor(context, 56, 56)),
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: Colors.grey),
+                            errorBuilder: (_, _, _) => Icon(Icons.broken_image, color: m.grey),
                           ),
                   ),
                 ),
@@ -298,7 +301,7 @@ class _CartScreenState extends State<CartScreen> {
                       Text((product['name'] ?? '').toString(),
                           maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text('جملة · ${_money.format(_price(product))} د.ع للقطعة',
-                          style: TextStyle(color: Colors.deepOrange.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                          style: TextStyle(color: m.warnIcon, fontSize: 12, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -314,7 +317,7 @@ class _CartScreenState extends State<CartScreen> {
                   Expanded(
                     child: Text(line.color ?? '-',
                         style: TextStyle(
-                          color: _problemFor(line)?.contains('خلص') == true ? Colors.red : Colors.grey[800],
+                          color: _problemFor(line)?.contains('خلص') == true ? Colors.red : m.pick(Colors.grey[800]!, m.textBody),
                           fontWeight: FontWeight.w600,
                         )),
                   ),
@@ -340,13 +343,13 @@ class _CartScreenState extends State<CartScreen> {
           const Divider(height: 18),
           Row(
             children: [
-              Text('${lines.length} $title · $totalQty قطعة', style: TextStyle(color: Colors.grey[700])),
+              Text('${lines.length} $title · $totalQty قطعة', style: TextStyle(color: m.grey700)),
               const Spacer(),
               if (productQuote != null && productQuote.saving >= 1)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(end: 6),
                   child: Text('${_money.format(productQuote.regularTotal)} د.ع',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
+                      style: TextStyle(color: m.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
                 ),
               Text('${_money.format(productQuote?.total ?? 0)} د.ع', style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
@@ -385,6 +388,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget? _buildHint(CartLine line, CartQuote quote) {
+    final m = context.modo;
     final product = _products[line.productId];
     if (product == null || _problemFor(line) != null) return null;
     final fdText = _fdOfferHint(line, quote);
@@ -394,13 +398,13 @@ class _CartScreenState extends State<CartScreen> {
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: m.warnBg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.local_offer_outlined, size: 16, color: Colors.deepOrange.shade700),
+          Icon(Icons.local_offer_outlined, size: 16, color: m.warnIcon),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -411,7 +415,7 @@ class _CartScreenState extends State<CartScreen> {
                           '${hint.tier.label(withFreeDelivery: !quote.freeDelivery)}'
                       : 'زيد ${piecesLabel(hint!.missing)} وتاخذ '
                           '${hint.tier.label(withFreeDelivery: !quote.freeDelivery)}'),
-              style: TextStyle(color: Colors.deepOrange.shade800, fontSize: 12, fontWeight: FontWeight.w600),
+              style: TextStyle(color: m.warnText, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -420,6 +424,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildLine(CartLine line, CartQuote quote, {required bool showHint}) {
+    final m = context.modo;
     final product = _products[line.productId];
     final problem = _problemFor(line);
     final lineTotal = quote.lineTotal(line);
@@ -437,9 +442,9 @@ class _CartScreenState extends State<CartScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: m.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: problem != null ? Colors.red.shade200 : Colors.grey.shade200),
+        border: Border.all(color: problem != null ? m.pick(Colors.red.shade200, const Color(0xFF6B2A25)) : m.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,14 +456,14 @@ class _CartScreenState extends State<CartScreen> {
               child: Container(
                 width: 76,
                 height: 76,
-                color: Colors.grey[200],
+                color: m.imageBg,
                 child: imageUrl.isEmpty
-                    ? const Icon(Icons.image_not_supported_outlined, color: Colors.grey)
+                    ? Icon(Icons.image_not_supported_outlined, color: m.grey)
                     : Image(
                         image: cachedImage(imageUrl, decodeWidth: decodeWidthFor(context, 76, 76)),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) =>
-                            const Icon(Icons.broken_image, color: Colors.grey),
+                            Icon(Icons.broken_image, color: m.grey),
                       ),
               ),
             ),
@@ -482,7 +487,7 @@ class _CartScreenState extends State<CartScreen> {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       '${optionTitle(optionsOf(product))}: ${line.color}',
-                      style: TextStyle(color: Colors.grey[700]),
+                      style: TextStyle(color: m.grey700),
                     ),
                   ),
                 const SizedBox(height: 4),
@@ -526,8 +531,8 @@ class _CartScreenState extends State<CartScreen> {
                           if (lineSaving >= 1)
                             Text(
                               '${_money.format(lineRegular)} د.ع',
-                              style: const TextStyle(
-                                color: Colors.grey,
+                              style: TextStyle(
+                                color: m.grey,
                                 fontSize: 12,
                                 decoration: TextDecoration.lineThrough,
                               ),
@@ -545,7 +550,7 @@ class _CartScreenState extends State<CartScreen> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       'عرض الكمية: وفّرت ${_money.format(lineSaving)} د.ع',
-                      style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: m.savings, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ),
                 if (hint != null) hint,
@@ -558,13 +563,14 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildBottomBar() {
+    final m = context.modo;
     final quote = _quote;
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade200)),
+          color: m.surface,
+          border: Border(top: BorderSide(color: m.border)),
         ),
         child: Row(
           children: [
@@ -575,7 +581,7 @@ class _CartScreenState extends State<CartScreen> {
                 children: [
                   Text(
                     quote.freeDelivery ? 'المجموع (التوصيل مجاني)' : 'المجموع (بدون التوصيل)',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: m.grey, fontSize: 12),
                   ),
                   Text(
                     '${_money.format(quote.subtotal)} د.ع',
@@ -584,7 +590,7 @@ class _CartScreenState extends State<CartScreen> {
                   if (quote.saving >= 1)
                     Text(
                       'وفّرت ${_money.format(quote.saving)} د.ع',
-                      style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: m.savings, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                 ],
               ),
@@ -618,24 +624,25 @@ class _FreeDeliveryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final left = missing;
     if (left != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.orange.shade50,
+          color: m.warnBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.shade200),
+          border: Border.all(color: m.warnBorder),
         ),
         child: Row(
           children: [
-            Icon(Icons.local_shipping_outlined, color: Colors.deepOrange.shade700),
+            Icon(Icons.local_shipping_outlined, color: m.warnIcon),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'زيدوا ${piecesLabel(left)}${product != null && product!.isNotEmpty ? ' من "$product"' : ''} ويصير التوصيل مجاني 🚚'
                 '${minPieces != null ? '\n(التوصيل مجاني لأي طلب من ${pieces(minPieces!)} وفوگ)' : ''}',
-                style: TextStyle(color: Colors.deepOrange.shade800, fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.4),
+                style: TextStyle(color: m.warnText, fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.4),
               ),
             ),
           ],
@@ -645,17 +652,17 @@ class _FreeDeliveryBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: m.okBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: m.okBorder),
       ),
       child: Row(
         children: [
-          Icon(Icons.local_shipping_outlined, color: Colors.green.shade700),
+          Icon(Icons.local_shipping_outlined, color: m.savings),
           const SizedBox(width: 8),
           Text(
             'توصيلك مجاني 🎉',
-            style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(color: m.success, fontWeight: FontWeight.bold, fontSize: 15),
           ),
         ],
       ),

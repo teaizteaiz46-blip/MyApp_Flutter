@@ -20,10 +20,8 @@ import '../cart/cart_screen.dart';
 import '../chat/chat_screen.dart';
 import '../offers/offer_products_screen.dart';
 
-const Color _kPink = Color(0xFFC2185B);
+/// خلفية شريط "انضافت للسلة" (النصوص الخضرة من context.modo.success)
 const Color _kGreen = Color(0xFF2E7D32);
-const Color _kHintText = Color(0xFFB4501A);
-const Color _kHintBg = Color(0xFFFFF4EC);
 
 class DetailsScreen extends StatefulWidget {
   final int productId;
@@ -250,13 +248,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return FutureBuilder<Map<String, dynamic>>(
       future: _productFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+            backgroundColor: m.page,
+            appBar: AppBar(backgroundColor: m.page, elevation: 0),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
@@ -299,7 +298,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         final offer = product['_offer_id'] != null ? OffersService.offerFor(widget.productId) : null;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: m.page,
           body: SafeArea(
             bottom: false,
             child: SingleChildScrollView(
@@ -314,10 +313,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_categoryName.isNotEmpty)
-                          Text(_categoryName, style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
+                          Text(_categoryName, style: TextStyle(fontSize: 12, color: m.textHint)),
                         Text(
                           name,
-                          style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, height: 1.3, color: AppColors.ink),
+                          style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, height: 1.3, color: m.ink),
                         ),
                         const SizedBox(height: 2),
                         Wrap(
@@ -351,7 +350,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                                 if (oldPrice > price)
                                   Text(
                                     _money.format(oldPrice),
-                                    style: const TextStyle(color: Color(0xFFAAAAAA), decoration: TextDecoration.lineThrough),
+                                    style: TextStyle(color: m.textFaint, decoration: TextDecoration.lineThrough),
                                   ),
                               ],
                             ),
@@ -377,10 +376,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
                             width: double.infinity,
                             margin: const EdgeInsets.only(top: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: _kHintBg, borderRadius: BorderRadius.circular(12)),
+                            decoration: BoxDecoration(color: m.hintBg, borderRadius: BorderRadius.circular(12)),
                             child: Text(
                               _hintText(product, hint, cells, mixCell, qty, quote),
-                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _kHintText),
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: m.hintText),
                             ),
                           ),
                         const SizedBox(height: 12),
@@ -433,7 +432,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         if (description.isNotEmpty) ...[
                           const Text('الوصف', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 4),
-                          Text(description, style: const TextStyle(fontSize: 14, color: Color(0xFF555555), height: 1.6)),
+                          Text(description, style: TextStyle(fontSize: 14, color: m.textBody, height: 1.6)),
                           const SizedBox(height: 24),
                         ],
                       ],
@@ -448,7 +447,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
-  Widget _stat(String t) => Text(t, style: const TextStyle(fontSize: 12, color: Color(0xFF666666)));
+  Widget _stat(String t) => Text(t, style: TextStyle(fontSize: 12, color: context.modo.textSoft));
 
   /// كم قطعة باقية حتى يصير التوصيل مجاني: "توصيل مجاني من N" على المنتج، أو إعداد المتجر
   /// (مجموع السلة + هذا العدد). null إذا ماكو، أو صار مجاني، أو المخزون ما يكفي.
@@ -504,6 +503,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   Widget _buildModeToggle(Map<String, dynamic> product) {
+    final m = context.modo;
     Widget seg(String title, String sub, bool on, VoidCallback onTap) => Expanded(
           child: GestureDetector(
             onTap: onTap,
@@ -511,15 +511,15 @@ class _DetailsScreenState extends State<DetailsScreen> {
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: on ? Colors.white : Colors.transparent,
+                color: on ? m.raised : Colors.transparent,
                 borderRadius: BorderRadius.circular(11),
                 boxShadow: on ? const [BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1))] : null,
               ),
               child: Column(
                 children: [
                   Text(title,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: on ? AppColors.ink : const Color(0xFF666666))),
-                  Text(sub, style: const TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: on ? m.ink : m.textSoft)),
+                  Text(sub, style: TextStyle(fontSize: 10.5, color: m.textHint)),
                 ],
               ),
             ),
@@ -527,7 +527,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         );
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: const Color(0xFFF6F3F1), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: m.pick(const Color(0xFFF6F3F1), m.surface), borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
           seg('أختار ألواني', 'أكتب أرقام الألوان', !_mix, () => setState(() => _mix = false)),
@@ -546,6 +546,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   Widget _buildColorPicker(Map<String, dynamic> product, List<String> colors) {
+    final m = context.modo;
     final shown = _showAllColors || colors.length <= _colorsPreview ? colors : colors.take(_colorsPreview).toList();
     final hidden = colors.length - shown.length;
     final title = optionTitle(colors);
@@ -561,7 +562,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         Row(
           children: [
             Text('اختاري ${title == 'اللون' ? 'الألوان' : title}',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _colorMissing ? AppColors.sale : AppColors.ink)),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _colorMissing ? m.sale : m.ink)),
             const Spacer(),
             Text('− و + لعدد كل $each',
                 style: const TextStyle(fontSize: 12, color: AppColors.brand, fontWeight: FontWeight.w800)),
@@ -596,6 +597,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   Widget _buildTotal(Map<String, dynamic> product, int qty, BulkQuote quote) {
+    final m = context.modo;
     final max = _maxQty(product);
     final lo = _minQty(product);
     final pick = _pickMode(product);
@@ -604,20 +606,20 @@ class _DetailsScreenState extends State<DetailsScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(t,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: enabled ? color : const Color(0xFFCCCCCC))),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: enabled ? color : m.disabled)),
           ),
         );
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: m.pick(const Color(0xFFFAFAFA), m.surface), borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('المجموع · ${pieces(qty)}', style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
+                Text('المجموع · ${pieces(qty)}', style: TextStyle(fontSize: 12, color: m.textHint)),
                 Text.rich(
                   TextSpan(children: [
                     TextSpan(text: _money.format(quote.total)),
@@ -627,9 +629,9 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 ),
                 if (quote.saving > 0)
                   Text('وفّرتي ${_money.format(quote.saving)} د.ع',
-                      style: const TextStyle(fontSize: 12, color: _kGreen, fontWeight: FontWeight.w800)),
+                      style: TextStyle(fontSize: 12, color: m.success, fontWeight: FontWeight.w800)),
                 if (quote.freeDelivery)
-                  const Text('🚚 توصيل مجاني', style: TextStyle(fontSize: 12, color: _kGreen, fontWeight: FontWeight.w800)),
+                  Text('🚚 توصيل مجاني', style: TextStyle(fontSize: 12, color: m.success, fontWeight: FontWeight.w800)),
               ],
             ),
           ),
@@ -637,7 +639,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
           if (pick && _pickedTotal > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0xFFFFF1E8), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: m.brandTint, borderRadius: BorderRadius.circular(10)),
               child: Text(pieces(_pickedTotal),
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.brand)),
             )
@@ -645,14 +647,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: const Color(0xFFEEEEEE)),
+                color: m.raised,
+                border: Border.all(color: m.border),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  step('−', qty > lo, AppColors.ink, () => _setQty(product, qty - 1)),
+                  step('−', qty > lo, m.ink, () => _setQty(product, qty - 1)),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Text('$qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
@@ -678,79 +680,89 @@ class _DetailsScreenState extends State<DetailsScreen> {
       );
 
   Widget _buildGallery(List<String> images) {
-    return AspectRatio(
-      aspectRatio: 390 / 400,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: images.isEmpty ? 1 : images.length,
-              onPageChanged: (value) => setState(() => _currentPage = value),
-              itemBuilder: (context, index) {
-                if (images.isEmpty) {
-                  return Container(
-                    color: AppColors.placeholder,
-                    child: const Icon(Icons.hide_image_outlined, color: Colors.grey, size: 80),
-                  );
-                }
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => FullScreenImageViewer(imageUrls: images, initialIndex: index)),
-                  ),
-                  child: Image(
-                    image: cachedImage(
-                      images[index],
-                      decodeWidth: decodeWidthFor(context, MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).width),
-                    ),
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) => progress == null
-                        ? child
-                        : Container(color: AppColors.placeholder, child: const Center(child: CircularProgressIndicator())),
-                    errorBuilder: (_, _, _) => Container(
-                      color: AppColors.placeholder,
-                      child: const Icon(Icons.broken_image, color: Colors.grey, size: 80),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          PositionedDirectional(
-            top: 10,
-            start: 12,
-            child: _circleButton(
-              const Icon(Icons.chevron_right_rounded, size: 24, color: AppColors.ink),
-              () => Navigator.maybePop(context),
-            ),
-          ),
-          PositionedDirectional(
-            top: 10,
-            end: 12,
-            child: Row(
-              children: [
-                WishHeart(productId: widget.productId, size: 34),
-                const SizedBox(width: 8),
-                _circleButton(const Text('↗', style: TextStyle(fontSize: 16, color: AppColors.ink)), _share),
-              ],
-            ),
-          ),
-          if (images.length > 1)
-            PositionedDirectional(
-              bottom: 10,
-              end: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10)),
-                child: Text(
-                  '${_currentPage + 1} / ${images.length}',
-                  textDirection: TextDirection.ltr,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+    final m = context.modo;
+    // الليلي: الصورة (خلفيتها بيضة غالباً) بكارت بزوايا دائرية حتى تبين مرتبة فوق الأسود.
+    // نفس الشجرة بالوضعين (بس الحشوة والقص يتغيرون) حتى الصفحة ما تنعاد لما يتبدل الوضع.
+    return Padding(
+      padding: m.isDark ? const EdgeInsets.fromLTRB(10, 6, 10, 0) : EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(m.isDark ? 18 : 0),
+        clipBehavior: m.isDark ? Clip.antiAlias : Clip.none,
+        child: AspectRatio(
+          aspectRatio: 390 / 400,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: images.isEmpty ? 1 : images.length,
+                  onPageChanged: (value) => setState(() => _currentPage = value),
+                  itemBuilder: (context, index) {
+                    if (images.isEmpty) {
+                      return Container(
+                        color: m.placeholder,
+                        child: const Icon(Icons.hide_image_outlined, color: Colors.grey, size: 80),
+                      );
+                    }
+                    return GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => FullScreenImageViewer(imageUrls: images, initialIndex: index)),
+                      ),
+                      child: Image(
+                        image: cachedImage(
+                          images[index],
+                          decodeWidth: decodeWidthFor(context, MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).width),
+                        ),
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) => progress == null
+                            ? child
+                            : Container(color: m.placeholder, child: const Center(child: CircularProgressIndicator())),
+                        errorBuilder: (_, _, _) => Container(
+                          color: m.placeholder,
+                          child: const Icon(Icons.broken_image, color: Colors.grey, size: 80),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
-        ],
+              PositionedDirectional(
+                top: 10,
+                start: 12,
+                child: _circleButton(
+                  const Icon(Icons.chevron_right_rounded, size: 24, color: AppColors.ink),
+                  () => Navigator.maybePop(context),
+                ),
+              ),
+              PositionedDirectional(
+                top: 10,
+                end: 12,
+                child: Row(
+                  children: [
+                    WishHeart(productId: widget.productId, size: 34),
+                    const SizedBox(width: 8),
+                    _circleButton(const Text('↗', style: TextStyle(fontSize: 16, color: AppColors.ink)), _share),
+                  ],
+                ),
+              ),
+              if (images.length > 1)
+                PositionedDirectional(
+                  bottom: 10,
+                  end: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10)),
+                    child: Text(
+                      '${_currentPage + 1} / ${images.length}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -796,7 +808,7 @@ class ProductThumb extends StatelessWidget {
   Widget build(BuildContext context) => Image(
         image: cachedImage(url, decodeWidth: decodeWidthFor(context, 52, 52)),
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.placeholder),
+        errorBuilder: (_, _, _) => ColoredBox(color: context.modo.placeholder),
       );
 }
 
@@ -842,6 +854,7 @@ class _TierBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // منتجات بحد أدنى: الخانات الأقل منه ما تنعرض
+    final m = context.modo;
     final shown = <(int, int?, double, String)>[];
     for (final c in cells) {
       if (c.$2 != null && c.$2! < minQty) continue;
@@ -855,8 +868,8 @@ class _TierBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
-        const Text('✨ أسعار الكمية – كل ما تزيدين ينزل السعر',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _kPink)),
+        Text('✨ أسعار الكمية – كل ما تزيدين ينزل السعر',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: m.pink)),
         Container(
           margin: const EdgeInsets.only(top: 6),
           padding: const EdgeInsets.all(5),
@@ -907,10 +920,10 @@ class _TierBar extends StatelessWidget {
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(top: 4),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
           child: Text('سعر القطعة بالدينار – ينحسب تلقائياً حسب العدد',
-              style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+              style: TextStyle(fontSize: 11, color: m.textHint)),
         ),
       ],
     );
@@ -943,17 +956,18 @@ class ColorCountChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final on = count > 0;
     final text = Text(
       label,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 12.5, fontWeight: on ? FontWeight.w900 : FontWeight.w600, color: AppColors.ink),
+      style: TextStyle(fontSize: 12.5, fontWeight: on ? FontWeight.w900 : FontWeight.w600, color: m.ink),
     );
     final box = BoxDecoration(
-      color: on ? const Color(0xFFFFF1E8) : Colors.white,
+      color: on ? m.brandTint : m.surface,
       borderRadius: BorderRadius.circular(10),
       border: Border.all(
-        color: on ? AppColors.brand : (missing ? AppColors.sale : const Color(0xFFEADFD8)),
+        color: on ? AppColors.brand : (missing ? m.sale : m.pick(const Color(0xFFEADFD8), m.grey300)),
         width: 1.5,
       ),
     );
@@ -982,7 +996,7 @@ class ColorCountChip extends StatelessWidget {
               alignment: Alignment.center,
               decoration: filled
                   ? BoxDecoration(
-                      color: onTap == null ? const Color(0xFFDDDDDD) : AppColors.brand,
+                      color: onTap == null ? m.pick(const Color(0xFFDDDDDD), m.disabled) : AppColors.brand,
                       borderRadius: BorderRadius.circular(7),
                     )
                   : null,
@@ -1002,9 +1016,9 @@ class ColorCountChip extends StatelessWidget {
           const SizedBox(width: 6),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: m.surface,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFF3D9C9)),
+              border: Border.all(color: m.pick(const Color(0xFFF3D9C9), const Color(0xFF5A3A28))),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1013,8 +1027,8 @@ class ColorCountChip extends StatelessWidget {
                   tip: count == 1 ? 'شيل $label' : 'نقّص $label',
                   onTap: onRemove,
                   child: count == 1
-                      ? const Icon(Icons.delete_outline, size: 17, color: AppColors.sale)
-                      : const Text('−', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.ink)),
+                      ? Icon(Icons.delete_outline, size: 17, color: m.sale)
+                      : Text('−', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: m.ink)),
                 ),
                 ConstrainedBox(
                   constraints: const BoxConstraints(minWidth: 22),
@@ -1047,15 +1061,16 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final enabled = onTap != null;
-    final color = enabled ? AppColors.brand : const Color(0xFFCCCCCC);
+    final color = enabled ? AppColors.brand : m.disabled;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 48,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: filled ? color : Colors.white,
+          color: filled ? color : m.page,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: color, width: 1.5),
         ),
@@ -1083,7 +1098,7 @@ class _TrustItem extends StatelessWidget {
     return Column(
       children: [
         Text(emoji, style: const TextStyle(fontSize: 16)),
-        Text(text, style: const TextStyle(fontSize: 11, color: Color(0xFF666666))),
+        Text(text, style: TextStyle(fontSize: 11, color: context.modo.textSoft)),
       ],
     );
   }
