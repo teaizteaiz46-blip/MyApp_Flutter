@@ -84,7 +84,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
     final rating = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.modo.surface,
       builder: (_) => const _RatingSheet(),
     );
     if (rating == null || !mounted) return;
@@ -107,6 +107,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final orders = _orders;
     final current = orders?.where((o) => (o['status'] ?? '') != 'مكتمل').toList() ?? const [];
     final past = orders?.where((o) => (o['status'] ?? '') == 'مكتمل').toList() ?? const [];
@@ -114,23 +115,23 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: m.background,
         appBar: AppBar(
           title: const Text('طلباتي'),
-          backgroundColor: AppColors.surface,
+          backgroundColor: m.page,
           surfaceTintColor: Colors.transparent,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(56),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: Container(
-                decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: m.fill, borderRadius: BorderRadius.circular(14)),
                 child: TabBar(
                   dividerColor: Colors.transparent,
                   indicatorSize: TabBarIndicatorSize.tab,
-                  indicator: BoxDecoration(color: AppColors.ink, borderRadius: BorderRadius.circular(12)),
-                  labelColor: Colors.white,
-                  unselectedLabelColor: AppColors.muted,
+                  indicator: BoxDecoration(color: m.strong, borderRadius: BorderRadius.circular(12)),
+                  labelColor: m.onStrong,
+                  unselectedLabelColor: m.muted,
                   labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                   tabs: [
                     Tab(height: 40, text: orders == null ? 'الحالية' : 'الحالية (${current.length})'),
@@ -217,29 +218,30 @@ class RewardCouponCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final pct = (coupon['percent'] as num?)?.toInt() ?? 10;
     final max = (coupon['max_discount'] as num?)?.toDouble() ?? 5000;
     final exp = DateTime.tryParse('${coupon['expires_at'] ?? ''}')?.toLocal();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5EC),
+        color: m.greenSoft,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFB5DEC1)),
+        border: Border.all(color: m.greenBorder),
       ),
       child: Row(
         children: [
-          const Icon(Icons.card_giftcard_rounded, color: Color(0xFF1E7B3A), size: 30),
+          Icon(Icons.card_giftcard_rounded, color: m.greenText, size: 30),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('عندج خصم $pct% لطلبج الجاي 🎁',
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E7B3A), fontSize: 14.5)),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: m.greenText, fontSize: 14.5)),
                 Text(
                   'لحد ${_money.format(max)} د.ع${exp == null ? '' : ' · صالح لحد ${DateFormat('d/M').format(exp)}'}',
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+                  style: TextStyle(fontSize: 12.5, color: m.muted),
                 ),
               ],
             ),
@@ -296,6 +298,7 @@ class _CurrentOrder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final step = orderStep(order['status']?.toString());
     final items = _items(order);
     final price = (order['price'] as num?)?.toDouble() ?? 0;
@@ -373,9 +376,9 @@ class _CurrentOrder extends StatelessWidget {
           ),
         ] else if (orderStep(order['status']?.toString()) == 0 && order['customer_change_at'] != null) ...[
           const SizedBox(height: 10),
-          const _Card(
+          _Card(
             child: Text('وصلنا طلب التعديل، راح نتصل بيكم قريباً 📞',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink)),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: m.ink)),
           ),
         ],
         const SizedBox(height: 10),
@@ -391,15 +394,15 @@ class _CurrentOrder extends StatelessWidget {
         _Card(
           child: Column(
             children: [
-              _kv('المجموع', '${_money.format(price)} د.ع'),
-              _kv('التوصيل · ${order['governorate'] ?? ''}', delivery == 0 ? 'مجاني' : '${_money.format(delivery)} د.ع'),
-              if (discount > 0) _kv('الخصم', '-${_money.format(discount)} د.ع', color: AppColors.success),
+              _kv(m, 'المجموع', '${_money.format(price)} د.ع'),
+              _kv(m, 'التوصيل · ${order['governorate'] ?? ''}', delivery == 0 ? 'مجاني' : '${_money.format(delivery)} د.ع'),
+              if (discount > 0) _kv(m, 'الخصم', '-${_money.format(discount)} د.ع', color: m.success),
               const Divider(height: 18),
               Row(
                 children: [
                   const Expanded(child: Text('الإجمالي (عند الاستلام)', style: TextStyle(fontWeight: FontWeight.w800))),
                   Text('${_money.format(total)} د.ع',
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.brandDark, fontSize: 17)),
+                      style: TextStyle(fontWeight: FontWeight.w900, color: m.brandText, fontSize: 17)),
                 ],
               ),
             ],
@@ -413,12 +416,12 @@ class _CurrentOrder extends StatelessWidget {
     );
   }
 
-  static Widget _kv(String k, String v, {Color? color}) => Padding(
+  static Widget _kv(ModoColors m, String k, String v, {Color? color}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           children: [
-            Expanded(child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13.5))),
-            Text(v, style: TextStyle(color: color ?? AppColors.ink, fontWeight: FontWeight.w600, fontSize: 13.5)),
+            Expanded(child: Text(k, style: TextStyle(color: m.muted, fontSize: 13.5))),
+            Text(v, style: TextStyle(color: color ?? m.ink, fontWeight: FontWeight.w600, fontSize: 13.5)),
           ],
         ),
       );
@@ -432,6 +435,7 @@ class _PastOrder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final items = _items(order);
     final images = items.map((i) => '${i['product_image'] ?? ''}').where((u) => u.isNotEmpty).toList();
     final total = (order['total_amount'] as num?)?.toDouble() ?? 0;
@@ -447,15 +451,15 @@ class _PastOrder extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('طلب #${order['id']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                    Text(_date(order), style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                    Text(_date(order), style: TextStyle(color: m.muted, fontSize: 12.5)),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0xFFE5F5EA), borderRadius: BorderRadius.circular(99)),
+                decoration: BoxDecoration(color: m.pick(const Color(0xFFE5F5EA), m.greenSoft), borderRadius: BorderRadius.circular(99)),
                 child: Text(received ? 'استلمتيه ✓' : 'تم التوصيل ✓',
-                    style: const TextStyle(color: Color(0xFF1E7B3A), fontSize: 12, fontWeight: FontWeight.w700)),
+                    style: TextStyle(color: m.greenText, fontSize: 12, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -474,13 +478,13 @@ class _PastOrder extends StatelessWidget {
                     height: 58,
                     child: i == 4 && images.length > 5
                         ? ColoredBox(
-                            color: AppColors.background,
+                            color: m.fill,
                             child: Center(child: Text('+${images.length - 4}', style: const TextStyle(fontWeight: FontWeight.w800))),
                           )
                         : Image(
                             image: cachedImage(images[i], decodeWidth: decodeWidthFor(context, 58, 58)),
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.placeholder),
+                            errorBuilder: (_, _, _) => ColoredBox(color: m.placeholder),
                           ),
                   ),
                 ),
@@ -490,8 +494,8 @@ class _PastOrder extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: Text('${pieces(_pieces(order))} · ${order['governorate'] ?? ''}', style: const TextStyle(color: AppColors.muted))),
-              Text('${_money.format(total)} د.ع', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.brandDark, fontSize: 16)),
+              Expanded(child: Text('${pieces(_pieces(order))} · ${order['governorate'] ?? ''}', style: TextStyle(color: m.muted))),
+              Text('${_money.format(total)} د.ع', style: TextStyle(fontWeight: FontWeight.w900, color: m.brandText, fontSize: 16)),
             ],
           ),
           if (_canConfirm(order)) ...[
@@ -533,13 +537,14 @@ class _ItemLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final img = '${item['product_image'] ?? ''}';
     final qty = (item['quantity'] as num?)?.toInt() ?? 1;
     final unit = (item['unit_price'] as num?)?.toDouble() ?? 0;
     final color = '${item['color'] ?? ''}'.trim();
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(border: last ? null : const Border(bottom: BorderSide(color: AppColors.line))),
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: m.line))),
       child: Row(
         children: [
           ClipRRect(
@@ -548,11 +553,11 @@ class _ItemLine extends StatelessWidget {
               width: 52,
               height: 52,
               child: img.isEmpty
-                  ? const ColoredBox(color: AppColors.placeholder)
+                  ? ColoredBox(color: m.placeholder)
                   : Image(
                       image: cachedImage(img, decodeWidth: decodeWidthFor(context, 52, 52)),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.placeholder),
+                      errorBuilder: (_, _, _) => ColoredBox(color: m.placeholder),
                     ),
             ),
           ),
@@ -564,12 +569,12 @@ class _ItemLine extends StatelessWidget {
                 Text('${item['product_name'] ?? ''}',
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
                 Text([if (color.isNotEmpty) color, pieces(qty)].join(' · '),
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                    style: TextStyle(color: m.muted, fontSize: 12)),
               ],
             ),
           ),
           Text(unit == 0 ? 'مجاناً 🎁' : _money.format(unit * qty),
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: unit == 0 ? AppColors.success : null)),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: unit == 0 ? m.success : null)),
         ],
       ),
     );
@@ -584,12 +589,13 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: m.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: m.line),
       ),
       child: child,
     );
@@ -605,13 +611,14 @@ class _Message extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 46, color: AppColors.muted),
+          Icon(icon, size: 46, color: m.muted),
           const SizedBox(height: 10),
-          Text(text, style: const TextStyle(color: AppColors.muted)),
+          Text(text, style: TextStyle(color: m.muted)),
           if (onRetry != null) TextButton(onPressed: onRetry, child: const Text('إعادة المحاولة')),
         ],
       ),
@@ -624,13 +631,14 @@ class _RatingSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     Widget option(int v, String emoji, String label) => Expanded(
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () => Navigator.of(context).pop(v),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: m.fill, borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
                   Text(emoji, style: const TextStyle(fontSize: 34)),
@@ -649,7 +657,7 @@ class _RatingSheet extends StatelessWidget {
           children: [
             const Text('شلون جانت تجربتج؟', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
-            const Text('اختاري وحدة حتى نأكد استلامج للطلب', style: TextStyle(color: AppColors.muted)),
+            Text('اختاري وحدة حتى نأكد استلامج للطلب', style: TextStyle(color: m.muted)),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -676,7 +684,7 @@ class _ThanksDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       icon: Icon(couponIssued ? Icons.card_giftcard_rounded : Icons.favorite_rounded,
-          color: couponIssued ? const Color(0xFF1E7B3A) : AppColors.brand, size: 40),
+          color: couponIssued ? context.modo.greenText : AppColors.brand, size: 40),
       title: Text(couponIssued ? 'انضافلج خصم 10% 🎁' : 'شكراً إلج 🤍', textAlign: TextAlign.center),
       content: Text(
         couponIssued

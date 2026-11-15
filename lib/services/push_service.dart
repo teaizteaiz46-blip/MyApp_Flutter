@@ -353,9 +353,10 @@ class PushService {
     if (context == null || !context.mounted) return;
     await prefs.setInt(_askedKey, DateTime.now().millisecondsSinceEpoch);
 
+    final m = context.modo;
     final enable = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: m.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -371,10 +372,10 @@ class PushService {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'فعّلي الإشعارات ويوصلج إشعار لما نثبت طلبج ولما يطلع للتوصيل 🚚',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.5),
+                style: TextStyle(fontSize: 14, color: m.pick(Colors.black54, m.muted), height: 1.5),
               ),
               const SizedBox(height: 18),
               SizedBox(
@@ -392,7 +393,7 @@ class PushService {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('مو هسه', style: TextStyle(color: Colors.black54)),
+                child: Text('مو هسه', style: TextStyle(color: m.pick(Colors.black54, m.muted))),
               ),
             ],
           ),

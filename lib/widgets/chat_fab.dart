@@ -61,7 +61,7 @@ class _ChatFabState extends State<ChatFab> {
                 decoration: BoxDecoration(
                   color: AppColors.sale,
                   borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: context.modo.page, width: 2),
                 ),
                 child: Text(n > 9 ? '9+' : '$n',
                     style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),

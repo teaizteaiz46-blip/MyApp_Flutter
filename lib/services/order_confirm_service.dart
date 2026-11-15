@@ -98,7 +98,7 @@ class OrderConfirmService {
       final action = await showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.white,
+        backgroundColor: context.modo.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         builder: (_) => OrderConfirmSheet(info: info),
       );
@@ -192,6 +192,7 @@ class OrderConfirmSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final items = ((info['items'] as List?) ?? const []).cast<Map>();
     final pieces = (info['pieces'] as num?)?.toInt() ?? 0;
     final total = (info['total'] as num?)?.toDouble() ?? 0;
@@ -212,18 +213,18 @@ class OrderConfirmSheet extends StatelessWidget {
             Text(
               'أكّدوا طلبكم ${OrderConfirmService._num(info['id'])}',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink),
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: m.ink),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'راجعوا التفاصيل واضغطوا تأكيد، ونبدي بالتجهيز فوراً بدون ما تنتظرون اتصال.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13.5, color: AppColors.muted, height: 1.5),
+              style: TextStyle(fontSize: 13.5, color: m.muted, height: 1.5),
             ),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: m.fill, borderRadius: BorderRadius.circular(16)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -234,27 +235,27 @@ class OrderConfirmSheet extends StatelessWidget {
                         '• ${item['name'] ?? ''}${item['color'] == null ? '' : ' · ${item['color']}'} × ${item['qty'] ?? 1}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13.5, color: AppColors.ink),
+                        style: TextStyle(fontSize: 13.5, color: m.ink),
                       ),
                     ),
                   if (items.length > 3)
                     Text(
                       items.length == 4 ? 'ومنتج ثاني' : 'و ${items.length - 3} منتجات ثانية',
-                      style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+                      style: TextStyle(fontSize: 12.5, color: m.muted),
                     ),
-                  const Divider(height: 20, color: AppColors.line),
-                  if (address.isNotEmpty) _row('العنوان', address),
-                  _row('الهاتف', '${info['phone'] ?? ''}', ltr: true),
-                  _row('عدد القطع', '$pieces'),
+                  Divider(height: 20, color: m.line),
+                  if (address.isNotEmpty) _row(m, 'العنوان', address),
+                  _row(m, 'الهاتف', '${info['phone'] ?? ''}', ltr: true),
+                  _row(m, 'عدد القطع', '$pieces'),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Expanded(
-                        child: Text('المبلغ عند الاستلام', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.ink)),
+                      Expanded(
+                        child: Text('المبلغ عند الاستلام', style: TextStyle(fontWeight: FontWeight.w800, color: m.ink)),
                       ),
                       Text(
                         '${_money.format(total)} د.ع',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppColors.brandDark),
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: m.brandText),
                       ),
                     ],
                   ),
@@ -281,8 +282,8 @@ class OrderConfirmSheet extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(context, 'change'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.ink,
-                  side: const BorderSide(color: AppColors.line),
+                  foregroundColor: m.ink,
+                  side: BorderSide(color: m.line),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('أريد أعدّل أو ألغي', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -290,7 +291,7 @@ class OrderConfirmSheet extends StatelessWidget {
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('لاحقاً', style: TextStyle(color: AppColors.muted)),
+              child: Text('لاحقاً', style: TextStyle(color: m.muted)),
             ),
           ],
         ),
@@ -298,18 +299,18 @@ class OrderConfirmSheet extends StatelessWidget {
     );
   }
 
-  static Widget _row(String label, String value, {bool ltr = false}) => Padding(
+  static Widget _row(ModoColors m, String label, String value, {bool ltr = false}) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 78, child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.muted))),
+            SizedBox(width: 78, child: Text(label, style: TextStyle(fontSize: 13, color: m.muted))),
             Expanded(
               child: Text(
                 value,
                 textDirection: ltr ? TextDirection.ltr : null,
                 textAlign: ltr ? TextAlign.end : TextAlign.start,
-                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: m.ink),
               ),
             ),
           ],
