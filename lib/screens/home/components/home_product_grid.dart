@@ -217,6 +217,7 @@ class _HomeProductGridState extends State<HomeProductGrid> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     if (_isInitialLoad) {
       return _stateSliver(
         const Padding(
@@ -234,13 +235,13 @@ class _HomeProductGridState extends State<HomeProductGrid> {
               Icon(
                 _didError ? Icons.wifi_off_rounded : Icons.inventory_2_outlined,
                 size: 44,
-                color: AppColors.muted,
+                color: m.muted,
               ),
               const SizedBox(height: 10),
               Text(
                 _didError ? 'تعذر تحميل المنتجات، اسحب للأسفل للتحديث' : 'لا توجد منتجات هنا حالياً',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: m.muted),
               ),
             ],
           ),

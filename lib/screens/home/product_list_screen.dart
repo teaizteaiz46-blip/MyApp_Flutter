@@ -22,11 +22,12 @@ class ProductListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: m.background,
       appBar: AppBar(
         title: Text(title),
-        backgroundColor: AppColors.surface,
+        backgroundColor: m.page,
         surfaceTintColor: Colors.transparent,
         elevation: 0.5,
       ),

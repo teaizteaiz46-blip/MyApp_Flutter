@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/offline_cache.dart';
+import '../../../theme/app_theme.dart';
 import '../../details/details_screen.dart'; // أضف هذا السطر
 // -----------------------------------------------------------------
 // الجزء الأول: ويدجت ProductGrid (يستخدم لقسم "Special for you")
@@ -76,9 +77,10 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: m.surface,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
@@ -97,11 +99,11 @@ class ProductCard extends StatelessWidget {
               width: double.infinity,
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey[200],
+                color: m.imageBg,
                 borderRadius: BorderRadius.circular(15),
               ),
               child: imageUrl.isEmpty
-                  ? const Icon(Icons.shopping_cart, color: Colors.grey)
+                  ? Icon(Icons.shopping_cart, color: m.grey)
                   : ClipRRect(
                 borderRadius: BorderRadius.circular(15),
                 child: Image(
@@ -113,8 +115,8 @@ class ProductCard extends StatelessWidget {
                         child: CircularProgressIndicator.adaptive());
                   },
                   errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.broken_image,
-                        color: Colors.grey);
+                    return Icon(Icons.broken_image,
+                        color: m.grey);
                   },
                 ),
               ),

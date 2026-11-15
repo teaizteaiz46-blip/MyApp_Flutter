@@ -41,19 +41,20 @@ class ContactUsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: m.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: m.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('تواصلي ويانا', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
-          const Text('تابعينا حتى يوصلج الجديد والعروض أول بأول', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+          Text('تابعينا حتى يوصلج الجديد والعروض أول بأول', style: TextStyle(color: m.muted, fontSize: 12.5)),
           const SizedBox(height: 12),
           Row(
             children: [

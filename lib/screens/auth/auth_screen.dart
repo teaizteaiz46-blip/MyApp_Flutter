@@ -3,7 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/shop_api.dart';
 import '../../main.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/contact_us.dart';
+import '../appearance/appearance_screen.dart';
 
 /// سلة الزائر تبقى بالجهاز بعد تسجيل الدخول تلقائياً،
 /// وأي سلة قديمة بالحساب تنسحب من main.dart عند تسجيل الدخول.
@@ -155,11 +157,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pushNamed(context, '/privacy'),
-              child: const Text(
+              child: Text(
                 'سياسة الخصوصية لتطبيق مودو',
-                style: TextStyle(color: Colors.grey, decoration: TextDecoration.underline, fontSize: 13),
+                style: TextStyle(color: context.modo.grey, decoration: TextDecoration.underline, fontSize: 13),
               ),
             ),
+            const SizedBox(height: 12),
+            // المظهر: ليلي / فاتح / حسب إعداد الموبايل
+            const AppearanceTile(),
             const SizedBox(height: 20),
             const ContactUsSection(),
           ],
@@ -202,7 +207,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text('بإنشاء حساب، فإنك توافق على ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                Text('بإنشاء حساب، فإنك توافق على ', style: TextStyle(color: context.modo.grey, fontSize: 12)),
                 GestureDetector(
                   onTap: () => Navigator.pushNamed(context, '/privacy'),
                   child: const Text(

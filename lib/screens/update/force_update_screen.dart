@@ -9,10 +9,11 @@ class ForceUpdateScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: m.page,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -29,16 +30,16 @@ class ForceUpdateScreen extends StatelessWidget {
                 const SizedBox(height: 28),
                 const Text('🎉', textAlign: TextAlign.center, style: TextStyle(fontSize: 46)),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'نسخة جديدة من التطبيق',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.ink),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: m.ink),
                 ),
                 const SizedBox(height: 10),
-                const Text(
+                Text(
                   'حتى تكملون التسوق، حدّثوا التطبيق لآخر نسخة.\nالتحديث ياخذ دقيقة وحدة.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, height: 1.6, color: AppColors.muted),
+                  style: TextStyle(fontSize: 15, height: 1.6, color: m.muted),
                 ),
                 const SizedBox(height: 30),
                 FilledButton(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../theme/app_theme.dart';
 import '../home/components/home_product_grid.dart'; // استيراد شبكة المنتجات
 
 class CategoryProductsScreen extends StatelessWidget {
@@ -16,7 +18,7 @@ class CategoryProductsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(categoryName), // عرض اسم الفئة في العنوان
-        backgroundColor: Colors.white,
+        backgroundColor: context.modo.page,
         elevation: 1,
       ),
       body:
