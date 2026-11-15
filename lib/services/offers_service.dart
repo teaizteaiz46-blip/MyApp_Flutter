@@ -3,6 +3,7 @@ import 'package:intl/intl.dart' show NumberFormat;
 
 import '../core/product_options.dart' show pieces;
 import '../main.dart';
+import 'app_config.dart';
 
 /// عرض على مجموعة منتجات (بأي سعر):
 /// - باقة: أي [qty] قطع من منتجات العرض بسعر [price] (والتوصيل مجاني إذا [freeDelivery])
@@ -105,20 +106,13 @@ class OffersService {
     }();
   }
 
+  /// إعداد التوصيل المجاني حسب العدد من AppConfig (نفس صف store_settings، ومحفوظ بالجهاز)
   static Future<void> _loadSettings() async {
-    try {
-      final row = await supabase
-          .from('store_settings')
-          .select('free_delivery_pieces_on, free_delivery_min_pieces')
-          .eq('id', 1)
-          .maybeSingle();
-      final on = row?['free_delivery_pieces_on'] == true;
-      final min = (row?['free_delivery_min_pieces'] as num?)?.toInt();
-      freeDeliveryPieces.value = on && min != null && min > 1 ? min : null;
-    } catch (_) {
-      // نبقى على آخر قيمة
-    }
+    await AppConfig.refresh();
+    syncSettings();
   }
+
+  static void syncSettings() => freeDeliveryPieces.value = AppConfig.freeDeliveryPieces;
 
   @visibleForTesting
   static void debugSetOffers(List<Offer> offers) {

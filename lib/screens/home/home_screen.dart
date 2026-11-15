@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/offline_cache.dart';
 import '../../core/product_options.dart' show pieces;
 import '../../main.dart';
+import '../../services/app_config.dart';
 import '../../services/cart_service.dart';
 import '../../services/offers_service.dart';
 import '../../services/splash_ad_service.dart';
@@ -46,6 +49,9 @@ class _HomeScreenState extends State<HomeScreen> {
   HomeSort _sort = HomeSort.bestSelling;
   int _refreshTick = 0;
 
+  /// الزبونة غيّرت القسم أو الترتيب بنفسها: بعدها ما نطبق إعداد الأدمن فوك اختيارها
+  bool _userPicked = false;
+
   late Future<_Rows> _categoriesFuture;
   _Rows? _categories;
   List<BannerSlide> _slides = const [];
@@ -56,6 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    // القسم والترتيب الافتراضي من صفحة الأدمن (آخر نسخة بالجهاز فوراً، والجديدة من السيرفر)
+    _applyHomeDefaults();
+    AppConfig.changes.addListener(_onConfigChanged);
+    unawaited(AppConfig.refresh());
     _loadSections();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 1200), () {
@@ -83,8 +93,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    AppConfig.changes.removeListener(_onConfigChanged);
     _scroll.dispose();
     super.dispose();
+  }
+
+  // --------------------------------------------------------------------------
+  // الرئيسية الافتراضية (store_settings.home_default_category / home_default_sort)
+
+  void _applyHomeDefaults() {
+    if (_userPicked) return;
+    _sort = HomeSort.values.where((s) => s.name == AppConfig.homeSort).firstOrNull ?? HomeSort.bestSelling;
+    _selectedCategoryId = AppConfig.homeCategory;
+    _selectedCategoryName = '';
+    _checkDefaultCategory();
+  }
+
+  void _onConfigChanged() {
+    if (!mounted || _userPicked) return;
+    final sortBefore = _sort, catBefore = _selectedCategoryId;
+    _applyHomeDefaults();
+    if (_sort != sortBefore || _selectedCategoryId != catBefore) setState(() {});
+  }
+
+  /// القسم الافتراضي لازم يكون بيه منتجات متوفرة، وإلا "الكل". ونجيب اسمه للعنوان.
+  void _checkDefaultCategory() {
+    if (_userPicked || _selectedCategoryId == 0) return;
+    final rows = _categories;
+    if (rows == null) return; // الأقسام بعدها ما وصلت: نتأكد من توصل
+    final match = rows.where((c) =>
+        (c['id'] as num).toInt() == _selectedCategoryId && ((c['products_in_stock'] as num?)?.toInt() ?? 0) > 0);
+    if (match.isEmpty) {
+      _selectedCategoryId = 0;
+      _selectedCategoryName = '';
+    } else {
+      _selectedCategoryName = (match.first['name'] ?? '').toString();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -97,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _categories = rows;
         _categoriesFuture = Future.value(rows);
+        _checkDefaultCategory();
       });
     }
 
@@ -111,7 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
           onFresh: setCategories,
         ));
     _categoriesFuture.then((rows) {
-      if (mounted) setState(() => _categories = rows);
+      if (mounted) {
+        setState(() {
+          _categories = rows;
+          _checkDefaultCategory();
+        });
+      }
     });
 
     void setSlides(_Rows rows) {
@@ -179,6 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onTabSelected(int index) {
     if (index == _homeTab && _tab == _homeTab) {
       setState(() {
+        _userPicked = true;
         _selectedCategoryId = 0;
         _selectedCategoryName = '';
       });
@@ -193,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _selectCategory(int id, String name) {
     setState(() {
+      _userPicked = true;
       _selectedCategoryId = id;
       _selectedCategoryName = name;
     });
@@ -201,7 +253,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _setSort(HomeSort sort) {
     if (sort == _sort) return;
-    setState(() => _sort = sort);
+    setState(() {
+      _userPicked = true;
+      _sort = sort;
+    });
     _scrollToGrid();
   }
 

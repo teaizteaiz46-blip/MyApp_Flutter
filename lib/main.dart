@@ -17,7 +17,11 @@ import 'screens/clips/clips_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/orders/my_orders_screen.dart';
 import 'screens/policy/privacy_policy_screen.dart';
+import 'screens/update/force_update_screen.dart';
+import 'services/app_config.dart';
 import 'services/cart_service.dart';
+import 'services/offers_service.dart';
+import 'services/update_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/order_confirm_service.dart';
 import 'services/points_service.dart';
@@ -93,8 +97,15 @@ Future<void> main() async {
     });
   }
 
+  // إعدادات المتجر (الرئيسية الافتراضية، التوصيل المجاني، التحديث الإجباري): آخر نسخة بالجهاز فوراً
+  await AppConfig.init();
+  OffersService.syncSettings();
+
   // تشغيل الواجهة فوراً لمنع تعليق الشاشة البيضاء
   runApp(const MyApp());
+
+  // التحديث الإجباري (إذا مشغّل من صفحة الأدمن)
+  if (supabaseReady) UpdateService.init();
 
   // روابط المنتجات من إعلانات فيسبوك/انستغرام
   DeepLinkService.init(rootNavigatorKey);
@@ -189,6 +200,16 @@ class _MyAppState extends State<MyApp> {
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.black),
           titleTextStyle: TextStyle(color: Colors.black, fontSize: 18),
+        ),
+      ),
+      // التحديث الإجباري يغطي كل الشاشات (والتطبيق يبقى تحته بدون ما ينعاد)
+      builder: (context, child) => ValueListenableBuilder<bool>(
+        valueListenable: UpdateService.required,
+        builder: (context, mustUpdate, _) => Stack(
+          children: [
+            if (child != null) child,
+            if (mustUpdate) const Positioned.fill(child: ForceUpdateScreen()),
+          ],
         ),
       ),
       // 🔹 عرض شاشة عدم الاتصال تلقائياً إذا انقطع الإنترنت
