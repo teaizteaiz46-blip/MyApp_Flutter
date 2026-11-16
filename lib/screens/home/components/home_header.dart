@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme/app_theme.dart';
 import '../../search/search_screen.dart';
 // تم إزالة استيراد CartScreen و ProfileScreen لأنهما ليسا مطلوبين هنا
 
@@ -7,6 +8,7 @@ class HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -22,15 +24,15 @@ class HomeHeader extends StatelessWidget {
             child: Container(
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.grey[200],
+                color: m.imageBg,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  SizedBox(width: 15),
-                  Icon(Icons.search, color: Colors.grey),
-                  SizedBox(width: 10),
-                  Text("ابحث...", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                  const SizedBox(width: 15),
+                  Icon(Icons.search, color: m.grey),
+                  const SizedBox(width: 10),
+                  Text("ابحث...", style: TextStyle(color: m.grey, fontSize: 16)),
                 ],
               ),
             ),

@@ -98,9 +98,9 @@ class InfluencerWalletBody extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 12),
           padding: padding,
           decoration: BoxDecoration(
-            color: cs.surface,
+            color: context.modo.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cs.outlineVariant),
+            border: Border.all(color: context.modo.line),
           ),
           child: child,
         );
@@ -172,7 +172,7 @@ class InfluencerWalletBody extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             child: Column(children: [
               for (var i = 0; i < recent.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: cs.outlineVariant),
+                if (i > 0) Divider(height: 1, color: context.modo.line),
                 _orderRow(context, recent[i]),
               ],
             ]),
@@ -185,7 +185,7 @@ class InfluencerWalletBody extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             child: Column(children: [
               for (var i = 0; i < payouts.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: cs.outlineVariant),
+                if (i > 0) Divider(height: 1, color: context.modo.line),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Row(children: [

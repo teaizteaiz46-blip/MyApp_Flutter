@@ -5,6 +5,7 @@ import '../../../core/offline_cache.dart';
 import '../../../core/product_options.dart';
 import '../../../facebook_service.dart';
 import '../../../services/cart_service.dart';
+import '../../../theme/app_theme.dart';
 // import 'fitting_room_sheet.dart'; // 👈 غرفة القياس الافتراضية (الميزة ملغية حالياً، شوف الزر المعلّق تحت)
 
 class NewProductCard extends StatefulWidget {
@@ -205,7 +206,7 @@ class _NewProductCardState extends State<NewProductCard> {
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: Colors.deepOrange.shade100,
+                                color: context.modo.pick(Colors.deepOrange.shade100, context.modo.brandSoft),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(

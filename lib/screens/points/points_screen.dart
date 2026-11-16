@@ -10,9 +10,6 @@ import '../auth/profile_screen.dart';
 
 final NumberFormat _money = NumberFormat('#,###');
 
-const Color _gold = Color(0xFF8A5A00);
-const Color _goldSoft = Color(0xFFFFF4D9);
-
 /// نقاطي: هدية كل يوم (سلسلة 7 أيام)، طرق جمع النقاط، الرصيد، وكود الدعوة.
 class PointsScreen extends StatefulWidget {
   const PointsScreen({super.key});
@@ -69,11 +66,12 @@ class _PointsScreenState extends State<PointsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: m.background,
       appBar: AppBar(
         title: const Text('نقاطي'),
-        backgroundColor: AppColors.surface,
+        backgroundColor: m.page,
         surfaceTintColor: Colors.transparent,
       ),
       body: !_points.signedIn
@@ -206,12 +204,13 @@ class _BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _goldSoft,
+        color: m.goldSoft,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF5DFA8)),
+        border: Border.all(color: m.goldBorder),
       ),
       child: Row(
         children: [
@@ -222,9 +221,9 @@ class _BalanceCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('رصيدج: ${_money.format(state.balance)} نقطة = ${_money.format(state.balanceIqd)} د.ع',
-                    style: const TextStyle(color: _gold, fontWeight: FontWeight.w800, fontSize: 15)),
-                const Text('تنصرف بصفحة إتمام الطلب (لحد 20% من الطلب) · تنتهي إذا ما فتحتي التطبيق 30 يوم',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                    style: TextStyle(color: m.gold, fontWeight: FontWeight.w800, fontSize: 15)),
+                Text('تنصرف بصفحة إتمام الطلب (لحد 20% من الطلب) · تنتهي إذا ما فتحتي التطبيق 30 يوم',
+                    style: TextStyle(color: m.muted, fontSize: 12)),
               ],
             ),
           ),
@@ -246,27 +245,28 @@ class _WaysCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: m.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: m.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Row(
+          Row(
             children: [
-              Expanded(child: Text('اجمعي نقاط أكثر', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
-              Text('100 نقطة = 1,000 د.ع', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+              const Expanded(child: Text('اجمعي نقاط أكثر', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+              Text('100 نقطة = 1,000 د.ع', style: TextStyle(color: m.muted, fontSize: 12)),
             ],
           ),
           for (var i = 0; i < _ways.length; i++)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 9),
               decoration: BoxDecoration(
-                border: i == _ways.length - 1 ? null : const Border(bottom: BorderSide(color: AppColors.line)),
+                border: i == _ways.length - 1 ? null : Border(bottom: BorderSide(color: m.line)),
               ),
               child: Row(
                 children: [
@@ -274,8 +274,8 @@ class _WaysCard extends StatelessWidget {
                   Expanded(child: Text(_ways[i].$2, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5))),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(color: _goldSoft, borderRadius: BorderRadius.circular(99)),
-                    child: Text(_ways[i].$3, style: const TextStyle(color: _gold, fontWeight: FontWeight.w800, fontSize: 12)),
+                    decoration: BoxDecoration(color: m.goldSoft, borderRadius: BorderRadius.circular(99)),
+                    child: Text(_ways[i].$3, style: TextStyle(color: m.gold, fontWeight: FontWeight.w800, fontSize: 12)),
                   ),
                 ],
               ),
@@ -294,19 +294,20 @@ class _ReferralCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: m.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: m.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('ادعي صديقتج 👭', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-          const Text('صديقتج تكتب كودج بأول طلب، ولما يوصلها: إنتي تاخذين 300 نقطة وهي 100',
-              style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+          Text('صديقتج تكتب كودج بأول طلب، ولما يوصلها: إنتي تاخذين 300 نقطة وهي 100',
+              style: TextStyle(color: m.muted, fontSize: 12.5)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -320,9 +321,9 @@ class _ReferralCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
+                      color: m.fill,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.line),
+                      border: Border.all(color: m.line),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -331,7 +332,7 @@ class _ReferralCard extends StatelessWidget {
                             textDirection: TextDirection.ltr,
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 3)),
                         const SizedBox(width: 8),
-                        const Icon(Icons.copy_rounded, size: 18, color: AppColors.muted),
+                        Icon(Icons.copy_rounded, size: 18, color: m.muted),
                       ],
                     ),
                   ),
@@ -375,12 +376,13 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: m.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: m.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -394,7 +396,7 @@ class _HistoryCard extends StatelessWidget {
                   Expanded(child: Text(_label('${h['reason']}'), style: const TextStyle(fontSize: 13.5))),
                   Text(
                     DateFormat('d/M').format(DateTime.tryParse('${h['created_at']}')?.toLocal() ?? DateTime.now()),
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: TextStyle(color: m.muted, fontSize: 12),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -402,7 +404,7 @@ class _HistoryCard extends StatelessWidget {
                     textDirection: TextDirection.ltr,
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: ((h['delta'] as num?) ?? 0) > 0 ? AppColors.success : AppColors.sale,
+                      color: ((h['delta'] as num?) ?? 0) > 0 ? m.success : m.sale,
                     ),
                   ),
                 ],
@@ -431,8 +433,8 @@ class _GuestInvite extends StatelessWidget {
             const SizedBox(height: 8),
             const Text('اجمعي نقاط وحوليها خصم', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            const Text('هدية كل يوم، ونقاط من كل طلب، و100 نقطة = 1,000 د.ع.\nسجّلي دخول حتى تبدين تجمعين.',
-                textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+            Text('هدية كل يوم، ونقاط من كل طلب، و100 نقطة = 1,000 د.ع.\nسجّلي دخول حتى تبدين تجمعين.',
+                textAlign: TextAlign.center, style: TextStyle(color: context.modo.muted)),
             const SizedBox(height: 16),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.brand, minimumSize: const Size(220, 48)),

@@ -15,6 +15,7 @@ import '../../services/cart_service.dart';
 import '../../services/offers_service.dart';
 import '../../services/order_confirm_service.dart';
 import '../../services/push_service.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/welcome_coupon_dialog.dart' show kPendingCouponKey;
 import '../home/home_screen.dart';
 import '../orders/my_orders_screen.dart' show RewardCouponCard;
@@ -228,6 +229,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildGifts() {
+    final m = context.modo;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -235,27 +237,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           _giftTile(g),
           if (identical(g, _selectedGift) && _giftColors(g).isNotEmpty) _giftColorPicker(_giftColors(g)),
         ],
-        Text('الهدية مجانية وتوصلكم ويه نفس الطلب.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        Text('الهدية مجانية وتوصلكم ويه نفس الطلب.', style: TextStyle(fontSize: 12, color: m.pick(Colors.grey[600]!, m.muted))),
       ],
     );
   }
 
   /// ألوان/قياسات الهدية المختارة (ممكن تكون 40+، فتنسحب بداخل مربع)
   Widget _giftColorPicker(List<String> colors) {
+    final m = context.modo;
     final title = _giftOptionWord(colors);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF8F3),
+        color: m.pick(const Color(0xFFFFF8F3), m.hintBg),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _giftColor == null ? Colors.deepOrange.shade200 : Colors.grey.shade300),
+        border: Border.all(color: _giftColor == null ? m.pick(Colors.deepOrange.shade200, m.warnBorder) : m.grey300),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(_giftColor == null ? 'اختاروا $title الهدية' : '$title الهدية: $_giftColor ✓',
-              style: TextStyle(fontWeight: FontWeight.w800, color: _giftColor == null ? Colors.deepOrange : Colors.black87)),
+              style: TextStyle(fontWeight: FontWeight.w800, color: _giftColor == null ? Colors.deepOrange : m.pick(Colors.black87, m.ink))),
           const SizedBox(height: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 180),
@@ -269,7 +272,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       label: Text(c),
                       selected: _giftColor == c,
                       onSelected: (_) => setState(() => _giftColor = c),
-                      selectedColor: const Color(0xFFFFE0CC),
+                      selectedColor: m.pick(const Color(0xFFFFE0CC), const Color(0xFF4A2615)),
                       visualDensity: VisualDensity.compact,
                     ),
                 ],
@@ -282,6 +285,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _giftTile(Map<String, dynamic> g) {
+    final m = context.modo;
     final id = (g['id'] as num?)?.toInt();
     final ok = _giftEligible(g);
     final selected = ok && id == _giftId;
@@ -294,9 +298,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFFFF1E8) : Colors.white,
+          color: selected ? m.brandTint : m.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? Colors.deepOrange : Colors.grey.shade300, width: selected ? 1.6 : 1),
+          border: Border.all(color: selected ? Colors.deepOrange : m.grey300, width: selected ? 1.6 : 1),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -316,11 +320,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     width: 56,
                     height: 56,
                     child: img.isEmpty
-                        ? ColoredBox(color: Colors.grey.shade200)
+                        ? ColoredBox(color: m.imageBg)
                         : Image(
                             image: cachedImage(img, decodeWidth: decodeWidthFor(context, 56, 56)),
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => ColoredBox(color: Colors.grey.shade200),
+                            errorBuilder: (_, _, _) => ColoredBox(color: m.imageBg),
                           ),
                   ),
                 ),
@@ -335,11 +339,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                       Row(
                         children: [
-                          Text('مجاناً', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w800)),
+                          Text('مجاناً', style: TextStyle(color: m.savings, fontWeight: FontWeight.w800)),
                           const SizedBox(width: 6),
                           if (price > 0)
                             Text('${_money.format(price)} د.ع',
-                                style: TextStyle(color: Colors.grey[500], fontSize: 12, decoration: TextDecoration.lineThrough)),
+                                style: TextStyle(color: m.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
                         ],
                       ),
                       if (!ok)
@@ -349,7 +353,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
                 Icon(selected ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: selected ? Colors.deepOrange : Colors.grey),
+                    color: selected ? Colors.deepOrange : m.grey),
               ],
             ),
           ),
@@ -488,7 +492,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('إتمام الطلب'), backgroundColor: Colors.white, elevation: 1),
+        appBar: AppBar(title: const Text('إتمام الطلب'), backgroundColor: context.modo.page, elevation: 1),
         bottomNavigationBar: _loading || _loadError != null ? null : _buildTotals(),
         body: _buildBody(),
       ),
@@ -496,6 +500,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildBody() {
+    final m = context.modo;
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_loadError != null) {
       return Center(
@@ -601,9 +606,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.payments_outlined, color: Colors.grey[700], size: 20),
+                Icon(Icons.payments_outlined, color: m.grey700, size: 20),
                 const SizedBox(width: 6),
-                Text('الدفع نقداً عند الاستلام', style: TextStyle(color: Colors.grey[700])),
+                Text('الدفع نقداً عند الاستلام', style: TextStyle(color: m.grey700)),
               ],
             ),
           ],
@@ -613,13 +618,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildItemsSummary() {
+    final m = context.modo;
     final lines = _cart.lines.value;
     final quote = _quote;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: m.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: m.border),
       ),
       child: Column(
         children: [
@@ -644,8 +650,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   if (quote.lineRegularTotal(line) - quote.lineTotal(line) >= 1)
                     Text(
                       '${_money.format(quote.lineRegularTotal(line))} د.ع',
-                      style: const TextStyle(
-                        color: Colors.grey,
+                      style: TextStyle(
+                        color: m.grey,
                         fontSize: 11,
                         decoration: TextDecoration.lineThrough,
                       ),
@@ -663,11 +669,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildOrderOptions() {
+    final m = context.modo;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: m.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: m.border),
       ),
       child: Column(
         children: [
@@ -692,6 +699,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildPoints() {
+    final m = context.modo;
     return ValueListenableBuilder<PointsState?>(
       valueListenable: PointsService.instance.state,
       builder: (context, s, _) {
@@ -701,9 +709,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           margin: const EdgeInsets.only(top: 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF4D9),
+            color: m.goldSoft,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFF5DFA8)),
+            border: Border.all(color: m.goldBorder),
           ),
           child: Row(
             children: [
@@ -713,12 +721,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('استخدمي نقاطج', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF8A5A00))),
+                    Text('استخدمي نقاطج', style: TextStyle(fontWeight: FontWeight.w800, color: m.gold)),
                     Text(
                       usable > 0
                           ? 'عندج ${_money.format(s.balance)} نقطة · ينصرف منها $usable = خصم ${_money.format(usable * PointsState.iqdPerPoint)} د.ع'
                           : 'عندج ${_money.format(s.balance)} نقطة · زيدي طلبج حتى تكدرين تستخدمينها',
-                      style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                      style: TextStyle(fontSize: 12.5, color: m.pick(Colors.black54, m.muted)),
                     ),
                   ],
                 ),
@@ -752,6 +760,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildReferral() {
+    final m = context.modo;
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
@@ -770,7 +779,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     hintText: 'مثلاً M6719D',
                     border: const OutlineInputBorder(),
                     helperText: _referralOk ? _referralMsg : null,
-                    helperStyle: TextStyle(color: Colors.green.shade700),
+                    helperStyle: TextStyle(color: m.savings),
                     errorText: !_referralOk ? _referralMsg : null,
                   ),
                   onChanged: (_) {
@@ -793,7 +802,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       )
                     : ElevatedButton(
                         onPressed: _checkingReferral ? null : _checkReferral,
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, foregroundColor: Colors.white),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: m.pick(Colors.black87, m.strong),
+                          foregroundColor: m.onStrong,
+                        ),
                         child: const Text('تحقق'),
                       ),
               ),
@@ -805,6 +817,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildCoupon() {
+    final m = context.modo;
     final reward = _reward;
     if (reward != null) {
       return Column(
@@ -824,7 +837,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text('خصم ${_money.format(_rewardDiscount)} د.ع على هذا الطلب · ما ينجمع ويا كود ثاني',
-                  style: TextStyle(color: Colors.green.shade800, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  style: TextStyle(color: m.success, fontSize: 12.5, fontWeight: FontWeight.w600)),
             )
           else ...[
             const SizedBox(height: 10),
@@ -837,22 +850,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildCodeCoupon() {
+    final m = context.modo;
     if (_appliedCoupon != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.green.shade50,
+          color: m.okBg,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.green.shade200),
+          border: Border.all(color: m.okBorder),
         ),
         child: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.green.shade700),
+            Icon(Icons.check_circle, color: m.savings),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'الكود $_appliedCoupon: خصم ${_money.format(_discount)} د.ع',
-                style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.w600),
+                style: TextStyle(color: m.success, fontWeight: FontWeight.w600),
               ),
             ),
             TextButton(onPressed: _removeCoupon, child: const Text('إزالة')),
@@ -885,14 +899,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: ElevatedButton(
             onPressed: _checkingCoupon ? null : _applyCoupon,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black87,
-              foregroundColor: Colors.white,
+              backgroundColor: m.pick(Colors.black87, m.strong),
+              foregroundColor: m.onStrong,
             ),
             child: _checkingCoupon
-                ? const SizedBox(
+                ? SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    child: CircularProgressIndicator(color: m.onStrong, strokeWidth: 2),
                   )
                 : const Text('تطبيق'),
           ),
@@ -902,12 +916,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildTotals() {
+    final m = context.modo;
     Widget row(String label, String value, {Color? color, bool bold = false}) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: TextStyle(color: color ?? Colors.grey[700], fontWeight: bold ? FontWeight.bold : null, fontSize: bold ? 17 : 14)),
+              Text(label, style: TextStyle(color: color ?? m.grey700, fontWeight: bold ? FontWeight.bold : null, fontSize: bold ? 17 : 14)),
               Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: bold ? 17 : 14)),
             ],
           ),
@@ -917,26 +932,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade200)),
+          color: m.surface,
+          border: Border(top: BorderSide(color: m.border)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             row('مجموع المنتجات', '${_money.format(_subtotal)} د.ع'),
             if (_freeDelivery)
-              row('التوصيل', 'مجاني', color: Colors.green.shade700)
+              row('التوصيل', 'مجاني', color: m.savings)
             else
               row(
                 'التوصيل',
                 _governorate == null ? 'حسب المحافظة' : '${_money.format(_delivery)} د.ع',
               ),
             if (_couponDiscount > 0)
-              row('الخصم', '-${_money.format(_couponDiscount)} د.ع', color: Colors.green.shade700),
+              row('الخصم', '-${_money.format(_couponDiscount)} د.ع', color: m.savings),
             if (_pointsUsed > 0)
-              row('خصم النقاط ($_pointsUsed نقطة)', '-${_money.format(_pointsUsed * PointsState.iqdPerPoint)} د.ع', color: Colors.green.shade700),
+              row('خصم النقاط ($_pointsUsed نقطة)', '-${_money.format(_pointsUsed * PointsState.iqdPerPoint)} د.ع', color: m.savings),
             if (_selectedGift != null)
-              row('🎁 هدية مجانية', 'مجاناً', color: Colors.green.shade700),
+              row('🎁 هدية مجانية', 'مجاناً', color: m.savings),
             const Divider(height: 16),
             row('الإجمالي', '${_money.format(_total)} د.ع', bold: true),
             const SizedBox(height: 10),

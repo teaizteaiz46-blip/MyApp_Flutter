@@ -4,6 +4,7 @@ import '../../main.dart'; // لاستخدام supabase
 import '../../services/push_service.dart';
 import '../orders/my_orders_screen.dart';
 import '../../widgets/contact_us.dart';
+import '../appearance/appearance_screen.dart';
 import '../influencer/influencer_entry.dart';
 import '../points/points_screen.dart';
 import '../wishlist/wishlist_screen.dart';
@@ -147,6 +148,9 @@ class _AccountViewState extends State<AccountView> {
           ),
           // برنامج المؤثرين: "انضموا كمؤثرين" أو "أرباحي"
           const InfluencerEntry(),
+          const SizedBox(height: 12),
+          // المظهر: ليلي / فاتح / حسب إعداد الموبايل
+          const AppearanceTile(),
           const SizedBox(height: 20),
           const ContactUsSection(),
           FutureBuilder<dynamic>(

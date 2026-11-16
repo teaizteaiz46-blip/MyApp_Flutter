@@ -24,13 +24,13 @@ const int kWholesaleCategoryId = 12;
 void _openProduct(BuildContext context, int id) =>
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => DetailsScreen(productId: id)));
 
-Widget _sectionTitle(String title, {IconData? icon, Color? iconColor, VoidCallback? onSeeAll}) {
+Widget _sectionTitle(ModoColors m, String title, {IconData? icon, Color? iconColor, VoidCallback? onSeeAll}) {
   return Padding(
     padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 4, 8),
     child: Row(
       children: [
         Flexible(
-          child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink)),
+          child: Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: m.ink)),
         ),
         if (icon != null) ...[const SizedBox(width: 4), Icon(icon, color: iconColor ?? AppColors.brand, size: 21)],
         const Spacer(),
@@ -242,7 +242,7 @@ class _StoriesBarState extends State<StoriesBar> {
         : [...items.where((s) => !_seen.contains(s.key)), ...items.where((s) => _seen.contains(s.key))];
 
     return Container(
-      color: AppColors.surface,
+      color: context.modo.page,
       height: 108,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
@@ -293,6 +293,7 @@ class _StoryBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -309,14 +310,14 @@ class _StoryBubble extends StatelessWidget {
                 gradient: seen
                     ? null
                     : const SweepGradient(colors: [AppColors.brand, Color(0xFFFFB347), AppColors.brandDark, AppColors.brand]),
-                color: seen ? AppColors.line : null,
+                color: seen ? m.line : null,
               ),
               child: Container(
                 padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: m.page, shape: BoxShape.circle),
                 child: ClipOval(
                   child: loading
-                      ? const ColoredBox(color: AppColors.placeholder)
+                      ? ColoredBox(color: m.placeholder)
                       : Stack(
                           fit: StackFit.expand,
                           children: [
@@ -336,7 +337,7 @@ class _StoryBubble extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11.5, fontWeight: seen ? FontWeight.w500 : FontWeight.w700, color: AppColors.ink),
+              style: TextStyle(fontSize: 11.5, fontWeight: seen ? FontWeight.w500 : FontWeight.w700, color: m.ink),
             ),
           ],
         ),
@@ -504,25 +505,27 @@ class PriceBuckets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     void open(Widget s) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => s));
     final tiles = [
-      ('تحت', '5,000', 'د.ع', const Color(0xFFFFEEE6), const Color(0xFFC24A12),
+      ('تحت', '5,000', 'د.ع', m.brandSoft, m.pick(const Color(0xFFC24A12), m.brandText),
           () => open(const ProductListScreen(title: 'تحت 5,000 د.ع', maxPrice: 5000))),
-      ('تحت', '10,000', 'د.ع', const Color(0xFFFFF4D9), const Color(0xFF8A5A00),
+      ('تحت', '10,000', 'د.ع', m.goldSoft, m.gold,
           () => open(const ProductListScreen(title: 'تحت 10,000 د.ع', maxPrice: 10000))),
-      ('عروض', 'قطعتين', 'وفّري أكثر', const Color(0xFFE8F5EC), const Color(0xFF1E7B3A),
+      ('عروض', 'قطعتين', 'وفّري أكثر', m.greenSoft, m.greenText,
           () => open(const ProductListScreen(title: 'عروض الكمية', onlyBulk: true))),
-      ('قسم', 'الجملة', 'أقل طلب 6', const Color(0xFFEEE9FB), const Color(0xFF5B3FB0),
+      ('قسم', 'الجملة', 'أقل طلب 6', m.pick(const Color(0xFFEEE9FB), const Color(0xFF26203A)),
+          m.pick(const Color(0xFF5B3FB0), const Color(0xFFB9A6F5)),
           () => open(const ProductListScreen(title: 'الجملة', categoryId: kWholesaleCategoryId, sort: HomeSort.newest))),
     ];
     return Container(
-      color: AppColors.surface,
+      color: m.page,
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.only(top: 14, bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionTitle('تسوّقي حسب السعر'),
+          _sectionTitle(context.modo, 'تسوّقي حسب السعر'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
@@ -614,16 +617,17 @@ class _TopProductsSectionState extends State<TopProductsSection> {
     final rows = _rows;
     if (rows == null || rows.isEmpty) return const SizedBox.shrink();
     return Container(
-      color: AppColors.surface,
+      color: context.modo.page,
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.only(top: 14, bottom: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _sectionTitle(
+            context.modo,
             'الأكثر طلباً هالشهر',
             icon: Icons.local_fire_department_rounded,
-            iconColor: AppColors.sale,
+            iconColor: context.modo.sale,
             onSeeAll: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => const ProductListScreen(title: 'الأكثر مبيعاً'),
             )),
@@ -644,6 +648,7 @@ class _TopRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final images = imagesOf(product);
     final orders = (product['orders_count'] as num?)?.toInt() ?? 0;
     return InkWell(
@@ -651,7 +656,7 @@ class _TopRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          border: last ? null : const Border(bottom: BorderSide(color: AppColors.line)),
+          border: last ? null : Border(bottom: BorderSide(color: m.line)),
         ),
         child: Row(
           children: [
@@ -663,7 +668,7 @@ class _TopRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
-                  color: rank <= 3 ? const Color(0xFFFF9A66) : AppColors.line,
+                  color: rank <= 3 ? const Color(0xFFFF9A66) : m.line,
                 ),
               ),
             ),
@@ -688,7 +693,7 @@ class _TopRow extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 3),
                       child: Text(
                         'بـ $orders طلب هالشهر',
-                        style: const TextStyle(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w700),
+                        style: TextStyle(fontSize: 12, color: m.success, fontWeight: FontWeight.w700),
                       ),
                     ),
                 ],
@@ -697,7 +702,7 @@ class _TopRow extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               kMoney.format(priceOf(product)),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.brandDark),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: m.brandText),
             ),
           ],
         ),
@@ -784,7 +789,7 @@ class _LookOfTheDayState extends State<LookOfTheDay> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.modo.surface,
       builder: (sheet) => SafeArea(
         child: ListView(
           shrinkWrap: true,
@@ -826,13 +831,13 @@ class _LookOfTheDayState extends State<LookOfTheDay> {
     final items = {for (final s in spots) s.$3: _products[s.$3]!}.values.toList();
 
     return Container(
-      color: AppColors.surface,
+      color: context.modo.page,
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.only(top: 14, bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionTitle((look['title'] ?? 'اطلالة اليوم').toString(), icon: Icons.auto_awesome_rounded, iconColor: AppColors.star),
+          _sectionTitle(context.modo, (look['title'] ?? 'اطلالة اليوم').toString(), icon: Icons.auto_awesome_rounded, iconColor: AppColors.star),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: ClipRRect(
@@ -864,7 +869,8 @@ class _LookOfTheDayState extends State<LookOfTheDay> {
                         end: 12,
                         child: FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.ink,
+                            backgroundColor: context.modo.strong,
+                            foregroundColor: context.modo.onStrong,
                             shape: const StadiumBorder(),
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                           ),
@@ -909,6 +915,7 @@ class _Hotspot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     // البطاقة تطلع جهة الوسط حتى ما تطلع برا الصورة
     final tagOnRight = left < maxWidth / 2;
     return Stack(
@@ -947,7 +954,7 @@ class _Hotspot extends StatelessWidget {
                 width: _tagWidth,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: m.surface,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 3))],
                 ),
@@ -966,7 +973,7 @@ class _Hotspot extends StatelessWidget {
                           ),
                           Text(
                             '${kMoney.format(priceOf(product))} د.ع',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.brandDark),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: m.brandText),
                           ),
                         ],
                       ),
@@ -1040,13 +1047,13 @@ class _RecentlyViewedRowState extends State<RecentlyViewedRow> {
   Widget build(BuildContext context) {
     if (_rows.length < 2) return const SizedBox.shrink();
     return Container(
-      color: AppColors.surface,
+      color: context.modo.page,
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.only(top: 14, bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionTitle('شفتيها مؤخراً', icon: Icons.history_rounded, iconColor: AppColors.muted),
+          _sectionTitle(context.modo, 'شفتيها مؤخراً', icon: Icons.history_rounded, iconColor: context.modo.muted),
           SizedBox(
             height: 140,
             child: ListView.separated(
@@ -1071,7 +1078,7 @@ class _RecentlyViewedRowState extends State<RecentlyViewedRow> {
                         const SizedBox(height: 4),
                         Text(
                           '${kMoney.format(priceOf(p))} د.ع',
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.brandDark),
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: context.modo.brandText),
                         ),
                       ],
                     ),

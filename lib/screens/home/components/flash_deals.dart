@@ -39,15 +39,18 @@ class FlashDealsSection extends StatelessWidget {
         final deals = snapshot.data;
         if (snapshot.hasError || (deals != null && deals.isEmpty)) return const SizedBox.shrink();
         final endsAt = deals == null ? null : _endsAt(deals);
+        final m = context.modo;
 
         return Container(
           margin: const EdgeInsets.only(top: 12),
           padding: const EdgeInsets.only(top: 14, bottom: 16),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFFFFEDE6), Color(0xFFFFF8F5)],
+              colors: m.isDark
+                  ? const [Color(0xFF2A1D15), Color(0xFF1A1613)]
+                  : const [Color(0xFFFFEDE6), Color(0xFFFFF8F5)],
             ),
           ),
           child: Column(
@@ -63,20 +66,20 @@ class FlashDealsSection extends StatelessWidget {
                           : endsAt.difference(DateTime.now()).inHours >= 24
                               ? 'عرض لفترة محدودة'
                               : 'عرض الساعة',
-                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink),
+                      style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: m.ink),
                     ),
                     const SizedBox(width: 4),
                     const Icon(Icons.bolt_rounded, color: AppColors.brand, size: 22),
                     const Spacer(),
                     if (endsAt != null) ...[
-                      const Text('ينتهي خلال', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                      Text('ينتهي خلال', style: TextStyle(fontSize: 12, color: m.muted)),
                       const SizedBox(width: 6),
                       _Countdown(endsAt: endsAt),
                     ],
                     IconButton(
                       tooltip: 'عرض الكل',
                       onPressed: onSeeAll,
-                      icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.ink),
+                      icon: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: m.ink),
                     ),
                   ],
                 ),
@@ -120,12 +123,13 @@ class _FlashCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final p = product;
     if (p == null) {
       return Container(
         width: _width,
         height: _imageHeight,
-        decoration: BoxDecoration(color: AppColors.placeholder, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: m.placeholder, borderRadius: BorderRadius.circular(12)),
       );
     }
     final images = imagesOf(p);
@@ -188,14 +192,14 @@ class _FlashCard extends StatelessWidget {
                   child: Text(
                     kMoney.format(price),
                     maxLines: 1,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.brandDark),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: m.brandText),
                   ),
                 ),
                 if (old > price) ...[
                   const SizedBox(width: 6),
                   Text(
                     kMoney.format(old),
-                    style: const TextStyle(fontSize: 11, color: AppColors.muted, decoration: TextDecoration.lineThrough),
+                    style: TextStyle(fontSize: 11, color: m.muted, decoration: TextDecoration.lineThrough),
                   ),
                 ],
               ],
@@ -204,7 +208,7 @@ class _FlashCard extends StatelessWidget {
             if (stock > 0 && stock <= 10)
               Text(
                 'باقي ${pieces(stock)}',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.sale),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: m.sale),
               ),
           ],
         ),

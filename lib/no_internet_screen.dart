@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'theme/app_theme.dart';
+
 class NoInternetScreen extends StatelessWidget {
   final VoidCallback onRetry;
 
@@ -7,8 +9,9 @@ class NoInternetScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: m.page,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -21,21 +24,21 @@ class NoInternetScreen extends StatelessWidget {
                 color: Colors.deepOrange,
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 "لا يوجد اتصال بالإنترنت",
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: m.pick(Colors.black87, m.ink),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 "يرجى التحقق من الاتصال بالشبكة وإعادة المحاولة لتتمكن من تصفح المنتجات.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey,
+                  color: m.grey,
                 ),
               ),
               const SizedBox(height: 32),

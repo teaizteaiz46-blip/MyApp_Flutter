@@ -165,7 +165,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.sale),
+            style: TextButton.styleFrom(foregroundColor: ctx.modo.sale),
             child: const Text('حذف'),
           ),
         ],
@@ -193,15 +193,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: m.background,
       appBar: AppBar(
         titleSpacing: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('راسلونا', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-            Text('فريق MODO يرد عليكم هنا', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+            const Text('راسلونا', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+            Text('فريق MODO يرد عليكم هنا', style: TextStyle(fontSize: 12, color: m.muted)),
           ],
         ),
         actions: [
@@ -244,8 +245,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           const Text('هلا بيكم بـ MODO',
               textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 6),
-          const Text('اكتبوا سؤالكم أو طلبكم، وفريقنا يرد عليكم هنا ويوصلكم إشعار بالرد.',
-              textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, height: 1.5)),
+          Text('اكتبوا سؤالكم أو طلبكم، وفريقنا يرد عليكم هنا ويوصلكم إشعار بالرد.',
+              textAlign: TextAlign.center, style: TextStyle(color: context.modo.muted, height: 1.5)),
           const SizedBox(height: 18),
           Wrap(
             alignment: WrapAlignment.center,
@@ -256,8 +257,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ActionChip(
                   label: Text(q),
                   onPressed: _sending ? null : () => _send(q),
-                  backgroundColor: AppColors.surface,
-                  side: const BorderSide(color: AppColors.line),
+                  backgroundColor: context.modo.surface,
+                  side: BorderSide(color: context.modo.line),
                 ),
             ],
           ),
@@ -269,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
       padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 4, 6),
-      decoration: BoxDecoration(color: AppColors.brandSoft, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: context.modo.brandSoft, borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
           const Text('🛍️ '),
@@ -292,7 +293,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-          color: AppColors.surface,
+          color: context.modo.surface,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -307,7 +308,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     hintText: 'اكتبوا رسالتكم...',
                     counterText: '',
                     filled: true,
-                    fillColor: AppColors.background,
+                    fillColor: context.modo.fill,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
                   ),
@@ -329,6 +330,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
 
   Widget _bubble(ChatMessage m) {
+    final c = context.modo;
     final time = TimeOfDay.fromDateTime(m.createdAt).format(context);
     final p = m.productId == null ? null : _products[m.productId];
 
@@ -343,9 +345,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             margin: const EdgeInsets.symmetric(vertical: 4),
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: c.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: c.line),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -353,11 +355,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 AspectRatio(
                   aspectRatio: 1,
                   child: img == null
-                      ? const ColoredBox(color: AppColors.placeholder)
+                      ? ColoredBox(color: c.placeholder)
                       : Image(
                           image: cachedImage(img, decodeWidth: decodeWidthFor(context, 230, 230)),
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.placeholder),
+                          errorBuilder: (_, _, _) => ColoredBox(color: c.placeholder),
                         ),
                 ),
                 Padding(
@@ -375,7 +377,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         children: [
                           const Text('شوفوا المنتج', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.w800)),
                           const Spacer(),
-                          Text(time, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                          Text(time, style: TextStyle(fontSize: 11, color: c.muted)),
                         ],
                       ),
                     ],
@@ -396,9 +398,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           margin: const EdgeInsets.symmetric(vertical: 3),
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
           decoration: BoxDecoration(
-            color: m.mine ? AppColors.brand : AppColors.surface,
+            color: m.mine ? AppColors.brand : c.surface,
             borderRadius: BorderRadius.circular(16),
-            border: m.mine ? null : Border.all(color: AppColors.line),
+            border: m.mine ? null : Border.all(color: c.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,9 +414,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
                 ),
-              Text(m.body, style: TextStyle(color: m.mine ? Colors.white : AppColors.ink, height: 1.45)),
+              Text(m.body, style: TextStyle(color: m.mine ? Colors.white : c.ink, height: 1.45)),
               const SizedBox(height: 2),
-              Text(time, style: TextStyle(fontSize: 10.5, color: m.mine ? Colors.white70 : AppColors.muted)),
+              Text(time, style: TextStyle(fontSize: 10.5, color: m.mine ? Colors.white70 : c.muted)),
             ],
           ),
         ),

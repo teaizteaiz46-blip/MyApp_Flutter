@@ -47,24 +47,25 @@ class _WishlistScreenState extends State<WishlistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final products = _products;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: m.background,
       appBar: AppBar(
         title: const Text('مفضلتي ♡'),
-        backgroundColor: AppColors.surface,
+        backgroundColor: m.page,
         surfaceTintColor: Colors.transparent,
       ),
       body: products == null
           ? const Center(child: CircularProgressIndicator())
           : products.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Text(
                       'ماكو قطع بالمفضلة لحد هسه.\nاضغطي ♡ على أي قطعة تعجبج، ونبلغج إذا نزل سعرها أو رجعت متوفرة 🔔',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.muted, height: 1.6),
+                      style: TextStyle(color: m.muted, height: 1.6),
                     ),
                   ),
                 )
@@ -77,7 +78,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                     final images = imagesOf(p);
                     final stock = (p['stock'] as num?)?.toInt() ?? 0;
                     return Material(
-                      color: AppColors.surface,
+                      color: m.surface,
                       borderRadius: BorderRadius.circular(16),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
@@ -102,10 +103,10 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                     const SizedBox(height: 4),
                                     PriceLine(product: p, big: false),
                                     if (stock <= 0)
-                                      const Text('خلصت · نبلغج إذا رجعت 🔔',
-                                          style: TextStyle(color: AppColors.sale, fontSize: 12, fontWeight: FontWeight.w700))
+                                      Text('خلصت · نبلغج إذا رجعت 🔔',
+                                          style: TextStyle(color: m.sale, fontSize: 12, fontWeight: FontWeight.w700))
                                     else if (stock <= 5)
-                                      Text('باقي $stock بس', style: const TextStyle(color: AppColors.sale, fontSize: 12, fontWeight: FontWeight.w700)),
+                                      Text('باقي $stock بس', style: TextStyle(color: m.sale, fontSize: 12, fontWeight: FontWeight.w700)),
                                   ],
                                 ),
                               ),

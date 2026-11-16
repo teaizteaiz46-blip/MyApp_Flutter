@@ -20,12 +20,13 @@ class PointsChip extends StatelessWidget {
       valueListenable: PointsService.instance.state,
       builder: (context, s, _) {
         final dot = s != null && !s.claimedToday;
+        final m = context.modo;
         return InkWell(
           borderRadius: BorderRadius.circular(99),
           onTap: () => openPoints(context),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(color: const Color(0xFFFFF4D9), borderRadius: BorderRadius.circular(99)),
+            decoration: BoxDecoration(color: m.goldSoft, borderRadius: BorderRadius.circular(99)),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -33,7 +34,7 @@ class PointsChip extends StatelessWidget {
                 if (s != null) ...[
                   const SizedBox(width: 4),
                   Text(_money.format(s.balance),
-                      style: const TextStyle(color: Color(0xFF8A5A00), fontWeight: FontWeight.w800, fontSize: 13.5)),
+                      style: TextStyle(color: m.gold, fontWeight: FontWeight.w800, fontSize: 13.5)),
                 ],
                 if (dot) ...[
                   const SizedBox(width: 4),
@@ -64,7 +65,7 @@ class DailyGiftBanner extends StatelessWidget {
             ? 'استلمي ${s!.todayPoints} نقطة · يوم ${s.streakDay} من 7'
             : 'سجّلي واستلمي هدية كل يوم';
         return Container(
-          color: AppColors.surface,
+          color: context.modo.page,
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
           child: Material(
             borderRadius: BorderRadius.circular(16),

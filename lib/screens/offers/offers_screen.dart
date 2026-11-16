@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 // لا نحتاج supabase هنا بعد الآن
 // استيراد شبكة المنتجات
+import '../../theme/app_theme.dart';
 import '../home/components/home_product_grid.dart';
 
 class OffersScreen extends StatelessWidget {
@@ -13,7 +14,7 @@ class OffersScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('العروض الخاصة'),
-        backgroundColor: Colors.white,
+        backgroundColor: context.modo.page,
         elevation: 1,
       ),
       // --- إزالة FutureBuilder ---

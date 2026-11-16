@@ -31,11 +31,12 @@ class _OfferProductsScreenState extends State<OfferProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: m.background,
       appBar: AppBar(
         title: Text(offer.title),
-        backgroundColor: AppColors.surface,
+        backgroundColor: m.page,
         surfaceTintColor: Colors.transparent,
         elevation: 0.5,
       ),
@@ -69,13 +70,14 @@ class OfferBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final ends = offer.endsLabel;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF7EE),
+        color: m.pick(const Color(0xFFEAF7EE), m.greenSoft),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFB9E2C5)),
+        border: Border.all(color: m.pick(const Color(0xFFB9E2C5), m.greenBorder)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,7 +89,7 @@ class OfferBanner extends StatelessWidget {
               Expanded(
                 child: Text(
                   offer.title,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: _green),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: m.pick(_green, m.greenText)),
                 ),
               ),
               if (ends != null)
@@ -101,12 +103,12 @@ class OfferBanner extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             offer.rule,
-            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.ink, height: 1.4),
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: m.ink, height: 1.4),
           ),
           if (offer.productIds.length > 1)
-            const Text(
+            Text(
               'تگدرون تجمعون من أكثر من موديل، والعرض ينحسب على مجموع القطع بالسلة.',
-              style: TextStyle(fontSize: 12, color: AppColors.muted, height: 1.4),
+              style: TextStyle(fontSize: 12, color: m.muted, height: 1.4),
             ),
           if (onShowProducts != null && offer.productIds.length > 1) ...[
             const SizedBox(height: 8),

@@ -63,6 +63,7 @@ class _WelcomeCouponDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final code = (coupon['code'] ?? '').toString();
     final discount = (coupon['discount'] as num?)?.toDouble() ?? 0;
     final title = (coupon['title'] ?? '').toString().trim();
@@ -89,23 +90,25 @@ class _WelcomeCouponDialog extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(20, 64, 20, 20),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Color(0xFFFFF8F2), Color(0xFFFFE2CC)],
+                            colors: m.isDark
+                                ? const [Color(0xFF2A211B), Color(0xFF3A2619)]
+                                : const [Color(0xFFFFF8F2), Color(0xFFFFE2CC)],
                           ),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
+                            Text(
                               'مبروك!',
-                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.ink),
+                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: m.ink),
                             ),
                             const SizedBox(height: 2),
-                            const Text(
+                            Text(
                               'هدية ترحيب إلك من MODO',
-                              style: TextStyle(fontSize: 14, color: AppColors.muted),
+                              style: TextStyle(fontSize: 14, color: m.muted),
                             ),
                             const SizedBox(height: 16),
                             _Ticket(
@@ -123,12 +126,12 @@ class _WelcomeCouponDialog extends StatelessWidget {
                                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                                       ),
                                     ]),
-                                    style: const TextStyle(color: AppColors.sale),
+                                    style: TextStyle(color: m.sale),
                                   ),
                                   if (title.isNotEmpty)
                                     Text(
                                       title,
-                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.ink),
+                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: m.ink),
                                     ),
                                 ],
                               ),
@@ -137,7 +140,7 @@ class _WelcomeCouponDialog extends StatelessWidget {
                                 children: [
                                   Row(
                                     children: [
-                                      const Text('الكود: ', style: TextStyle(color: AppColors.muted)),
+                                      Text('الكود: ', style: TextStyle(color: m.muted)),
                                       Text(
                                         code,
                                         textDirection: TextDirection.ltr,
@@ -152,14 +155,14 @@ class _WelcomeCouponDialog extends StatelessWidget {
                                             const SnackBar(content: Text('تم نسخ الكود')),
                                           );
                                         },
-                                        child: const Padding(
-                                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(Icons.copy_rounded, size: 16, color: AppColors.brandDark),
-                                              SizedBox(width: 3),
-                                              Text('نسخ', style: TextStyle(color: AppColors.brandDark, fontWeight: FontWeight.w700)),
+                                              Icon(Icons.copy_rounded, size: 16, color: m.brandText),
+                                              const SizedBox(width: 3),
+                                              Text('نسخ', style: TextStyle(color: m.brandText, fontWeight: FontWeight.w700)),
                                             ],
                                           ),
                                         ),
@@ -173,7 +176,7 @@ class _WelcomeCouponDialog extends StatelessWidget {
                                       if (expiresAt != null)
                                         'ينتهي ${expiresAt.toLocal().day}/${expiresAt.toLocal().month}/${expiresAt.toLocal().year}',
                                     ].join(' · '),
-                                    style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                                    style: TextStyle(fontSize: 12, color: m.muted),
                                   ),
                                 ],
                               ),
@@ -213,11 +216,11 @@ class _WelcomeCouponDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   Material(
-                    color: Colors.white,
+                    color: m.surface,
                     shape: const CircleBorder(),
                     child: IconButton(
                       tooltip: 'إغلاق',
-                      icon: const Icon(Icons.close_rounded, color: AppColors.ink),
+                      icon: Icon(Icons.close_rounded, color: m.ink),
                       onPressed: () => Navigator.of(context).pop(false),
                     ),
                   ),
@@ -252,7 +255,7 @@ class _GiftBadge extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [Color(0xFFFF8A4C), Color(0xFFEF3E2D)],
               ),
-              border: Border.all(color: Colors.white, width: 5),
+              border: Border.all(color: context.modo.pick(Colors.white, const Color(0xFF2A211B)), width: 5),
               boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 6))],
             ),
             child: const Icon(Icons.card_giftcard_rounded, color: Colors.white, size: 54),
@@ -283,7 +286,7 @@ class _Ticket extends StatelessWidget {
           clipper: _TicketClipper(notchRadius: _notch, notchY: 86),
           child: Container(
             width: constraints.maxWidth,
-            color: Colors.white,
+            color: context.modo.surface,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -294,9 +297,9 @@ class _Ticket extends StatelessWidget {
                     child: Align(alignment: AlignmentDirectional.centerStart, child: top),
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: CustomPaint(size: Size(double.infinity, 1), painter: _DashPainter()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: CustomPaint(size: const Size(double.infinity, 1), painter: _DashPainter(context.modo.line)),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
@@ -332,12 +335,14 @@ class _TicketClipper extends CustomClipper<Path> {
 }
 
 class _DashPainter extends CustomPainter {
-  const _DashPainter();
+  const _DashPainter(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.line
+      ..color = color
       ..strokeWidth = 1.2;
     const dash = 6.0, gap = 4.0;
     var x = 0.0;
@@ -348,5 +353,5 @@ class _DashPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(_DashPainter oldDelegate) => oldDelegate.color != color;
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../theme/app_theme.dart';
 import '../../core/offline_cache.dart';
 import '../../main.dart'; // لاستخدام supabase
 // لاحقًا، قد نحتاج للانتقال لشاشة تعرض منتجات فئة معينة
@@ -26,7 +28,7 @@ class AllCategoriesScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('جميع الفئات'),
-        backgroundColor: Colors.white,
+        backgroundColor: context.modo.page,
         elevation: 1,
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(

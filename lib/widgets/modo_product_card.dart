@@ -29,17 +29,18 @@ class ProductImage extends StatelessWidget {
   final String? url;
   final BoxFit fit;
 
-  static const Widget _placeholder = ColoredBox(
-    color: AppColors.placeholder,
-    child: Center(child: Icon(Icons.image_outlined, color: AppColors.muted)),
-  );
+  static Widget _placeholder(ModoColors m) => ColoredBox(
+        color: m.placeholder,
+        child: Center(child: Icon(Icons.image_outlined, color: m.muted)),
+      );
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final u = url ?? '';
-    if (u.isEmpty) return _placeholder;
+    if (u.isEmpty) return _placeholder(m);
     return ColoredBox(
-      color: AppColors.placeholder,
+      color: m.placeholder,
       child: LayoutBuilder(
         builder: (context, constraints) => Image(
           // نرسمها بحجم المساحة الي تنعرض بيها بس (مو 1400 بكسل كاملة)
@@ -54,7 +55,7 @@ class ProductImage extends StatelessWidget {
                   duration: const Duration(milliseconds: 250),
                   child: child,
                 ),
-          errorBuilder: (_, _, _) => _placeholder,
+          errorBuilder: (_, _, _) => _placeholder(m),
         ),
       ),
     );
@@ -90,6 +91,7 @@ class PriceLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final price = priceOf(product);
     final old = oldPriceOf(product);
     final discount = discountPercentOf(product);
@@ -102,27 +104,27 @@ class PriceLine extends StatelessWidget {
           TextSpan(children: [
             TextSpan(
               text: kMoney.format(price),
-              style: TextStyle(fontSize: big ? 18 : 16, fontWeight: FontWeight.w800, color: AppColors.brandDark),
+              style: TextStyle(fontSize: big ? 18 : 16, fontWeight: FontWeight.w800, color: m.brandText),
             ),
-            const TextSpan(
+            TextSpan(
               text: ' د.ع',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.brandDark),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: m.brandText),
             ),
           ]),
         ),
         if (old > price)
           Text(
             kMoney.format(old),
-            style: const TextStyle(fontSize: 11, color: AppColors.muted, decoration: TextDecoration.lineThrough),
+            style: TextStyle(fontSize: 11, color: m.muted, decoration: TextDecoration.lineThrough),
           ),
         if (discount > 0)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(color: AppColors.brandSoft, borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: m.brandSoft, borderRadius: BorderRadius.circular(4)),
             child: Text(
               '-$discount%',
               textDirection: TextDirection.ltr,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.brandDark),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: m.brandText),
             ),
           ),
       ],
@@ -154,7 +156,7 @@ class StarRating extends StatelessWidget {
         Text(
           '(${r.toStringAsFixed(1)})',
           textDirection: TextDirection.ltr,
-          style: const TextStyle(fontSize: 11, color: AppColors.muted),
+          style: TextStyle(fontSize: 11, color: context.modo.muted),
         ),
       ],
     );
@@ -217,6 +219,7 @@ class _ModoProductCardState extends State<ModoProductCard> {
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
+    final m = context.modo;
     final images = imagesOf(p);
     final name = (p['name'] ?? '').toString().trim();
     final tiers = BulkTier.ofProduct(p);
@@ -231,6 +234,7 @@ class _ModoProductCardState extends State<ModoProductCard> {
     // عرض على مجموعة منتجات (OffersService.apply)
     final offerShort = p['_offer_short'] is String ? p['_offer_short'] as String : null;
 
+    // الشارات فوق الصورة نفسها، فتبقى بنفس الألوان بالوضعين
     final badges = <(String, Color, Color)>[
       if (isNew) ('جديد ✨', const Color(0xFFFFF3E0), const Color(0xFFE65100)),
       if (discount > 0) ('-$discount%', const Color(0xFFD93A2B), Colors.white),
@@ -312,14 +316,14 @@ class _ModoProductCardState extends State<ModoProductCard> {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink, height: 1.3),
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: m.ink, height: 1.3),
           ),
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 6,
             children: [
               if (from < price)
-                const Text('يبدأ من', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+                Text('يبدأ من', style: TextStyle(fontSize: 11, color: m.textHint)),
               Text(
                 kMoney.format(from),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.brand),
@@ -327,7 +331,7 @@ class _ModoProductCardState extends State<ModoProductCard> {
               if (strike > from)
                 Text(
                   kMoney.format(strike),
-                  style: const TextStyle(fontSize: 11, color: Color(0xFFAAAAAA), decoration: TextDecoration.lineThrough),
+                  style: TextStyle(fontSize: 11, color: m.textFaint, decoration: TextDecoration.lineThrough),
                 ),
             ],
           ),
@@ -336,7 +340,7 @@ class _ModoProductCardState extends State<ModoProductCard> {
               extra,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _kOfferGreen),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: m.success),
             ),
         ],
       ),
@@ -361,7 +365,7 @@ class _Pill extends StatelessWidget {
   }
 }
 
-/// قلب المفضلة الأبيض فوق صورة الكارت
+/// قلب المفضلة الأبيض فوق صورة الكارت (فوق الصورة، فيبقى أبيض بالوضعين)
 class WishHeart extends StatelessWidget {
   const WishHeart({super.key, required this.productId, this.size = 30});
 

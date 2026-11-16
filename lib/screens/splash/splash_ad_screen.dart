@@ -47,6 +47,7 @@ class _SplashAdScreenState extends State<SplashAdScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     final pad = MediaQuery.paddingOf(context);
     final buttonText = '${widget.ad['button_text'] ?? ''}'.trim();
     return PopScope(
@@ -138,17 +139,17 @@ class _SplashAdScreenState extends State<SplashAdScreen> with SingleTickerProvid
               ),
               Container(
                 width: double.infinity,
-                color: Colors.white,
+                color: m.page,
                 padding: EdgeInsets.fromLTRB(16, 16, 16, pad.bottom + 16),
-                child: const Column(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    const Text(
                       'MODO',
                       textDirection: TextDirection.ltr,
                       style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.brand, letterSpacing: 2),
                     ),
-                    Text('متجر الأناقة', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                    Text('متجر الأناقة', style: TextStyle(fontSize: 12, color: m.muted)),
                   ],
                 ),
               ),

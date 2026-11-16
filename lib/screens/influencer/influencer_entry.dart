@@ -75,8 +75,8 @@ class _InfluencerEntryState extends State<InfluencerEntry> {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Material(
-        color: cs.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: cs.outlineVariant)),
+        color: context.modo.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: context.modo.line)),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           onTap: onTap,

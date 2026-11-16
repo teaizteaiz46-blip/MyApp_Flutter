@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
+
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final m = context.modo;
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: m.pick(Colors.grey[50]!, m.background),
       appBar: AppBar(
-        title: const Text('سياسة الخصوصية', style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.white,
+        title: Text('سياسة الخصوصية', style: TextStyle(color: m.pick(Colors.black, m.ink))),
+        backgroundColor: m.page,
         elevation: 0.5,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: m.pick(Colors.black, m.ink)),
       ),
       body: Center(
         child: Container(
@@ -22,7 +25,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade300),
+                side: BorderSide(color: m.grey300),
               ),
               child: const Padding(
                 padding: EdgeInsets.all(24.0),
@@ -142,7 +145,7 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(top: 20.0, bottom: 8.0),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.modo.pick(Colors.blueGrey, const Color(0xFF9FB3BE))),
       ),
     );
   }
@@ -156,7 +159,7 @@ class _SectionBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(fontSize: 14, height: 1.6, color: Colors.black87),
+      style: TextStyle(fontSize: 14, height: 1.6, color: context.modo.pick(Colors.black87, context.modo.textBody)),
     );
   }
 }

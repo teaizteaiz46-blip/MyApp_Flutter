@@ -1,7 +1,7 @@
 name: myapprun
 description: "Modo Iraq E-commerce App"
 publish_to: 'none'
-version: 2.0.4+66
+version: 2.0.5+67
 
 environment:
   sdk: ^3.9.2
@@ -67,7 +67,10 @@ flutter_launcher_icons:
 
 # === إعدادات الشاشة الافتتاحية (Modo Splash Screen) ===
 flutter_native_splash:
-  color: "#ffffff" # خلفية بيضاء لتتناسب مع ألوان modo
-  image: assets/icons/logomodo.png # لوكو modo البرتقالي في المنتصف
+  color: "#121110" # خلفية سودة دافئة (التطبيق ليلي افتراضياً، نفس خلفية الوضع الليلي)
+  image: splash_src/splash_dark.png # لوكو modo البرتقالي بخلفية شفافة
   android: true
   ios: true
+  android_12: # أندرويد 12 وفوگ (اللوغو داخل دائرة 768 من 1152)
+    color: "#121110"
+    image: splash_src/splash_dark_android12.png
