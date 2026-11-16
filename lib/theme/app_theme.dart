@@ -370,9 +370,15 @@ extension ModoThemeContext on BuildContext {
 class AppTheme {
   AppTheme._();
 
-  /// نفس ثيم التطبيق القديم بالضبط (كان داخل main.dart) + ألوان MODO الفاتحة.
+  /// نفس ثيم التطبيق القديم (كان داخل main.dart) + ألوان MODO الفاتحة.
+  /// اللون الأساسي برتقالي البراند (قبل كان بنفسجي Material الافتراضي بالأزرار النصية والتبويبات).
   static final ThemeData light = ThemeData(
-    primarySwatch: Colors.orange,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.brand,
+      primary: AppColors.brand,
+      onPrimary: Colors.white,
+      surfaceTint: Colors.transparent,
+    ),
     scaffoldBackgroundColor: const Color(0xFFF5F5F5),
     fontFamily: 'Muli',
     appBarTheme: const AppBarTheme(
