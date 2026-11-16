@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 // ١. استيراد ملف الـ main.dart لنتمكن من استخدام متغير supabase
 import '../../../main.dart';
+import '../../../theme/app_theme.dart';
 
 class CategorySection extends StatelessWidget {
   const CategorySection({super.key});
@@ -101,10 +102,10 @@ class CategoryCard extends StatelessWidget {
               height: 60,
               width: 60,
               decoration: BoxDecoration(
-                color: Colors.orange[100],
+                color: context.modo.pick(Colors.orange[100]!, context.modo.brandSoft),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.orange[800], size: 30),
+              child: Icon(icon, color: context.modo.pick(Colors.orange[800]!, context.modo.brandText), size: 30),
             ),
             const SizedBox(height: 5),
             Text(text, textAlign: TextAlign.center, maxLines: 2),
