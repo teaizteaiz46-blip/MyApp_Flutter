@@ -745,6 +745,8 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
                 ),
               ),
           ]),
+          maxLines: 1,
+          softWrap: false,
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : m.textBody),
         ),
       ),
@@ -761,8 +763,11 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: on ? m.pinkBorder : m.border),
         ),
+        // سطر واحد دائماً: بالآيفون فرق تقريب صغير بقياس النص (ويه الإيموجي) كان ينزّل "طلباً" لسطر ثاني ينقص
         child: Text(
           label,
+          maxLines: 1,
+          softWrap: false,
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? m.pink : m.textBody),
         ),
       ),
