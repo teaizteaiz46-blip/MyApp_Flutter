@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart'; // لاستخدام supabase
 import '../../services/push_service.dart';
 import '../orders/my_orders_screen.dart';
@@ -20,6 +21,9 @@ class AccountView extends StatefulWidget {
 class _AccountViewState extends State<AccountView> {
   // زر فحص الإشعارات يطلع للمشرف بس
   late final Future<dynamic> _adminCheck = supabase.rpc('is_modo_admin').catchError((_) => false);
+
+  // الموظف أو الأدمن: زر يفتح لوحة الطلبات والدردشة (بدل تيليگرام)
+  late final Future<dynamic> _staffRole = supabase.rpc('my_staff_role').catchError((_) => null);
 
   Future<void> _showPushDiagnostics() async {
     final report = await PushService.diagnose();
@@ -151,6 +155,23 @@ class _AccountViewState extends State<AccountView> {
           const SizedBox(height: 12),
           // المظهر: ليلي / فاتح / حسب إعداد الموبايل
           const AppearanceTile(),
+          FutureBuilder<dynamic>(
+            future: _staffRole,
+            builder: (context, snap) => snap.data == 'staff' || snap.data == 'admin'
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: OutlinedButton.icon(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://teaizteaiz46-blip.github.io/Modo-orders/index.html'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      icon: const Icon(Icons.support_agent_rounded),
+                      label: const Text('لوحة الطلبات والدردشة (للموظفين)'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           const SizedBox(height: 20),
           const ContactUsSection(),
           FutureBuilder<dynamic>(

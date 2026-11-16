@@ -28,6 +28,24 @@ class PushService {
 
   static const String allTopic = 'all';
   static const String adminTopic = 'admins';
+  static const String staffTopic = 'staff';
+
+  /// إشعار للموظفين يفتح صفحة الأدمن على الطلب أو المحادثة (بس روابط صفحة الأدمن مالتنا)
+  static const String _adminPage = 'https://teaizteaiz46-blip.github.io/Modo-orders/';
+
+  static Uri? _staffUrl(RemoteMessage m) {
+    if (m.data['type'] != 'staff') return null;
+    final url = '${m.data['url'] ?? ''}';
+    return url.startsWith(_adminPage) ? Uri.tryParse(url) : null;
+  }
+
+  static Future<void> _openStaffUrl(Uri url) async {
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('Staff link failed: $e');
+    }
+  }
 
   static bool _started = false;
   static const String _userTopicKey = 'push_user_topic_v1';
@@ -93,6 +111,8 @@ class PushService {
             ),
             action: isChat
                 ? SnackBarAction(label: 'فتح', onPressed: () => _openChat(navigatorKey))
+                : _staffUrl(message) != null
+                ? SnackBarAction(label: 'فتح', onPressed: () => _openStaffUrl(_staffUrl(message)!))
                 : productId != null
                 ? SnackBarAction(
                     label: 'عرض',
@@ -212,15 +232,22 @@ class PushService {
     final uid = signedIn ? supabase.auth.currentUser?.id : null;
     await _syncUserTopic(uid, force: force);
     try {
-      var isAdmin = false;
+      // admin: قناة الأدمن. staff (موظف): قناة الموظفين (طلبات جديدة + رسائل الزبائن، تيليگرام محظور بالعراق)
+      String? role;
       if (uid != null) {
-        isAdmin = await supabase.rpc('is_modo_admin') == true;
+        final r = await supabase.rpc('my_staff_role');
+        role = r is String ? r : null;
       }
       final messaging = FirebaseMessaging.instance;
-      if (isAdmin) {
+      if (role == 'admin') {
         await messaging.subscribeToTopic(adminTopic);
       } else {
         await messaging.unsubscribeFromTopic(adminTopic);
+      }
+      if (role == 'staff') {
+        await messaging.subscribeToTopic(staffTopic);
+      } else {
+        await messaging.unsubscribeFromTopic(staffTopic);
       }
     } catch (e) {
       debugPrint('Admin topic sync failed: $e');
@@ -456,7 +483,10 @@ class PushService {
   static void _openFrom(RemoteMessage m, GlobalKey<NavigatorState> navigatorKey) {
     final id = _productId(m);
     final confirmId = _confirmOrderId(m);
-    if (id != null) {
+    final staffUrl = _staffUrl(m);
+    if (staffUrl != null) {
+      unawaited(_openStaffUrl(staffUrl));
+    } else if (id != null) {
       DeepLinkService.openProduct(navigatorKey, id, source: 'push');
     } else if (confirmId != null) {
       DeepLinkService.openedFromLink = true; // إعلان الافتتاح ما يطلع فوقها
