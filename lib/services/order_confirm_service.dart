@@ -38,6 +38,19 @@ class OrderConfirmService {
     unawaited(Future<void>.delayed(const Duration(seconds: 5), checkPending));
   }
 
+  /// آخر طلبات هذا الموبايل (رقم الطلب والهاتف): "طلباتي" للضيف تجيب مفاتيحها مرة وحدة
+  static Future<List<({int id, String phone})>> recentRefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return [
+        for (final r in _loadRefs(prefs))
+          if (r['id'] is num && '${r['phone'] ?? ''}'.isNotEmpty) (id: (r['id'] as num).toInt(), phone: '${r['phone']}'),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// بعد نجاح الطلب: نحفظه بالجهاز، ونطلع نافذة التأكيد بعد ما تبين رسالة "تم إرسال طلبك"
   static Future<void> afterOrder({required int orderId, required String phone}) async {
     try {

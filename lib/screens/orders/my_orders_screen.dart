@@ -5,7 +5,9 @@ import '../../core/offline_cache.dart';
 import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../main.dart';
+import '../../services/guest_orders_service.dart';
 import '../../services/order_confirm_service.dart';
+import '../auth/profile_screen.dart';
 import '../../theme/app_theme.dart';
 
 final NumberFormat _money = NumberFormat('#,###');
@@ -32,6 +34,9 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
   List<Map<String, dynamic>> _coupons = const [];
   Object? _error;
 
+  /// بدون حساب: الطلبات من مفاتيح هذا الموبايل
+  bool _guest = false;
+
   @override
   void initState() {
     super.initState();
@@ -41,9 +46,21 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
   Future<void> _load() async {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) {
-      setState(() => _orders = const []);
+      try {
+        final rows = await GuestOrdersService.load();
+        if (!mounted) return;
+        setState(() {
+          _guest = true;
+          _orders = rows;
+          _coupons = const [];
+          _error = null;
+        });
+      } catch (e) {
+        if (mounted) setState(() => _error = e);
+      }
       return;
     }
+    _guest = false;
     try {
       final rows = await supabase
           .from('orders')
@@ -152,10 +169,12 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                         orders: current,
                         coupons: _coupons,
                         onRefresh: _load,
+                        guest: _guest,
                         empty: 'ماكو طلبات حالية',
                         builder: (o) => _CurrentOrder(
                           order: o,
-                          onReceived: () => _confirmReceived(o),
+                          // "استلمت طلبي" وخصم 10% مربوطين بالحساب
+                          onReceived: _guest ? null : () => _confirmReceived(o),
                           onConfirm: () => _confirmOrder(o),
                         ),
                       ),
@@ -163,8 +182,9 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                         orders: past,
                         coupons: _coupons,
                         onRefresh: _load,
+                        guest: _guest,
                         empty: 'ماكو طلبات سابقة',
-                        builder: (o) => _PastOrder(order: o, onReceived: () => _confirmReceived(o)),
+                        builder: (o) => _PastOrder(order: o, onReceived: _guest ? null : () => _confirmReceived(o)),
                       ),
                     ],
                   ),
@@ -180,6 +200,7 @@ class _OrdersList extends StatelessWidget {
     required this.onRefresh,
     required this.empty,
     required this.builder,
+    this.guest = false,
   });
 
   final List<Map<String, dynamic>> orders;
@@ -187,6 +208,7 @@ class _OrdersList extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final String empty;
   final Widget Function(Map<String, dynamic>) builder;
+  final bool guest;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +218,7 @@ class _OrdersList extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
+          if (guest) const Padding(padding: EdgeInsets.only(bottom: 12), child: _GuestTip()),
           for (final c in coupons) Padding(padding: const EdgeInsets.only(bottom: 12), child: RewardCouponCard(coupon: c)),
           if (orders.isEmpty)
             Padding(
@@ -203,6 +226,36 @@ class _OrdersList extends StatelessWidget {
               child: _Message(icon: Icons.receipt_long_outlined, text: empty),
             ),
           for (final o in orders) Padding(padding: const EdgeInsets.only(bottom: 16), child: builder(o)),
+        ],
+      ),
+    );
+  }
+}
+
+/// تذكير للضيف: الطلبات محفوظة بهذا الموبايل بس، فيسوي حساب حتى ما تضيع
+class _GuestTip extends StatelessWidget {
+  const _GuestTip();
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.modo;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(color: m.raised, borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          const Text('💡', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'طلباتكم محفوظة بهذا الموبايل. سووا حساب حتى ما تضيع إذا بدّلتوا الموبايل.',
+              style: TextStyle(fontSize: 12.5, height: 1.5, color: m.ink),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            child: const Text('سووا حساب', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
         ],
       ),
     );
@@ -293,7 +346,7 @@ class _CurrentOrder extends StatelessWidget {
   const _CurrentOrder({required this.order, required this.onReceived, required this.onConfirm});
 
   final Map<String, dynamic> order;
-  final VoidCallback onReceived;
+  final VoidCallback? onReceived;
   final VoidCallback onConfirm;
 
   @override
@@ -408,9 +461,9 @@ class _CurrentOrder extends StatelessWidget {
             ],
           ),
         ),
-        if (_canConfirm(order)) ...[
+        if (_canConfirm(order) && onReceived != null) ...[
           const SizedBox(height: 10),
-          _ReceivedButton(onPressed: onReceived),
+          _ReceivedButton(onPressed: onReceived!),
         ],
       ],
     );
@@ -431,7 +484,7 @@ class _PastOrder extends StatelessWidget {
   const _PastOrder({required this.order, required this.onReceived});
 
   final Map<String, dynamic> order;
-  final VoidCallback onReceived;
+  final VoidCallback? onReceived;
 
   @override
   Widget build(BuildContext context) {
@@ -498,9 +551,9 @@ class _PastOrder extends StatelessWidget {
               Text('${_money.format(total)} د.ع', style: TextStyle(fontWeight: FontWeight.w900, color: m.brandText, fontSize: 16)),
             ],
           ),
-          if (_canConfirm(order)) ...[
+          if (_canConfirm(order) && onReceived != null) ...[
             const SizedBox(height: 10),
-            _ReceivedButton(onPressed: onReceived),
+            _ReceivedButton(onPressed: onReceived!),
           ],
         ],
       ),

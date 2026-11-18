@@ -12,6 +12,7 @@ import '../../facebook_service.dart';
 import '../../main.dart' show supabase;
 import '../../services/points_service.dart';
 import '../../services/cart_service.dart';
+import '../../services/guest_orders_service.dart';
 import '../../services/offers_service.dart';
 import '../../services/order_confirm_service.dart';
 import '../../services/push_service.dart';
@@ -472,6 +473,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // نربط الطلب بهذا الجهاز حتى توصل إشعارات حالته حتى بدون حساب،
       // ونطلب تأكيده بالتطبيق، وبعدها (إذا الإشعارات مطفية) نذكّر بتفعيلها
       unawaited(PushService.afterOrder(orderId: result.orderId, phone: phone, askToEnable: false));
+      // بدون حساب: مفتاح الطلب ينحفظ بالموبايل حتى يطلع بـ"طلباتي"
+      unawaited(GuestOrdersService.remember(result.orderId, phone));
       unawaited(OrderConfirmService.afterOrder(orderId: result.orderId, phone: phone)
           .then((_) => PushService.askToEnableIfOff()));
     } catch (e) {

@@ -5,6 +5,7 @@ import '../../core/shop_api.dart';
 import '../../main.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/contact_us.dart';
+import '../../widgets/guest_orders_entry.dart';
 import '../appearance/appearance_screen.dart';
 
 /// سلة الزائر تبقى بالجهاز بعد تسجيل الدخول تلقائياً،
@@ -118,9 +119,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [_buildSignInForm(), _buildSignUpForm()],
+          : Column(
+              children: [
+                // طلبات الضيف المحفوظة بهذا الموبايل
+                const GuestOrdersEntry(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [_buildSignInForm(), _buildSignUpForm()],
+                  ),
+                ),
+              ],
             ),
     );
   }

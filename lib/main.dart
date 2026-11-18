@@ -21,6 +21,7 @@ import 'screens/policy/privacy_policy_screen.dart';
 import 'screens/update/force_update_screen.dart';
 import 'services/app_config.dart';
 import 'services/cart_service.dart';
+import 'services/guest_orders_service.dart';
 import 'services/offers_service.dart';
 import 'services/update_service.dart';
 import 'services/deep_link_service.dart';
@@ -77,12 +78,22 @@ Future<void> main() async {
 
   if (supabaseReady) {
     unawaited(CartService.instance.load());
+    // "طلباتي" بدون حساب: عدد الطلبات + المفاتيح الناقصة
+    unawaited(GuestOrdersService.init());
     // عند تسجيل الدخول (أو فتح التطبيق وهو مسجّل) نسحب أي سلة قديمة من الحساب للجهاز
     supabase.auth.onAuthStateChange.listen((data) {
       final signedIn = data.event == AuthChangeEvent.signedIn ||
           data.event == AuthChangeEvent.initialSession;
       if (signedIn && data.session != null) {
         CartService.instance.pullAccountCart();
+        // طلبات هذا الموبايل (من قبل الحساب) تنتقل للحساب
+        unawaited(GuestOrdersService.claimToAccount().then((n) {
+          if (n <= 0) return;
+          rootMessengerKey.currentState?.showSnackBar(SnackBar(
+            content: Text('✅ انتقلت طلباتكم ($n) لحسابكم'),
+            duration: const Duration(seconds: 4),
+          ));
+        }));
       }
       // أجهزة المشرفين تستلم "إرسال تجربة" من صفحة الإدارة
       if (signedIn || data.event == AuthChangeEvent.signedOut) {
