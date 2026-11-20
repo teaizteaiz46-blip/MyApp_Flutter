@@ -433,7 +433,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> with SingleTicker
                 onTap: _next,
                 child: Center(
                   child: Image(
-                    image: cachedImage(s.imageUrl!),
+                    image: cachedImage(s.imageUrl!, size: ImageSize.large),
                     fit: BoxFit.fitWidth,
                     width: double.infinity,
                     loadingBuilder: (context, child, progress) =>

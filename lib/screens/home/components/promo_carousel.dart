@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/offline_cache.dart' show ImageSize;
 import '../../../theme/app_theme.dart';
 import '../../../widgets/modo_product_card.dart' show ProductImage;
 
@@ -122,7 +123,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
             },
             itemBuilder: (context, i) => GestureDetector(
               onTap: () => widget.onSlideTap(slides[i]),
-              child: ProductImage(url: slides[i].image),
+              child: ProductImage(url: slides[i].image, size: ImageSize.large),
             ),
           ),
           if (slides.length > 1)

@@ -287,7 +287,7 @@ class _CartScreenState extends State<CartScreen> {
                     child: imageUrl.isEmpty
                         ? Icon(Icons.image_not_supported_outlined, color: m.grey)
                         : Image(
-                            image: cachedImage(imageUrl, decodeWidth: decodeWidthFor(context, 56, 56)),
+                            image: cachedImage(imageUrl, size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 56, 56)),
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => Icon(Icons.broken_image, color: m.grey),
                           ),
@@ -460,7 +460,7 @@ class _CartScreenState extends State<CartScreen> {
                 child: imageUrl.isEmpty
                     ? Icon(Icons.image_not_supported_outlined, color: m.grey)
                     : Image(
-                        image: cachedImage(imageUrl, decodeWidth: decodeWidthFor(context, 76, 76)),
+                        image: cachedImage(imageUrl, size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 76, 76)),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) =>
                             Icon(Icons.broken_image, color: m.grey),

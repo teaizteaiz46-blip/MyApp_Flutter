@@ -22,6 +22,7 @@ import '../details/details_screen.dart';
 import '../offers/offers_screen.dart';
 import '../search/search_screen.dart';
 import 'components/home_product_grid.dart';
+import 'components/home_product_row.dart';
 import 'components/promo_carousel.dart';
 
 typedef _Rows = List<Map<String, dynamic>>;
@@ -123,10 +124,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onConfigChanged() {
-    if (!mounted || _userPicked) return;
-    final sortBefore = _sort, catBefore = _selectedCategoryId;
-    _applyHomeDefaults();
-    if (_sort != sortBefore || _selectedCategoryId != catBefore) setState(() {});
+    if (!mounted) return;
+    // صف المنتجات بدل البانر ممكن تغيّر من الأدمن: نعيد الرسم دائماً
+    setState(_applyHomeDefaults);
   }
 
   /// القسم الافتراضي لازم يكون بيه منتجات متوفرة، وإلا "الكل". ونجيب اسمه للعنوان.
@@ -334,6 +334,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _banner() {
+    if (_slides.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: PromoCarousel(slides: _slides, onSlideTap: _onBannerTap, onColorChanged: (_) {}),
+      ),
+    );
+  }
+
   Widget _buildHome(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final m = context.modo;
@@ -381,16 +392,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SliverToBoxAdapter(child: _TrustRow()),
-            if (_slides.isNotEmpty)
+            // صف منتجات بالعرض (من الأدمن) بدل البانر؛ إذا مطفي أو ماكو منتجات متوفرة يرجع البانر
+            if (AppConfig.homeRow case final row?)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: PromoCarousel(slides: _slides, onSlideTap: _onBannerTap, onColorChanged: (_) {}),
-                  ),
+                child: HomeProductRow(
+                  key: ValueKey('home-row-${row.cacheKey}-$_refreshTick'),
+                  config: row,
+                  fallback: _banner(),
                 ),
-              ),
+              )
+            else if (_slides.isNotEmpty)
+              SliverToBoxAdapter(child: _banner()),
             const SliverToBoxAdapter(child: _WholesaleNotice()),
             SliverPersistentHeader(
               pinned: true,

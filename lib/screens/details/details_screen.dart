@@ -712,6 +712,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                       child: Image(
                         image: cachedImage(
                           images[index],
+                          size: ImageSize.large,
                           decodeWidth: decodeWidthFor(context, MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).width),
                         ),
                         fit: BoxFit.cover,
@@ -806,7 +807,7 @@ class ProductThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Image(
-        image: cachedImage(url, decodeWidth: decodeWidthFor(context, 52, 52)),
+        image: cachedImage(url, size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 52, 52)),
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => ColoredBox(color: context.modo.placeholder),
       );

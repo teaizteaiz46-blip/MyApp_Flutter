@@ -78,10 +78,68 @@ class AppConfig {
     return _row['free_delivery_pieces_on'] == true && min != null && min > 1 ? min : null;
   }
 
+  /// صف المنتجات بالعرض بدل البانر بالرئيسية (null = مطفي، فيطلع البانر مثل قبل)
+  static HomeRowConfig? get homeRow => HomeRowConfig.fromSettings(_row);
+
   @visibleForTesting
   static void debugSet(Map<String, dynamic> row) {
     _row = Map<String, dynamic>.of(row);
     _fetchedAt = DateTime.now();
     changes.value++;
+  }
+}
+
+/// إعدادات صف المنتجات بالرئيسية (store_settings.home_row_*، من صفحة الأدمن).
+/// المنتجات: إما أحدث المتوفر من قسم، أو منتجات يختارها المدير بالترتيب.
+@immutable
+class HomeRowConfig {
+  const HomeRowConfig({
+    required this.title,
+    required this.subtitle,
+    required this.categoryId,
+    required this.productIds,
+    required this.limit,
+    required this.allCategoryId,
+  });
+
+  final String title;
+  final String subtitle;
+
+  /// قسم (أحدث منتجاته المتوفرة). null = منتجات مختارة
+  final int? categoryId;
+
+  /// منتجات مختارة بالترتيب (لما [categoryId] = null)
+  final List<int> productIds;
+
+  /// أكثر عدد بالصف
+  final int limit;
+
+  /// "عرض الكل" يفتح هذا القسم. null = نفس منتجات الصف (أو قسمه)
+  final int? allCategoryId;
+
+  bool get isPicked => categoryId == null;
+
+  /// يتغير إذا تغيّرت المنتجات، حتى الصف يعيد التحميل وكاشه ينفصل
+  String get cacheKey => isPicked ? 'p_${productIds.join('-')}_$limit' : 'c_${categoryId}_$limit';
+
+  static HomeRowConfig? fromSettings(Map<String, dynamic> s) {
+    if (s['home_row_on'] != true) return null;
+    int? asInt(Object? v) => v is num ? v.toInt() : int.tryParse('${v ?? ''}');
+    final picked = s['home_row_source'] == 'products';
+    final cat = asInt(s['home_row_category_id']);
+    final ids = <int>[
+      for (final v in (s['home_row_product_ids'] is List ? s['home_row_product_ids'] as List : const []))
+        if (asInt(v) case final int id when id > 0) id,
+    ];
+    if (picked ? ids.isEmpty : (cat == null || cat <= 0)) return null;
+    final all = asInt(s['home_row_all_category_id']);
+    return HomeRowConfig(
+      title: (s['home_row_title'] ?? '').toString().trim(),
+      subtitle: (s['home_row_subtitle'] ?? '').toString().trim(),
+      categoryId: picked ? null : cat,
+      productIds: picked ? ids.toSet().toList() : const [],
+      limit: (asInt(s['home_row_limit']) ?? 10).clamp(3, 20),
+      allCategoryId: all != null && all > 0 ? all : null,
+    );
   }
 }

@@ -357,7 +357,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   child: img == null
                       ? ColoredBox(color: c.placeholder)
                       : Image(
-                          image: cachedImage(img, decodeWidth: decodeWidthFor(context, 230, 230)),
+                          image: cachedImage(img, size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 230, 230)),
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => ColoredBox(color: c.placeholder),
                         ),

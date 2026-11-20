@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/bulk_pricing.dart';
-import '../../core/offline_cache.dart' show cachedImage, decodeWidthFor;
+import '../../core/offline_cache.dart' show ImageSize, cachedImage, decodeWidthFor;
 import '../../core/product_options.dart';
 import '../../core/shop_api.dart';
 import '../../facebook_service.dart';
@@ -323,7 +323,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     child: img.isEmpty
                         ? ColoredBox(color: m.imageBg)
                         : Image(
-                            image: cachedImage(img, decodeWidth: decodeWidthFor(context, 56, 56)),
+                            image: cachedImage(img, size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 56, 56)),
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => ColoredBox(color: m.imageBg),
                           ),

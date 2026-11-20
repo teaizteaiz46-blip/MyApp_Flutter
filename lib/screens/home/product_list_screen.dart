@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import 'components/home_product_grid.dart';
 
-/// قائمة منتجات بفلتر (تسوّقي حسب السعر، عروض القطعتين، قسم...).
+/// قائمة منتجات بفلتر (تسوّقي حسب السعر، عروض القطعتين، قسم...)، أو منتجات جاهزة ([productsFuture]).
 class ProductListScreen extends StatelessWidget {
   const ProductListScreen({
     super.key,
@@ -12,6 +12,7 @@ class ProductListScreen extends StatelessWidget {
     this.maxPrice,
     this.onlyBulk = false,
     this.sort = HomeSort.bestSelling,
+    this.productsFuture,
   });
 
   final String title;
@@ -19,6 +20,9 @@ class ProductListScreen extends StatelessWidget {
   final double? maxPrice;
   final bool onlyBulk;
   final HomeSort sort;
+
+  /// منتجات محددة بدل الفلتر (مثلاً "عرض الكل" لصف المنتجات المختارة بالرئيسية)
+  final Future<List<Map<String, dynamic>>>? productsFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +39,13 @@ class ProductListScreen extends StatelessWidget {
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 24),
-            sliver: HomeProductGrid(categoryId: categoryId, maxPrice: maxPrice, onlyBulk: onlyBulk, sort: sort),
+            sliver: HomeProductGrid(
+              categoryId: categoryId,
+              maxPrice: maxPrice,
+              onlyBulk: onlyBulk,
+              sort: sort,
+              productsFuture: productsFuture,
+            ),
           ),
         ],
       ),

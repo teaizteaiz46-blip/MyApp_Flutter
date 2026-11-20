@@ -535,7 +535,7 @@ class _PastOrder extends StatelessWidget {
                             child: Center(child: Text('+${images.length - 4}', style: const TextStyle(fontWeight: FontWeight.w800))),
                           )
                         : Image(
-                            image: cachedImage(images[i], decodeWidth: decodeWidthFor(context, 58, 58)),
+                            image: cachedImage(images[i], size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 58, 58)),
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => ColoredBox(color: m.placeholder),
                           ),
@@ -608,7 +608,7 @@ class _ItemLine extends StatelessWidget {
               child: img.isEmpty
                   ? ColoredBox(color: m.placeholder)
                   : Image(
-                      image: cachedImage(img, decodeWidth: decodeWidthFor(context, 52, 52)),
+                      image: cachedImage(img, size: ImageSize.thumb, decodeWidth: decodeWidthFor(context, 52, 52)),
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => ColoredBox(color: m.placeholder),
                     ),

@@ -24,10 +24,13 @@ int discountPercentOf(Map<String, dynamic> p) {
 
 /// صورة منتج بخلفية هادئة وظهور تدريجي.
 class ProductImage extends StatelessWidget {
-  const ProductImage({super.key, required this.url, this.fit = BoxFit.cover});
+  const ProductImage({super.key, required this.url, this.fit = BoxFit.cover, this.size = ImageSize.thumb});
 
   final String? url;
   final BoxFit fit;
+
+  /// المصغرة للكروت والقوائم (الافتراضي)، الكبيرة للبانرات
+  final ImageSize size;
 
   static Widget _placeholder(ModoColors m) => ColoredBox(
         color: m.placeholder,
@@ -44,7 +47,7 @@ class ProductImage extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) => Image(
           // نرسمها بحجم المساحة الي تنعرض بيها بس (مو 1400 بكسل كاملة)
-          image: cachedImage(u, decodeWidth: decodeWidthFor(context, constraints.maxWidth, constraints.maxHeight)),
+          image: cachedImage(u, size: size, decodeWidth: decodeWidthFor(context, constraints.maxWidth, constraints.maxHeight)),
           fit: fit,
           width: double.infinity,
           height: double.infinity,
@@ -206,10 +209,13 @@ String optionsCountLabel(List<String> options) {
 }
 
 class ModoProductCard extends StatefulWidget {
-  const ModoProductCard({super.key, required this.product, required this.onTap});
+  const ModoProductCard({super.key, required this.product, required this.onTap, this.swipeImages = true});
 
   final Map<String, dynamic> product;
   final VoidCallback onTap;
+
+  /// تقليب صور المنتج داخل الكارت. بالصف الأفقي يكون مطفي، حتى السحب يحرّك الصف نفسه.
+  final bool swipeImages;
 
   @override
   State<ModoProductCard> createState() => _ModoProductCardState();
@@ -275,7 +281,7 @@ class _ModoProductCardState extends State<ModoProductCard> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (images.length <= 1)
+                  if (images.length <= 1 || !widget.swipeImages)
                     ProductImage(url: images.isEmpty ? null : images.first)
                   else
                     PageView.builder(
