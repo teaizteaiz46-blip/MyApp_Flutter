@@ -95,10 +95,14 @@ void main() {
       expect(sizedImageUrl('$_render?width=10', ImageSize.thumb), '$_render?width=10');
     });
 
+    // بس الحالات الي ما تلمس كاش الصور الحقيقي (kImageCache): على الماك والآيفون يستخدم sqflite،
+    // وهذا ما يشتغل داخل الفحوصات (فشل بـ Codemagic). الحالات الثانية مغطاة بـ sizedImageUrl فوك.
     test('cachedImage يختار حسب الحجم', () {
-      expect(cachedImage(_obj, size: ImageSize.thumb), isA<SizedNetworkImage>());
-      expect(cachedImage(_obj), isNot(isA<SizedNetworkImage>()));
-      expect(cachedImage('https://example.com/x.jpg', size: ImageSize.thumb), isNot(isA<SizedNetworkImage>()));
+      final thumb = cachedImage(_obj, size: ImageSize.thumb);
+      expect(thumb, isA<SizedNetworkImage>());
+      expect((thumb as SizedNetworkImage).url, sizedImageUrl(_obj, ImageSize.thumb));
+      expect(thumb.original, _obj);
+      expect(cachedImage(_obj, size: ImageSize.large), isA<SizedNetworkImage>());
       expect(cachedImage(_obj, size: ImageSize.thumb, decodeWidth: 300), isA<ResizeImage>());
     });
   });
