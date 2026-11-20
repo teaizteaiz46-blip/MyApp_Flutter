@@ -159,18 +159,23 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final old = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+    // الكروت نفسها بدون ارتفاع الصف الثابت: الفحص يبقى صحيح حتى بخط الفحوصات العريض
+    // (بالماك ماكو Tahoma، والكلام العريض كان يطلع برا الارتفاع الثابت ويفشل بـ Codemagic)
     await tester.pumpWidget(_app(
       ThemeMode.light,
-      HomeProductRowView(
-        title: 'صف',
-        subtitle: '',
-        products: [
+      Column(
+        children: [
           // خصم + جملة: الخصم بس فوق الصورة
-          {..._product(1, worst: true), 'created_at': old},
+          SizedBox(
+            width: HomeProductRowView.cardWidth,
+            child: ModoProductCard(product: {..._product(1, worst: true), 'created_at': old}, onTap: () {}, swipeImages: false, singleBadge: true),
+          ),
           // جديد بدون خصم: "جديد" بس
-          {..._product(2), 'old_price': null},
+          SizedBox(
+            width: HomeProductRowView.cardWidth,
+            child: ModoProductCard(product: {..._product(2), 'old_price': null}, onTap: () {}, swipeImages: false, singleBadge: true),
+          ),
         ],
-        onProductTap: (_) {},
       ),
     ));
     await tester.pump();
