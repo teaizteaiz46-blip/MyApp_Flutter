@@ -121,12 +121,12 @@ class HomeProductRowView extends StatelessWidget {
   final void Function(Map<String, dynamic> product) onProductTap;
   final VoidCallback? onSeeAll;
 
-  static const double cardWidth = 138;
+  static const double cardWidth = 156;
   static const double _gap = 10;
 
   /// ارتفاع الصف: صورة 4:5 + الاسم والسعر (والسعر ممكن ينزل لسطرين بالكارت الضيق)
   static double heightFor(BuildContext context) =>
-      cardWidth * 5 / 4 + MediaQuery.textScalerOf(context).scale(86);
+      cardWidth * 5 / 4 + MediaQuery.textScalerOf(context).scale(78);
 
   @override
   Widget build(BuildContext context) {
@@ -142,26 +142,22 @@ class HomeProductRowView extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Flexible(
-                  child: Text(
-                    title,
+                // العنوان والسطر الصغير بنص واحد ياخذ كل المساحة (Flexible ويه Spacer كان يقص العنوان بالنص)
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: title),
+                      if (subtitle.isNotEmpty)
+                        TextSpan(
+                          text: '  $subtitle',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: m.muted),
+                        ),
+                    ]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: m.ink),
                   ),
                 ),
-                if (subtitle.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: m.muted),
-                    ),
-                  ),
-                ],
-                const Spacer(),
                 if (onSeeAll != null)
                   Material(
                     color: AppColors.brand.withValues(alpha: m.isDark ? 0.18 : 0.12),
@@ -213,6 +209,7 @@ class HomeProductRowView extends StatelessWidget {
                       key: ValueKey(p['id']),
                       product: p,
                       swipeImages: false,
+                      singleBadge: true,
                       onTap: () => onProductTap(p),
                     ),
                   ),

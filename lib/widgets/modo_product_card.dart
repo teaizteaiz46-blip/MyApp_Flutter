@@ -209,13 +209,23 @@ String optionsCountLabel(List<String> options) {
 }
 
 class ModoProductCard extends StatefulWidget {
-  const ModoProductCard({super.key, required this.product, required this.onTap, this.swipeImages = true});
+  const ModoProductCard({
+    super.key,
+    required this.product,
+    required this.onTap,
+    this.swipeImages = true,
+    this.singleBadge = false,
+  });
 
   final Map<String, dynamic> product;
   final VoidCallback onTap;
 
   /// تقليب صور المنتج داخل الكارت. بالصف الأفقي يكون مطفي، حتى السحب يحرّك الصف نفسه.
   final bool swipeImages;
+
+  /// شارة وحدة بس فوق الصورة (الخصم، وإلا "جديد") حتى ما تغطي الصورة بالكارت الصغير.
+  /// العروض والجملة تبقى بالسطر الأخضر تحت السعر.
+  final bool singleBadge;
 
   @override
   State<ModoProductCard> createState() => _ModoProductCardState();
@@ -241,7 +251,14 @@ class _ModoProductCardState extends State<ModoProductCard> {
     final offerShort = p['_offer_short'] is String ? p['_offer_short'] as String : null;
 
     // الشارات فوق الصورة نفسها، فتبقى بنفس الألوان بالوضعين
-    final badges = <(String, Color, Color)>[
+    final badges = widget.singleBadge
+        ? <(String, Color, Color)>[
+            if (discount > 0)
+              ('-$discount%', const Color(0xFFD93A2B), Colors.white)
+            else if (isNew)
+              ('جديد ✨', const Color(0xFFFFF3E0), const Color(0xFFE65100)),
+          ]
+        : <(String, Color, Color)>[
       if (isNew) ('جديد ✨', const Color(0xFFFFF3E0), const Color(0xFFE65100)),
       if (discount > 0) ('-$discount%', const Color(0xFFD93A2B), Colors.white),
       if (offerShort != null)

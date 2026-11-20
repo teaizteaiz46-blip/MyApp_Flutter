@@ -131,8 +131,8 @@ void main() {
         ));
         await tester.pump();
         expect(tester.takeException(), isNull);
-        expect(find.text('👗 ملابس'), findsOneWidget);
-        expect(find.text('وصلت جديد'), findsOneWidget);
+        expect(find.textContaining('👗 ملابس'), findsOneWidget);
+        expect(find.textContaining('وصلت جديد'), findsOneWidget);
         expect(find.byType(ModoProductCard), findsWidgets);
         // الكارت الأول يبين كامل والثالث مكصوص (يبين إنه ينسحب)
         final first = tester.getRect(find.byType(ModoProductCard).first);
@@ -154,6 +154,34 @@ void main() {
     }
   }
 
+  testWidgets('كروت الصف: شارة وحدة بس فوق الصورة (الخصم، وإلا جديد)، والجملة بالسطر الأخضر', (tester) async {
+    tester.view.physicalSize = const Size(700, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final old = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+    await tester.pumpWidget(_app(
+      ThemeMode.light,
+      HomeProductRowView(
+        title: 'صف',
+        subtitle: '',
+        products: [
+          // خصم + جملة: الخصم بس فوق الصورة
+          {..._product(1, worst: true), 'created_at': old},
+          // جديد بدون خصم: "جديد" بس
+          {..._product(2), 'old_price': null},
+        ],
+        onProductTap: (_) {},
+      ),
+    ));
+    await tester.pump();
+    // شارة الخصم وحدة بس (النسبة تنحسب من أقل سعر جملة)
+    expect(find.byWidgetPredicate((w) => w is Text && RegExp(r'^-\d+%$').hasMatch(w.data ?? '')), findsOneWidget);
+    expect(find.textContaining('جملة من'), findsNothing);
+    expect(find.textContaining('+ قطع بـ'), findsOneWidget); // معلومة الجملة تحت السعر
+    expect(find.text('جديد ✨'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('وهو يحمّل: مربعات بنفس الحجم، وبدون "عرض الكل" إذا ماكو أكثر', (tester) async {
     await tester.pumpWidget(_app(
       ThemeMode.light,
@@ -162,6 +190,6 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(ModoProductCard), findsNothing);
     expect(find.text('عرض الكل ←'), findsNothing);
-    expect(find.text('مختارات لكم'), findsOneWidget);
+    expect(find.textContaining('مختارات لكم'), findsOneWidget);
   });
 }

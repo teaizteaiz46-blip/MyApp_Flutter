@@ -282,6 +282,30 @@ void main() {
     });
   }
 
+  testWidgets('الرئيسية: الأقسام بس ثابتة، وزر الترتيب يفتح القائمة ويبدّل', (tester) async {
+    await _show(tester, ThemeMode.light, const HomeScreen());
+    expect(tester.takeException(), isNull);
+    // صف الترتيب القديم انشال، وسطر الجملة صار سطر صغير
+    expect(find.text('ترتيب: '), findsNothing);
+    expect(find.textContaining('سعر القطعة ينزل تلقائياً'), findsOneWidget);
+    expect(find.text('الأكثر طلباً'), findsOneWidget); // الزر يم العنوان
+
+    await tester.tap(find.text('الأكثر طلباً'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('ترتيب المنتجات'), findsOneWidget);
+    expect(find.text('عروض الكمية'), findsOneWidget);
+
+    await tester.tap(find.text('الأحدث'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('ترتيب المنتجات'), findsNothing);
+    expect(find.text('الأحدث'), findsOneWidget); // الزر صار "الأحدث"
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 6));
+  });
+
   testWidgets('المظهر يتبدل فوراً بدون إعادة تشغيل', (tester) async {
     await ThemeController.choose(ThemeMode.dark);
     await tester.pumpWidget(ValueListenableBuilder<ThemeMode>(

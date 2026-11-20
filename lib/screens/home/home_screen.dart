@@ -273,6 +273,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollToGrid();
   }
 
+  Future<void> _pickSort() async {
+    final picked = await showModalBottomSheet<HomeSort>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: context.modo.surface,
+      builder: (_) => _SortSheet(current: _sort),
+    );
+    if (picked != null) _setSort(picked);
+  }
+
   void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
   void _onBannerTap(BannerSlide slide) {
@@ -403,37 +413,49 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             else if (_slides.isNotEmpty)
               SliverToBoxAdapter(child: _banner()),
-            const SliverToBoxAdapter(child: _WholesaleNotice()),
+            // الأقسام بس تبقى ثابتة فوك وقت التمرير؛ الترتيب صار زر يم العنوان
             SliverPersistentHeader(
               pinned: true,
               delegate: _FiltersDelegate(
                 categories: cats,
                 total: total,
                 selectedId: _selectedCategoryId,
-                sort: _sort,
                 onCategory: _selectCategory,
-                onSort: _setSort,
               ),
             ),
             SliverToBoxAdapter(
               child: KeyedSubtree(
                 key: _gridAnchor,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: Text(
-                          _selectedCategoryId == 0 ? 'كل التشكيلة' : _selectedCategoryName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: m.ink),
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // العنوان والعدد بنص واحد ياخذ كل المساحة لحد زر الترتيب
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(children: [
+                                TextSpan(text: _selectedCategoryId == 0 ? 'كل التشكيلة' : _selectedCategoryName),
+                                if (shownCount > 0)
+                                  TextSpan(
+                                    text: '  $shownCount منتج',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: m.textHint),
+                                  ),
+                              ]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: m.ink),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _SortButton(sort: _sort, onTap: _pickSort),
+                        ],
                       ),
-                      if (shownCount > 0)
-                        Text('$shownCount منتج', style: TextStyle(fontSize: 12, color: m.textHint)),
+                      const SizedBox(height: 4),
+                      const _WholesaleLine(),
                     ],
                   ),
                 ),
@@ -647,24 +669,67 @@ class _TrustRow extends StatelessWidget {
   }
 }
 
-/// شريط أسعار الجملة (إطار متقطع)
-class _WholesaleNotice extends StatelessWidget {
-  const _WholesaleNotice();
+/// سطر الجملة الصغير تحت العنوان (بدل المربع المتقطع الكبير)
+class _WholesaleLine extends StatelessWidget {
+  const _WholesaleLine();
 
   @override
   Widget build(BuildContext context) {
     final m = context.modo;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-      child: CustomPaint(
-        painter: DashedRRectPainter(color: m.hintBorder, radius: 12),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(color: m.hintBg, borderRadius: BorderRadius.circular(12)),
-          child: Text(
-            '✨ أسعار جملة من 6 قطع – كل ما تزيدين ينزل سعر القطعة تلقائياً',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: m.hintText, height: 1.5),
+    return Text.rich(
+      TextSpan(children: [
+        const TextSpan(text: '✨ '),
+        TextSpan(text: 'جملة من 6 قطع', style: TextStyle(color: m.success, fontWeight: FontWeight.w900)),
+        const TextSpan(text: ': سعر القطعة ينزل تلقائياً'),
+      ]),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: m.hintText),
+    );
+  }
+}
+
+/// خيارات الترتيب: (الترتيب، الأيقونة، الاسم). الأيقونة منفصلة عن الكلام
+/// (بالآيفون الإيموجي ويه الكلام بنفس السطر كان يخفي "طلباً").
+const List<(HomeSort, String, String)> _kSorts = [
+  (HomeSort.bestSelling, '🔥', 'الأكثر طلباً'),
+  (HomeSort.newest, '✨', 'الأحدث'),
+  (HomeSort.cheapest, '💰', 'الأرخص'),
+  (HomeSort.bulkOffers, '🛍️', 'عروض الكمية'),
+];
+
+/// زر الترتيب الصغير يم العنوان: "⇅ الأكثر طلباً ▾"
+class _SortButton extends StatelessWidget {
+  const _SortButton({required this.sort, required this.onTap});
+
+  final HomeSort sort;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.modo;
+    final label = _kSorts.where((s) => s.$1 == sort).map((s) => s.$3).firstOrNull ?? 'ترتيب';
+    return Material(
+      color: m.surface,
+      shape: StadiumBorder(side: BorderSide(color: m.border)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(10, 5, 6, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.swap_vert_rounded, size: 16, color: AppColors.brand),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: m.textBody),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: m.textHint),
+            ],
           ),
         ),
       ),
@@ -672,62 +737,83 @@ class _WholesaleNotice extends StatelessWidget {
   }
 }
 
-/// إطار متقطع بزوايا دائرية
-class DashedRRectPainter extends CustomPainter {
-  const DashedRRectPainter({required this.color, this.radius = 12, this.dash = 5, this.gap = 4});
+/// قائمة الترتيب من جوه
+class _SortSheet extends StatelessWidget {
+  const _SortSheet({required this.current});
 
-  final Color color;
-  final double radius;
-  final double dash;
-  final double gap;
+  final HomeSort current;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)).deflate(0.5));
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        canvas.drawPath(metric.extractPath(d, d + dash), paint);
-        d += dash + gap;
-      }
-    }
+  Widget build(BuildContext context) {
+    final m = context.modo;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('ترتيب المنتجات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: m.ink)),
+            ),
+            for (final (sort, icon, label) in _kSorts)
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => Navigator.of(context).pop(sort),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: sort == current ? AppColors.brand.withValues(alpha: 0.14) : m.background,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(icon, style: const TextStyle(fontSize: 16)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: sort == current ? FontWeight.w900 : FontWeight.w600,
+                            color: sort == current ? AppColors.brand : m.ink,
+                          ),
+                        ),
+                      ),
+                      if (sort == current) const Icon(Icons.check_rounded, color: AppColors.brand),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(DashedRRectPainter oldDelegate) => oldDelegate.color != color;
 }
 
-/// الفئات (مع العدد) + الترتيب — تبقى ثابتة فوق وية التمرير
+/// الفئات (مع العدد) — تبقى ثابتة فوق وية التمرير (الترتيب صار زر يم العنوان)
 class _FiltersDelegate extends SliverPersistentHeaderDelegate {
   _FiltersDelegate({
     required this.categories,
     required this.total,
     required this.selectedId,
-    required this.sort,
     required this.onCategory,
-    required this.onSort,
   });
 
   final List<Map<String, dynamic>> categories;
   final int total;
   final int selectedId;
-  final HomeSort sort;
   final void Function(int id, String name) onCategory;
-  final ValueChanged<HomeSort> onSort;
 
-  static const double _height = 98;
-
-  static const _sorts = [
-    (HomeSort.bestSelling, '🔥 الأكثر طلباً'),
-    (HomeSort.newest, 'الأحدث'),
-    (HomeSort.cheapest, 'الأرخص'),
-    (HomeSort.bulkOffers, 'عروض الكمية'),
-  ];
+  /// صف الأقسام بس (كان 98 ويه صف الترتيب)
+  static const double _height = 54;
 
   @override
   double get minExtent => _height;
@@ -765,27 +851,6 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
-  Widget _sortChip(ModoColors m, String label, bool on, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-        decoration: BoxDecoration(
-          color: on ? m.pinkSoft : m.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: on ? m.pinkBorder : m.border),
-        ),
-        // سطر واحد دائماً: بالآيفون فرق تقريب صغير بقياس النص (ويه الإيموجي) كان ينزّل "طلباً" لسطر ثاني ينقص
-        child: Text(
-          label,
-          maxLines: 1,
-          softWrap: false,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? m.pink : m.textBody),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final m = context.modo;
@@ -795,7 +860,8 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
         color: m.page,
         border: Border(bottom: BorderSide(color: m.pick(const Color(0xFFF2F2F2), m.line))),
       ),
-      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      // 10 + 34 + 9 + خط 1 تحت = 54
+      padding: const EdgeInsets.only(top: 10, bottom: 9),
       child: Column(
         children: [
           SizedBox(
@@ -818,21 +884,6 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 28,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              children: [
-                Center(child: Text('ترتيب: ', style: TextStyle(fontSize: 12, color: m.textHint))),
-                for (final t in _sorts) ...[
-                  const SizedBox(width: 8),
-                  Center(child: _sortChip(m, t.$2, t.$1 == sort, () => onSort(t.$1))),
-                ],
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -840,5 +891,5 @@ class _FiltersDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_FiltersDelegate old) =>
-      old.sort != sort || old.selectedId != selectedId || old.categories != categories || old.total != total;
+      old.selectedId != selectedId || old.categories != categories || old.total != total;
 }
